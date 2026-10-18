@@ -2423,7 +2423,7 @@
         h("summary", {}, e || s ? "Modifier les dates" : "Renseigner les dates"), formulaire);
     }
 
-    return h("section", { class: "carte carte-large formation", "aria-label": "Formation" },
+    return h("section", { class: "formation formation-compacte", "aria-label": "Action de formation" },
       h("p", { class: "surtitre" }, "Action de formation"),
       h("div", { class: "formation-dates" },
         case_("Entrée officielle", e), h("span", { class: "formation-fleche", "aria-hidden": "true" }, "→"), case_("Sortie de formation", s),
@@ -2545,7 +2545,8 @@
     afficher(
       ...entete(),
       h("div", { class: "pile" },
-        h("div", {},
+        h("div", { class: "fiche-entete" },
+         h("div", { class: "fiche-identite" },
           h("p", { class: "surtitre" }, lienInterne(retour, "← Retour à la liste")),
           h("h1", {}, nomApprenant(a)),
           h("p", { class: "fiche-ecole" }, org.nom || "École non renseignée",
@@ -2556,6 +2557,7 @@
               ? pastille(couleur, jours === null ? "jamais contacté·e" : `${jours} j sans contact`)
               : pastille("neutre", LIBELLE_STATUT[a.statut]),
             " ", pastilleSortie(a))),
+         blocActionFormation(a, estAdmin, () => rafraichir("Dates de formation enregistrées."))),
 
         info ? message("info", info) : null,
         suivantId
@@ -2566,8 +2568,6 @@
         // à gauche les chiffres puis Suivi des appels / Coaching.
         // Sur téléphone, la colonne de droite passe en premier.
         h("div", { class: `fiche-grille${peutNoter ? "" : " fiche-grille-seule"}` },
-          h("div", { class: "fiche-formation" },
-            blocActionFormation(a, estAdmin, () => rafraichir("Dates de formation enregistrées."))),
           peutNoter
             ? h("aside", { class: "fiche-cote", "aria-label": "Situation personnelle et professionnelle" },
                 blocSituationPerso(a, situation.data, () => rafraichir("Situation personnelle enregistrée.")))

@@ -990,26 +990,45 @@ input:focus, select:focus, textarea:focus { border-color: var(--violet); }
 .email-entete { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.5rem 0.75rem; background: var(--fond-doux); border-radius: var(--rayon); }
 .email-entete p { margin: 0; overflow-wrap: anywhere; }
 
-/* ---------- Fiche apprenant : en-tête, puis formation à gauche et situation à droite ---------- */
+/* ---------- Fiche apprenant : en-tête (identité + action de formation en face), puis deux colonnes ---------- */
+.fiche-entete { display: flex; flex-direction: column; gap: 0.75rem; }
+.fiche-identite { min-width: 0; }
 .fiche-ecole { margin: 0.15rem 0 0; font-size: 1.1rem; font-weight: 600; }
 .fiche-diplome { margin: 0.1rem 0 0.4rem; font-family: var(--police-titre); font-size: 1.45rem; line-height: 1.2; color: var(--violet); }
-.formation-duree-bloc { margin-left: auto; text-align: right; }
+
+/* Action de formation : petit encadré */
+.formation-compacte {
+  border: 1px solid var(--filet); border-left: 3px solid var(--violet); border-radius: var(--rayon);
+  padding: 0.6rem 0.8rem; gap: 0.35rem; background: var(--fond); align-self: flex-start;
+}
+.formation-compacte .surtitre { font-size: 0.75rem; }
+.formation-compacte .formation-dates { gap: 0.4rem 0.7rem; align-items: flex-end; }
+.formation-compacte .formation-valeur { font-size: 0.95rem; font-weight: 600; }
+.formation-compacte .compteur-libelle { font-size: 0.75rem; }
+.formation-compacte .formation-fleche { font-size: 0.95rem; padding-bottom: 0.05rem; }
+.formation-compacte .formation-duree-bloc { margin-left: 0; text-align: left; padding-left: 0.6rem; border-left: 1px solid var(--filet); }
+.formation-compacte .formation-barre { height: 4px; }
+.formation-compacte .aide { font-size: 0.8rem; }
+.formation-compacte .formation-modifier summary { font-size: 0.8rem; }
+
 .fiche-grille {
   display: grid; gap: 1.25rem; align-items: start;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "formation" "cote" "principale";
+  grid-template-areas: "cote" "principale";
 }
-.fiche-formation { grid-area: formation; min-width: 0; }
 .fiche-cote { grid-area: cote; min-width: 0; }
 .fiche-principale { grid-area: principale; min-width: 0; }
 .fiche-cote .perso-grille { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .fiche-cote .deux-colonnes { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 48rem) {
+  .fiche-entete { flex-direction: row; justify-content: space-between; align-items: flex-start; gap: 1.5rem; }
+  .formation-compacte { flex: 0 0 auto; max-width: 24rem; margin-top: 1.6rem; }
+}
 @media (min-width: 64rem) {
   body.page-large .contenu, body.page-large.avec-menu .contenu { max-width: 78rem; }
-  .fiche-grille {
-    grid-template-columns: minmax(0, 1fr) 20rem;
-    grid-template-areas: "formation cote" "principale cote";
-  }
-  .fiche-grille-seule { grid-template-columns: minmax(0, 1fr); grid-template-areas: "formation" "principale"; }
+  .fiche-grille { grid-template-columns: minmax(0, 1fr) 20rem; grid-template-areas: "principale cote"; }
+  .fiche-grille-seule { grid-template-columns: minmax(0, 1fr); grid-template-areas: "principale"; }
   .fiche-cote { position: sticky; top: 1rem; }
 }
+.formation-compacte .editeur-examen { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 0.5rem; }
+.formation-compacte .editeur-examen button { grid-column: 1 / -1; justify-self: start; }
