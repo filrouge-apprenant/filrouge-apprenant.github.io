@@ -9,13 +9,14 @@
   <!-- Sécurité : la page ne charge du code que depuis elle-même et la bibliothèque Supabase,
        et ne parle qu'au projet Supabase de Fil Rouge Apprenants. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://cafcevtehuywovvsllvp.supabase.co wss://cafcevtehuywovvsllvp.supabase.co; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Cache-Control" content="no-cache">
   <meta name="referrer" content="no-referrer">
   <title>Fil Rouge Apprenants</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Instrument+Serif&display=swap">
-  <link rel="stylesheet" href="styles.css">
-  <script src="affichage.js"></script>
+  <link rel="stylesheet" href="styles.css?v=__VERSION__">
+  <script src="affichage.js?v=__VERSION__"></script>
 </head>
 <body>
   <header class="bandeau">
@@ -53,9 +54,9 @@
 
   <!-- Bibliothèque officielle Supabase, version figée. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-  <script src="config.js"></script>
-  <script src="import.js"></script>
-  <script src="contact.js"></script>
-  <script src="app.js"></script>
+  <script src="config.js?v=__VERSION__"></script>
+  <script src="import.js?v=__VERSION__"></script>
+  <script src="contact.js?v=__VERSION__"></script>
+  <script src="app.js?v=__VERSION__"></script>
 </body>
 </html>
