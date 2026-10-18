@@ -3670,22 +3670,29 @@
       if (window.location.hash !== cible) history.replaceState(null, "", cible);
     };
 
-    // Un formulaire par partie ; chacun n'enregistre que ses propres champs.
-    function formulairePartie(champs, valeurs, verifier) {
+    // Un formulaire par partie, avec deux façons d'enregistrer :
+    //  - « Enregistrer <partie> » (en haut à droite) : commentaire de cette partie seulement ;
+    //  - « Enregistrer » (en bas) : commentaire complet Stage + Examen + Projet + Organisation.
+    const NOM_PARTIE = { stage: "stage", examen: "examen", projet: "projet", organisation: "organisation" };
+    function formulairePartie(partie, champTete, autresChamps, valeurs, verifier) {
       const zone = h("div");
-      const bouton = h("button", { class: "bouton", type: "submit" }, "Enregistrer");
-      const form = h("form", { class: "formulaire", novalidate: true }, champs, zone, bouton);
-      form.addEventListener("submit", async (evenement) => {
-        evenement.preventDefault();
+      const boutonPartie = h("button", { class: "bouton bouton-secondaire bouton-petit bouton-partie", type: "button", title: "Enregistre et ajoute un commentaire avec seulement cette partie" }, `Enregistrer ${NOM_PARTIE[partie]}`);
+      const bouton = h("button", { class: "bouton", type: "submit", title: "Enregistre et met à jour le commentaire complet du coaching" }, "Enregistrer");
+      async function enregistrer(mode, b) {
         const probleme = verifier ? verifier() : null;
         if (probleme) return signaler(zone, "erreur", probleme);
         signaler(zone);
-        occupe(bouton, true, "Enregistrement…");
-        const { error } = await sb.from("coaching").upsert({ apprenant_id: a.id, organisme_id: a.organisme_id, ...valeurs() }, { onConflict: "apprenant_id" });
-        occupe(bouton, false);
+        occupe(b, true, "Enregistrement…");
+        const { error } = await sb.rpc("enregistrer_coaching", { p_apprenant: a.id, p_partie: partie, p_mode: mode, p_valeurs: valeurs() });
+        occupe(b, false);
         if (error) return signaler(zone, "erreur", texteErreur(error));
-        rafraichir("Coaching enregistré.");
-      });
+        rafraichir(mode === "partie" ? `Enregistré : commentaire « ${NOM_PARTIE[partie]} » ajouté.` : "Coaching enregistré : commentaire complet mis à jour.");
+      }
+      boutonPartie.addEventListener("click", () => enregistrer("partie", boutonPartie));
+      const form = h("form", { class: "formulaire", novalidate: true },
+        h("div", { class: "coaching-tete" }, h("div", { class: "coaching-tete-champ" }, champTete), boutonPartie),
+        autresChamps, zone, bouton);
+      form.addEventListener("submit", (evenement) => { evenement.preventDefault(); enregistrer("tout", bouton); });
       return h("div", { class: "carte carte-large" }, form);
     }
     const champLibre = (id, valeur, exemple) => {
@@ -3708,8 +3715,8 @@
       const debut = champTexte("co-stage-debut", "Début du stage", vide(f.stage_debut), { type: "date" });
       const fin = champTexte("co-stage-fin", "Fin du stage", vide(f.stage_fin), { type: "date" });
       const noteStage = champLibre("co-stage-note", f.stage_note, "Ex. : crèche Les Petits Pas à Lormont, tutrice Mme Martin, convention envoyée le 12/10…");
-      stage = formulairePartie([statut.bloc, h("div", { class: "deux-colonnes" }, debut.bloc, fin.bloc), noteStage.bloc],
-        () => ({ stage_statut: statut.champ.value, stage_debut: debut.champ.value || null, stage_fin: fin.champ.value || null, stage_note: texte(noteStage) }),
+      stage = formulairePartie("stage", statut.bloc, [h("div", { class: "deux-colonnes" }, debut.bloc, fin.bloc), noteStage.bloc],
+        () => ({ stage_statut: statut.champ.value, stage_debut: debut.champ.value, stage_fin: fin.champ.value, stage_note: noteStage.champ.value }),
         () => (debut.champ.value && fin.champ.value && fin.champ.value < debut.champ.value ? "La fin du stage est avant son début." : null));
     } else {
       stage = lecture([["Situation", LIBELLE_STAGE[f.stage_statut || "non_concerne"]],
@@ -3723,8 +3730,8 @@
       const metier = champTexte("co-projet-metier", "Métier visé", vide(f.projet_metier), { placeholder: "Ex. : auxiliaire de crèche" });
       const situation = champChoix("co-projet-situation", "Situation de l'élève", { "": "— Non renseignée —", ...LIBELLE_SITUATION }, f.projet_situation || "");
       const note = champTexte("co-projet-note", "Ce qui le motive, ses freins (visible par l'organisme)", vide(f.projet_note), { multiligne: true });
-      projet = formulairePartie([metier.bloc, situation.bloc, note.bloc],
-        () => ({ projet_metier: texte(metier), projet_situation: situation.champ.value || null, projet_note: texte(note) }));
+      projet = formulairePartie("projet", metier.bloc, [situation.bloc, note.bloc],
+        () => ({ projet_metier: metier.champ.value, projet_situation: situation.champ.value, projet_note: note.champ.value }));
     } else {
       projet = lecture([["Métier visé", f.projet_metier], ["Situation", f.projet_situation ? LIBELLE_SITUATION[f.projet_situation] : null], ["Motivation", f.projet_note]]);
     }
@@ -3739,8 +3746,8 @@
       const creneaux = champTexte("co-orga-creneaux", "Créneaux disponibles", vide(f.orga_creneaux), { placeholder: "Ex. : mardi et jeudi soir" });
       const objectif = champTexte("co-orga-objectif", "Objectif du mois", vide(f.orga_objectif), { placeholder: "Ex. : terminer les modules 4 et 5" });
       const noteOrga = champLibre("co-orga-note", f.orga_note, "Ex. : révise le soir après le travail, garde des enfants le mercredi…");
-      organisation = formulairePartie([h("div", { class: "deux-colonnes" }, heures.bloc, finVisee.bloc), creneaux.bloc, objectif.bloc, noteOrga.bloc],
-        () => ({ orga_heures_semaine: heures.champ.value === "" ? null : Number(heures.champ.value), orga_date_fin_visee: finVisee.champ.value || null, orga_creneaux: texte(creneaux), orga_objectif: texte(objectif), orga_note: texte(noteOrga) }),
+      organisation = formulairePartie("organisation", h("div", { class: "deux-colonnes" }, heures.bloc, finVisee.bloc), [creneaux.bloc, objectif.bloc, noteOrga.bloc],
+        () => ({ orga_heures_semaine: heures.champ.value, orga_date_fin_visee: finVisee.champ.value, orga_creneaux: creneaux.champ.value, orga_objectif: objectif.champ.value, orga_note: noteOrga.champ.value }),
         () => {
           const n = heures.champ.value === "" ? null : Number(heures.champ.value);
           return n !== null && (!Number.isInteger(n) || n < 0 || n > 60) ? "Heures par semaine : un nombre entier entre 0 et 60." : null;
@@ -3755,7 +3762,22 @@
     let examen;
     if (peutModifier) {
       const noteExamen = champLibre("co-examen-note", f.examen_note, "Ex. : convocation reçue, centre d'examen à Mérignac, stressée par l'oral…");
-      examen = h("div", { class: "pile" }, contenuExamen, formulairePartie([noteExamen.bloc], () => ({ examen_note: texte(noteExamen) })));
+      if (etat.profil?.role === "admin") {
+        // Date, présence, résultat et notes : un seul formulaire.
+        const date = champTexte("co-examen-date", "Date d'examen", vide(a.date_examen), { type: "date" });
+        const presence = champChoix("co-examen-presence", "Présence", { "": "À venir / inconnue", present: "Présent·e", absent: "Absent·e" }, a.presence_examen || "");
+        const resultat = champChoix("co-examen-resultat", "Résultat", { "": "Inconnu", reussi: "Réussi", echoue: "Échoué" }, a.resultat_examen || "");
+        const majResultat = () => { resultat.champ.disabled = presence.champ.value !== "present"; if (resultat.champ.disabled) resultat.champ.value = ""; };
+        presence.champ.addEventListener("change", majResultat);
+        majResultat();
+        examen = formulairePartie("examen", date.bloc, [h("div", { class: "deux-colonnes" }, presence.bloc, resultat.bloc), noteExamen.bloc],
+          () => ({ date_examen: date.champ.value, presence_examen: presence.champ.value, resultat_examen: resultat.champ.value, examen_note: noteExamen.champ.value }),
+          () => (!date.champ.value && presence.champ.value ? "Indiquez d'abord la date de l'examen." : null));
+      } else {
+        // Appelante : la date d'examen se lit, les notes s'écrivent.
+        examen = h("div", { class: "pile" }, contenuExamen,
+          formulairePartie("examen", noteExamen.bloc, [], () => ({ examen_note: noteExamen.champ.value })));
+      }
     } else {
       examen = h("div", { class: "pile" }, contenuExamen, f.examen_note ? lecture([["Notes", f.examen_note]]) : null);
     }

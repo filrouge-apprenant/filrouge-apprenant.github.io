@@ -1120,3 +1120,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--violet); }
 .onglets-coaching .carte { background: var(--coaching-fond); border-color: var(--coaching-trait); border-left: 3px solid var(--coaching-trait); }
 .onglets-coaching input, .onglets-coaching select, .onglets-coaching textarea { background: #f7fbff; border-color: var(--coaching-trait); }
 .onglets-coaching .onglet-fiche[aria-selected="true"] { background: var(--coaching-fond); border-color: var(--coaching-trait); color: var(--coaching-texte); }
+
+/* Coaching : premier champ + bouton « Enregistrer <partie> » à sa droite */
+.coaching-tete { display: flex; align-items: flex-end; gap: 0.75rem; }
+.coaching-tete-champ { flex: 1 1 auto; min-width: 0; }
+.bouton-partie { flex: 0 0 auto; white-space: nowrap; margin-bottom: 0.15rem; }
+@media (max-width: 30rem) { .coaching-tete { flex-direction: column; align-items: stretch; } }

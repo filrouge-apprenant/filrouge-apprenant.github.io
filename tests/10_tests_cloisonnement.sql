@@ -797,5 +797,49 @@ set local role anon;
 select tests.doit_etre_refuse($$select * from public.commentaires$$, 'visiteur non connecté : aucun commentaire');
 rollback;
 
+\echo '== 19. Coaching : enregistrer avec le commentaire complet ou seulement la partie'
+begin;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+set local role authenticated;
+select public.enregistrer_coaching('a1000000-0000-4000-8000-000000000004', 'stage', 'partie',
+  '{"stage_statut": "a_chercher", "stage_debut": "", "stage_fin": "", "stage_note": "Piste : crèche de Lormont"}');
+select tests.verifier(
+  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000004' and source = 'coaching') = 1
+  and (select contenu like 'Coaching · Stage%STAGE%crèche de Lormont%' and contenu not like '%PROJET%'
+         from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000004' and source = 'coaching'),
+  '« Enregistrer stage » : un seul commentaire, avec seulement le stage');
+select public.enregistrer_coaching('a1000000-0000-4000-8000-000000000004', 'projet', 'partie',
+  '{"projet_metier": "Comptable", "projet_situation": "reconversion", "projet_note": ""}');
+select public.enregistrer_coaching('a1000000-0000-4000-8000-000000000004', 'examen', 'partie',
+  '{"date_examen": "2027-01-15", "presence_examen": "", "resultat_examen": "", "examen_note": "Convoqué à Mérignac"}');
+select tests.verifier(
+  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000004' and source = 'coaching') = 3
+  and (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000004' and contenu like 'Coaching · Examen%Le 15/01/2027%Mérignac%' and contenu not like '%STAGE%') = 1,
+  '« Enregistrer examen » : un commentaire de plus, avec seulement l''examen');
+select public.enregistrer_coaching('a1000000-0000-4000-8000-000000000004', 'organisation', 'tout',
+  '{"orga_heures_semaine": "8", "orga_creneaux": "", "orga_objectif": "Module 3", "orga_date_fin_visee": "", "orga_note": ""}');
+select tests.verifier(
+  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000004' and source = 'coaching'
+     and contenu like 'Coaching%STAGE%EXAMEN%PROJET%ORGANISATION%Module 3%') = 1
+  and (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000004' and source = 'coaching') = 4,
+  '« Enregistrer » : commentaire complet ajouté, les commentaires par partie restent');
+select tests.doit_etre_refuse(
+  $$select public.enregistrer_coaching('a1000000-0000-4000-8000-000000000004', 'stage', 'partie', '{"stage_debut": "2026-12-10", "stage_fin": "2026-12-01"}')$$,
+  'stage incohérent : refusé');
+select tests.session('22222222-2222-4222-8222-222222222222');
+select tests.doit_etre_refuse(
+  $$select public.enregistrer_coaching('a1000000-0000-4000-8000-000000000004', 'stage', 'tout', '{}')$$,
+  'client : ne peut pas enregistrer de coaching');
+select tests.session('44444444-4444-4444-8444-444444444444');
+select public.enregistrer_coaching('a1000000-0000-4000-8000-000000000004', 'examen', 'partie',
+  '{"date_examen": "2030-01-01", "examen_note": "Appelante : rassurée"}');
+select tests.verifier(
+  (select date_examen = '2027-01-15' from public.vue_qui_rappeler where id = 'a1000000-0000-4000-8000-000000000004'),
+  'appelante : note d''examen enregistrée, mais la date d''examen reste réservée à l''administratrice');
+select tests.doit_etre_refuse(
+  $$select public.enregistrer_coaching('a1000000-0000-4000-8000-000000000002', 'stage', 'tout', '{}')$$,
+  'appelante : pas de coaching sur un apprenant non confié');
+rollback;
+
 \echo
 \echo 'TOUS LES TESTS SONT PASSÉS'
