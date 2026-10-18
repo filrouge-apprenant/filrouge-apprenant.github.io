@@ -7,6 +7,13 @@
    ============================================================================= */
 
 :root {
+  /* Couleurs des notes internes (ambre) et du coaching (bleu) : fil de commentaires, notes, coaching */
+  --note-fond: #fff4dc;
+  --note-trait: #c98a00;
+  --note-texte: #7a5200;
+  --coaching-fond: #e6f0fb;
+  --coaching-trait: #2f6fb3;
+  --coaching-texte: #1d4f86;
   color-scheme: only light;
 
   /* Couleurs : fond blanc, filets violet foncé et rose clair, texte noir.
@@ -1094,3 +1101,22 @@ input:focus, select:focus, textarea:focus { border-color: var(--violet); }
 
 .statut-fiche { display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem; }
 .statut-choix { font: inherit; padding: 0.2rem 0.4rem; border: 1px solid var(--filet); border-radius: var(--rayon); background: var(--fond); }
+
+/* ---------- Couleurs : notes internes (ambre) et coaching (bleu) ---------- */
+.commentaire-note_interne { background: var(--note-fond); border-left-color: var(--note-trait); }
+.commentaire-note_interne .commentaire-source { color: var(--note-texte); }
+.commentaire-coaching { background: var(--coaching-fond); border-left-color: var(--coaching-trait); }
+.commentaire-coaching .commentaire-source { color: var(--coaching-texte); }
+.filtre-source-note_interne[aria-pressed="true"] { background: var(--note-fond); border-color: var(--note-trait); color: var(--note-texte); }
+.filtre-source-coaching[aria-pressed="true"] { background: var(--coaching-fond); border-color: var(--coaching-trait); color: var(--coaching-texte); }
+.filtre-source-note_interne { border-left: 3px solid var(--note-trait); }
+.filtre-source-coaching { border-left: 3px solid var(--coaching-trait); }
+
+/* Saisie des notes internes */
+.zone-note-interne { background: var(--note-fond); border-color: var(--note-trait); border-left: 3px solid var(--note-trait); }
+.zone-note-interne textarea { background: #fffdf7; border-color: var(--note-trait); }
+
+/* Onglet Coaching : champs et encadrés en bleu */
+.onglets-coaching .carte { background: var(--coaching-fond); border-color: var(--coaching-trait); border-left: 3px solid var(--coaching-trait); }
+.onglets-coaching input, .onglets-coaching select, .onglets-coaching textarea { background: #f7fbff; border-color: var(--coaching-trait); }
+.onglets-coaching .onglet-fiche[aria-selected="true"] { background: var(--coaching-fond); border-color: var(--coaching-trait); color: var(--coaching-texte); }

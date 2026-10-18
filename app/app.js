@@ -2308,7 +2308,7 @@
       filtres.replaceChildren(...[["tous", "Tout"], ["manuel", "Commentaires"], ["appel", "Appels"], ["note_interne", "Notes"], ["coaching", "Coaching"]]
         .filter(([cle]) => cle === "tous" || compte(cle))
         .map(([cle, texte]) => {
-          const b = h("button", { type: "button", class: "filtre", "aria-pressed": String(cle === filtre) }, texte, h("span", { class: "filtre-nombre" }, String(compte(cle))));
+          const b = h("button", { type: "button", class: `filtre filtre-source-${cle}`, "aria-pressed": String(cle === filtre) }, texte, h("span", { class: "filtre-nombre" }, String(compte(cle))));
           b.addEventListener("click", () => { filtre = cle; dessiner(); });
           return b;
         }));
@@ -2590,7 +2590,7 @@
         const zone = h("div");
         const champNote = h("textarea", { rows: "4", maxlength: "4000", class: "commentaire-champ", placeholder: "Écrire une note interne… (jamais visible par l'organisme)", "aria-label": "Nouvelle note interne" });
         const bouton = h("button", { type: "submit", class: "bouton bouton-petit" }, "Ajouter la note");
-        const form = h("form", { class: "carte carte-large pile-serree", novalidate: true }, champNote, zone, h("div", { class: "actions-ligne" }, bouton));
+        const form = h("form", { class: "carte carte-large pile-serree zone-note-interne", novalidate: true }, champNote, zone, h("div", { class: "actions-ligne" }, bouton));
         form.addEventListener("submit", async (e) => {
           e.preventDefault();
           const texte = champNote.value.trim();
