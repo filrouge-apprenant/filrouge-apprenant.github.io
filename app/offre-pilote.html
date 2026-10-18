@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="only light">
   <!-- Page publique de vente (offre pilote). Aucun script extérieur ;
        le paiement se fait sur la page sécurisée de Stripe (lien dans config.js). -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://cafcevtehuywovvsllvp.supabase.co; base-uri 'self'; form-action 'self'">
   <meta http-equiv="Cache-Control" content="no-cache">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>Offre pilote — Suivi téléphonique de vos apprenants | Fil Rouge Apprenants</title>
@@ -85,10 +85,44 @@
       <p class="op-petit">En échange du tarif pilote : un témoignage de quelques lignes si vous êtes satisfait, et l'autorisation de citer les résultats chiffrés (anonymement si vous préférez).</p>
     </section>
 
-    <section class="op-bloc op-devis" aria-labelledby="op-surmesure">
+    <section class="op-bloc op-devis" id="devis" aria-labelledby="op-surmesure">
       <h2 id="op-surmesure">Plus de 20 apprenants, ou un besoin particulier ?</h2>
-      <p>CAP sur 12 mois, titre professionnel sur 6 mois, formation courte : le nombre d'appels s'adapte à la durée de la formation. Je vous fais un devis sur mesure.</p>
-      <a class="bouton bouton-secondaire op-lien-devis" href="mailto:contact.filrouge.apprenant@gmail.com?subject=Demande%20de%20devis%20%E2%80%94%20Fil%20Rouge%20Apprenants">Demander un devis</a>
+      <p>CAP sur 12 mois, titre professionnel sur 6 mois, formation courte : le nombre d'appels s'adapte à la durée de la formation. Décrivez votre besoin, je vous envoie une proposition sur mesure sous 48 h.</p>
+
+      <form id="devis-formulaire" class="op-formulaire" novalidate>
+        <label><span>Organisme de formation <span class="op-requis">obligatoire</span></span>
+          <input name="organisme" autocomplete="organization" maxlength="150" required></label>
+        <div class="op-deux">
+          <label><span>Votre nom <span class="op-requis">obligatoire</span></span>
+            <input name="nom" autocomplete="name" maxlength="120" required></label>
+          <label>Votre fonction
+            <input name="fonction" autocomplete="organization-title" maxlength="120"></label>
+        </div>
+        <div class="op-deux">
+          <label><span>Email <span class="op-requis">obligatoire</span></span>
+            <input name="email" type="email" inputmode="email" autocomplete="email" maxlength="200" required></label>
+          <label>Téléphone
+            <input name="telephone" type="tel" inputmode="tel" autocomplete="tel" maxlength="30"></label>
+        </div>
+        <div class="op-deux">
+          <label>Nombre d'apprenants à suivre
+            <input name="nb" type="number" inputmode="numeric" min="1" max="100000"></label>
+          <label>Formations concernées
+            <input name="formations" maxlength="500" placeholder="Ex. : CAP AEPE, TP Secrétaire assistant"></label>
+        </div>
+        <label>Votre besoin
+          <textarea name="message" rows="4" maxlength="3000" placeholder="Durée des formations, financement (CPF…), ce qui vous préoccupe…"></textarea></label>
+        <!-- Champ piège invisible : ne pas remplir -->
+        <div class="op-piege" aria-hidden="true"><label>Site web <input name="site" tabindex="-1" autocomplete="off"></label></div>
+        <p class="op-petit">Vos coordonnées servent uniquement à vous répondre au sujet de cette demande.</p>
+        <p id="devis-message" class="op-retour" role="status" hidden></p>
+        <button type="submit" class="bouton op-bouton">Demander un devis</button>
+      </form>
+
+      <div id="devis-merci" class="op-merci" hidden>
+        <h3>Merci, votre demande est bien reçue.</h3>
+        <p>Je reviens vers vous sous 48 h avec une proposition adaptée à vos formations.</p>
+      </div>
     </section>
 
     <footer class="op-pied">

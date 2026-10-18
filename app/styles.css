@@ -1258,3 +1258,11 @@ label.case input {
 .bandeau-impaye-mot { font-size: 1rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
 .bandeau-impaye-montant { font-size: 2.2rem; font-weight: 800; line-height: 1.1; }
 .bandeau-impaye-detail { font-size: 0.9rem; }
+
+/* --- Propositions commerciales (onglet Propositions de la fiche client) --- */
+.propo-tete { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+.propo-demande { border-color: var(--alerte-rouge); }
+.propo-demande-bloc { background: var(--fond-doux); border-left: 3px solid var(--fil); padding: 0.6rem 0.85rem; border-radius: var(--rayon); }
+.propo-demande-bloc p { margin: 0.15rem 0; }
+.propo-resume { margin: 0; font-weight: 700; color: var(--violet); }
+.propo a { overflow-wrap: anywhere; }

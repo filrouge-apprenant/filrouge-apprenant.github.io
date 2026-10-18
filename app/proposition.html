@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="only light">
+  <!-- Proposition personnelle d'un client (lien secret). Aucun script extérieur. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://cafcevtehuywovvsllvp.supabase.co; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Cache-Control" content="no-cache">
+  <meta name="referrer" content="no-referrer">
+  <title>Votre proposition — Fil Rouge Apprenants</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Instrument+Serif&display=swap">
+  <link rel="stylesheet" href="styles.css?v=__VERSION__">
+  <link rel="stylesheet" href="offre-pilote.css?v=__VERSION__">
+</head>
+<body>
+  <header class="bandeau">
+    <div class="bandeau-interieur">
+      <p class="marque">
+        <span class="marque-texte">Fil Rouge <span class="marque-sous">Apprenants</span></span>
+        <svg class="marque-fil" viewBox="0 0 320 64" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path d="M4 50 C 22 52, 30 44, 44 40 C 70 10, 170 2, 262 8 C 300 11, 316 24, 312 36 C 306 52, 250 60, 160 60 C 92 60, 30 57, 16 46 C 4 36, 10 16, 34 7"
+                fill="none" stroke="#c1121f" stroke-width="1.4" stroke-linecap="round" vector-effect="non-scaling-stroke" pathLength="1"/>
+        </svg>
+      </p>
+    </div>
+  </header>
+
+  <main class="op-page">
+    <p id="pr-chargement" class="op-haut">Chargement de votre proposition…</p>
+
+    <section id="pr-erreur" class="op-haut" hidden>
+      <h1>Proposition introuvable</h1>
+      <p class="op-chapo">Ce lien n'est pas valable ou la proposition n'est plus disponible. Écrivez-moi : <a href="mailto:contact.filrouge.apprenant@gmail.com">contact.filrouge.apprenant@gmail.com</a>.</p>
+    </section>
+
+    <div id="pr-contenu" hidden>
+      <section class="op-haut">
+        <p class="op-surtitre">Proposition pour <span id="pr-organisme"></span></p>
+        <h1 id="pr-titre"></h1>
+        <p id="pr-mot" class="op-chapo" hidden></p>
+      </section>
+
+      <section class="op-bloc op-prix" aria-labelledby="pr-tarif">
+        <h2 id="pr-tarif">Votre offre</h2>
+        <p class="op-montant"><span id="pr-montant"></span> <span>HT</span></p>
+        <p id="pr-detail" class="op-detail"></p>
+        <p id="pr-mensuel" class="op-remise" hidden></p>
+        <a id="pr-payer" class="bouton op-bouton" href="#" hidden>Accepter et payer en ligne</a>
+        <p id="pr-securite" class="op-securite" hidden>Paiement sécurisé par prélèvement sur RIB ou par carte bancaire.</p>
+        <p id="pr-payee" class="op-detail" hidden>Cette proposition est réglée. Merci !</p>
+        <p id="pr-sans-lien" class="op-securite" hidden>Le paiement en ligne sera ajouté très bientôt. Pour accepter, répondez simplement à mon email.</p>
+      </section>
+
+      <section id="pr-inclus-bloc" class="op-bloc" aria-labelledby="pr-inclus" hidden>
+        <h2 id="pr-inclus">Ce qui est inclus</h2>
+        <p id="pr-description" class="op-texte"></p>
+      </section>
+
+      <footer class="op-pied">
+        <p><strong>Fil Rouge Apprenants</strong> · Émilie Rachas</p>
+        <p><a href="mailto:contact.filrouge.apprenant@gmail.com">contact.filrouge.apprenant@gmail.com</a> · <a href="tel:+33617755617">06 17 75 56 17</a></p>
+      </footer>
+    </div>
+  </main>
+
+  <script src="config.js?v=__VERSION__"></script>
+  <script src="proposition.js?v=__VERSION__"></script>
+</body>
+</html>

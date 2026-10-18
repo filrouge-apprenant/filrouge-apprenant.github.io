@@ -699,6 +699,7 @@
     if (morceaux[0] === "preuves") return { nom: "preuves", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "eleves" && UUID.test(morceaux[1] || "")) return { nom: "eleves", id: morceaux[1] };
     if (morceaux[0] === "impayes") return { nom: "impayes" };
+    if (morceaux[0] === "devis") return { nom: "devis" };
     if (morceaux[0] === "satisfaction") return { nom: "satisfaction", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "coaching") return { nom: "coaching", type: morceaux[1] || "stage", id: UUID.test(morceaux[2] || "") ? morceaux[2] : null };
     return { nom: "accueil" };
@@ -728,6 +729,7 @@
     if (route.nom === "coaching") return ecranCoaching(route.type, route.id);
     if (route.nom === "satisfaction") return ecranSatisfaction(route.id);
     if (route.nom === "impayes") return ecranImpayes();
+    if (route.nom === "devis") return ecranDevis();
     if (route.nom === "prospection") return ecranProspection(route.etape);
     if (route.nom === "nouveau") return ecranNouvelOrganisme();
     if (route.nom === "organisme") return ecranOrganisme(route.id);
@@ -770,12 +772,14 @@
   async function accueilAdmin(profil) {
     afficher(navigationAdmin("accueil"), h("p", { class: "chargement" }, "Chargement du tableau de bord…"));
 
-    const [apprenants, suivi, relancesExamen, impayes] = await Promise.all([
+    const [apprenants, suivi, relancesExamen, impayes, demandesDevis] = await Promise.all([
       sb.from("vue_qui_rappeler").select("organisme_id, organisme_nom, alerte"),
       sb.from("organismes_suivi_commercial").select("organisme_id, etape, prochaine_relance"),
       sb.from("vue_relances_examen").select("id").not("etape_relance", "is", null).eq("relance_faite", false),
       chargerImpayes(),
+      sb.from("propositions").select("id", { count: "exact", head: true }).eq("statut", "demande"),
     ]);
+    const nbDemandesDevis = demandesDevis && !demandesDevis.error ? demandesDevis.count || 0 : 0;
     const totalImpayes = [...impayes.values()].reduce((t, m) => t + m, 0);
     if (apprenants.error || suivi.error || relancesExamen.error) {
       return afficher(navigationAdmin("accueil"), message("erreur", texteErreur(apprenants.error || suivi.error || relancesExamen.error)));
@@ -804,6 +808,13 @@
           h("p", { class: "chapo" }, "Vue d'ensemble de vos clients et de votre prospection.")
         ),
         h("p", { class: "bandeau-demo" }, "Construction en cours : les apprenants affichés sont fictifs."),
+
+        nbDemandesDevis
+          ? h("p", { class: "message message-action" },
+              h("strong", {}, pluriel(nbDemandesDevis, "nouvelle demande de devis", "nouvelles demandes de devis")),
+              " reçue(s) depuis le site. ",
+              lienInterne("devis", "Les voir"))
+          : null,
 
         totalImpayes
           ? h("p", { class: "message message-impaye" },
@@ -1021,7 +1032,7 @@
   async function ecranOrganisme(id) {
     afficher(navigationAdmin("prospection"), h("p", { class: "chargement" }, "Chargement de la fiche…"));
 
-    const [org, echanges, nbApprenants, apprenantsOrg, acces, impayesOrg] = await Promise.all([
+    const [org, echanges, nbApprenants, apprenantsOrg, acces, impayesOrg, demandesOrg] = await Promise.all([
       sb.from("organismes").select("id, nom, organismes_suivi_commercial ( * )").eq("id", id).maybeSingle(),
       sb.from("echanges_commerciaux").select("id, date_echange, canal, resume, cree_le").eq("organisme_id", id)
         .order("date_echange", { ascending: false }).order("cree_le", { ascending: false }),
@@ -1029,8 +1040,10 @@
       sb.from("apprenants").select("statut").eq("organisme_id", id),
       sb.rpc("acces_organisme", { p_organisme: id }),
       chargerImpayes(id),
+      sb.from("propositions").select("id", { count: "exact", head: true }).eq("organisme_id", id).eq("statut", "demande"),
     ]);
     const montantImpaye = impayesOrg.get(id) || 0;
+    const nbDemandes = demandesOrg && !demandesOrg.error ? demandesOrg.count || 0 : 0;
     const erreur = org.error || echanges.error || nbApprenants.error || apprenantsOrg.error || acces.error;
     if (erreur) return afficher(navigationAdmin("prospection"), message("erreur", texteErreur(erreur)));
     if (!org.data) return afficher(navigationAdmin("prospection"), message("info", "Cet organisme n'existe plus."), lienInterne("prospection", "← Retour à la prospection"));
@@ -1302,6 +1315,7 @@
       ["suivi", "Suivi commercial", panneauSuivi],
       ["eleves", `Élèves${nb(apprenantsCount)}`, panneauEleves],
       ["acces", `Accès plateforme${nb(comptes.length)}`, panneauAcces],
+      ["proposition", nbDemandes ? h("span", { class: "onglet-impaye" }, "Propositions", h("span", { class: "onglet-impaye-point", "aria-label": "nouvelle demande" })) : "Propositions", blocPropositions(org.data, s)],
       ["compta", montantImpaye ? h("span", { class: "onglet-impaye" }, "Comptabilité", h("span", { class: "onglet-impaye-point", "aria-label": "impayé" })) : "Comptabilité", blocComptabilite(org.data, s)],
     ], memoOrg.onglet, (cle) => {
       memoOrg.onglet = cle;
@@ -3917,13 +3931,14 @@
   async function chargerMenu() {
     if (!menuVisible()) return;
     await calculerEcheancesManquantes();
-    const [orgs, appr, urgents, avis, comptes, impayes] = await Promise.all([
+    const [orgs, appr, urgents, avis, comptes, impayes, devis] = await Promise.all([
       sb.from("organismes").select("id, nom, organismes_suivi_commercial ( etape )").order("nom"),
       sb.from("apprenants").select("organisme_id, statut"),
       sb.from("vue_qui_rappeler").select("id").eq("alerte", "rouge"),
       sb.from("satisfaction").select("id", { count: "exact", head: true }).not("repondu_le", "is", null).is("lu_le", null),
       sb.rpc("comptes_acces"),
       sb.from("vue_echeances").select("id", { count: "exact", head: true }).not("relance_due", "is", null),
+      sb.from("propositions").select("id", { count: "exact", head: true }).eq("statut", "demande"),
     ]);
     if (orgs.error || appr.error || urgents.error) return;
     const total = new Map();
@@ -3941,6 +3956,7 @@
       avis: avis.error ? 0 : avis.count || 0,
       // Accès à traiter : expirent bientôt, ou expirés mais encore actifs.
       impayes: impayes.error ? 0 : impayes.count || 0,
+      devis: devis.error ? 0 : devis.count || 0,
       acces: comptes.error ? 0 : comptes.data.filter((p) => ["bientot", "expire"].includes(etatCompte(p).code)).length,
     };
     const signature = JSON.stringify(donnees);
@@ -3973,7 +3989,8 @@
         lien("examens", "Relances d'examen"),
         lien("satisfaction", "Satisfaction", d.avis ? nombre(d.avis, true) : null),
         lien("acces", "Accès clients", d.acces ? nombre(d.acces, true) : null),
-        lien("impayes", "Impayés", d.impayes ? nombre(d.impayes, true) : null)),
+        lien("impayes", "Impayés", d.impayes ? nombre(d.impayes, true) : null),
+        lien("devis", "Demandes de devis", d.devis ? nombre(d.devis, true) : null)),
       groupe("prospects", "Prospects", [
         lien("prospection", "Tous les centres à démarcher"),
         lien("nouveau", "Ajouter un centre"),
@@ -4303,6 +4320,229 @@
     if (e.statut === "annulee") return pastille("neutre", "Annulée");
     if (e.statut === "en_retard") return pastille("rouge", `En retard de ${e.jours_retard} j`);
     return pastille("orange", `À payer avant le ${dateLisible(e.date_echeance)}`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Propositions commerciales (devis, offre pilote, sur mesure) et tunnel de vente
+  // ---------------------------------------------------------------------------
+
+  const STATUT_PROPOSITION = {
+    demande: ["rouge", "Nouvelle demande"],
+    brouillon: ["neutre", "Brouillon"],
+    envoyee: ["orange", "Envoyée, en attente de paiement"],
+    payee: ["vert", "Payée"],
+    refusee: ["neutre", "Refusée"],
+  };
+  const PAIEMENTS = { unique: "En une fois", mensuel: "Chaque mois (mensualités)" };
+
+  function lienPagePropo(p) {
+    return `${window.location.origin}${window.location.pathname.replace(/index\.html$/, "").replace(/\/?$/, "/")}proposition.html?p=${p.jeton}`;
+  }
+  function nombreFr(n) { return String(n).replace(".", ","); }
+  function lireNombre(champ) { return Number(String(champ.value).replace(",", ".").replace(/\s/g, "")) || 0; }
+
+  function blocPropositions(org, suivi) {
+    const zone = h("div", { class: "pile" }, h("p", { class: "chargement" }, "Chargement des propositions…"));
+
+    async function charger(info) {
+      const { data, error } = await sb.from("propositions").select("*").eq("organisme_id", org.id).order("cree_le", { ascending: false });
+      if (error) {
+        const pasEncore = /propositions|does not exist|schema cache/i.test(error.message || "");
+        return zone.replaceChildren(message(pasEncore ? "info" : "erreur", pasEncore ? "Les propositions ne sont pas encore activées dans la base." : texteErreur(error)));
+      }
+      const zoneNouvelle = h("div");
+      const nouvelle = h("button", { type: "button", class: "bouton bouton-petit" }, "+ Nouvelle proposition");
+      nouvelle.addEventListener("click", async () => {
+        occupe(nouvelle, true, "Création…");
+        const { error: e } = await sb.from("propositions").insert({
+          organisme_id: org.id, statut: "brouillon", nb_apprenants: 20, duree_mois: 2, appels_par_mois: 1, prix_appel: 20, montant_total: 800,
+        });
+        occupe(nouvelle, false);
+        if (e) return signaler(zoneNouvelle, "erreur", texteErreur(e));
+        charger("Proposition créée : complète-la ci-dessous.");
+      });
+      zone.replaceChildren(
+        info ? message("info", info) : "",
+        h("div", { class: "section-titre" }, h("h2", {}, "Propositions et paiement"), h("p", {}, pluriel(data.length, "proposition", "propositions"))),
+        h("p", { class: "aide" }, "Chaque proposition a son tarif, sa page à envoyer au client et son lien de paiement (prélèvement ou carte). Modifie ce que tu veux, puis recrée le lien : l'ancien ne fonctionne plus."),
+        h("div", { class: "actions-ligne" }, nouvelle), zoneNouvelle,
+        data.length ? data.map((p) => carteProposition(p, org, suivi, charger)) : message("info", "Aucune proposition pour cet organisme."));
+    }
+    charger();
+    return zone;
+  }
+
+  function carteProposition(p, org, suivi, recharger) {
+    const zoneMsg = h("div");
+    const titre = champTexte(`pr-titre-${p.id}`, "Titre de l'offre", p.titre);
+    const nb = champTexte(`pr-nb-${p.id}`, "Apprenants", p.nb_apprenants, { type: "number", inputmode: "numeric" });
+    const duree = champTexte(`pr-duree-${p.id}`, "Durée (mois)", p.duree_mois, { type: "number", inputmode: "numeric" });
+    const appels = champTexte(`pr-appels-${p.id}`, "Appels par mois et par apprenant", nombreFr(p.appels_par_mois), { inputmode: "decimal" });
+    const prix = champTexte(`pr-prix-${p.id}`, "Prix d'un appel (€ HT)", nombreFr(p.prix_appel), { inputmode: "decimal" });
+    const total = champTexte(`pr-total-${p.id}`, "Montant total (€ HT)", nombreFr(p.montant_total), { inputmode: "decimal", aide: "Calculé automatiquement ; tu peux le modifier (remise, forfait)." });
+    const paiement = champChoix(`pr-paiement-${p.id}`, "Paiement", PAIEMENTS, p.paiement);
+    const description = champTexte(`pr-desc-${p.id}`, "Ce qui est inclus (visible par le client)", p.description, { multiligne: true, placeholder: "Ex. : 1 appel par mois, aide à l'inscription à l'examen, rapport mensuel Qualiopi…" });
+    const mot = champTexte(`pr-mot-${p.id}`, "Petit mot au client (facultatif)", p.message_client, { multiligne: true });
+    const resume = h("p", { class: "propo-resume" });
+
+    const calculer = () => {
+      const t = lireNombre(nb.champ) * lireNombre(duree.champ) * lireNombre(appels.champ) * lireNombre(prix.champ);
+      total.champ.value = nombreFr(Math.round(t * 100) / 100);
+      majResume();
+    };
+    const majResume = () => {
+      const t = lireNombre(total.champ);
+      const d = Math.max(1, lireNombre(duree.champ));
+      const nbAppels = lireNombre(nb.champ) * lireNombre(duree.champ) * lireNombre(appels.champ);
+      resume.textContent = paiement.champ.value === "mensuel"
+        ? `${euros(t)} HT au total, soit ${euros(Math.round((t / d) * 100) / 100)} par mois pendant ${pluriel(d, "mois", "mois")}.`
+        : `${euros(t)} HT, payé en une fois${nbAppels ? ` (${pluriel(Math.round(nbAppels), "appel", "appels")}, soit ${euros(t / nbAppels)} l'appel)` : ""}.`;
+    };
+    [nb, duree, appels, prix].forEach((c) => c.champ.addEventListener("input", calculer));
+    [total.champ, paiement.champ].forEach((c) => c.addEventListener("input", majResume));
+    paiement.champ.addEventListener("change", majResume);
+    majResume();
+
+    const valeurs = () => ({
+      titre: titre.champ.value.trim() || "Suivi téléphonique de vos apprenants",
+      nb_apprenants: Math.max(1, Math.round(lireNombre(nb.champ))),
+      duree_mois: Math.min(36, Math.max(1, Math.round(lireNombre(duree.champ)))),
+      appels_par_mois: Math.max(0.5, lireNombre(appels.champ)),
+      prix_appel: Math.max(0, lireNombre(prix.champ)),
+      montant_total: Math.max(0, Math.round(lireNombre(total.champ) * 100) / 100),
+      paiement: paiement.champ.value,
+      description: description.champ.value.trim() || null,
+      message_client: mot.champ.value.trim() || null,
+      ...(p.statut === "demande" ? { statut: "brouillon" } : {}),
+    });
+    const enregistrer = async () => {
+      const v = valeurs();
+      const r = await sb.from("propositions").update(v).eq("id", p.id).select("*").single();
+      if (!r.error) Object.assign(p, r.data);
+      return r;
+    };
+
+    const bEnregistrer = h("button", { type: "button", class: "bouton bouton-petit" }, "Enregistrer");
+    bEnregistrer.addEventListener("click", async () => {
+      occupe(bEnregistrer, true, "Enregistrement…");
+      const { error } = await enregistrer();
+      occupe(bEnregistrer, false);
+      if (error) return signaler(zoneMsg, "erreur", texteErreur(error));
+      recharger("Proposition enregistrée.");
+    });
+
+    const bLien = h("button", { type: "button", class: "bouton bouton-petit" }, p.stripe_lien_url ? "Recréer le lien de paiement" : "Créer le lien de paiement");
+    bLien.addEventListener("click", async () => {
+      occupe(bLien, true, "Création du lien…");
+      const r = await enregistrer();
+      if (r.error) { occupe(bLien, false); return signaler(zoneMsg, "erreur", texteErreur(r.error)); }
+      const { error } = await sb.functions.invoke("stripe-proposition", { body: { action: "lien", proposition_id: p.id } });
+      occupe(bLien, false);
+      if (error) {
+        let texte = "Le lien n'a pas pu être créé. Réessaie dans un instant.";
+        try { const corps = await error.context.json(); if (corps && corps.erreur) texte = corps.erreur; } catch (e) { /* message par défaut */ }
+        return signaler(zoneMsg, "erreur", texte);
+      }
+      recharger("Lien de paiement créé. Il est déjà sur la page client.");
+    });
+
+    const pageClient = lienPagePropo(p);
+    const bEnvoyer = h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit" }, "Envoyer par email");
+    bEnvoyer.addEventListener("click", async () => {
+      if (!suivi.contact_email) return signaler(zoneMsg, "erreur", "Pas d'email de contact : complète-le dans l'onglet Suivi commercial.");
+      const r = await enregistrer();
+      if (r.error) return signaler(zoneMsg, "erreur", texteErreur(r.error));
+      const prenom = suivi.contact_nom ? " " + suivi.contact_nom.split(" ")[0] : "";
+      const texte = `Bonjour${prenom},\n\nComme convenu, voici ma proposition pour le suivi de vos apprenants : ${p.titre}.\n\n${pluriel(p.nb_apprenants, "apprenant", "apprenants")}, ${pluriel(p.duree_mois, "mois", "mois")}, ${nombreFr(p.appels_par_mois)} appel(s) par mois et par apprenant.\nMontant : ${euros(p.montant_total)} HT${p.paiement === "mensuel" ? `, soit ${euros(p.montant_total / p.duree_mois)} par mois` : ""}.\n\nVous trouverez le détail et le paiement en ligne (prélèvement ou carte) ici :\n${pageClient}\n\nJe reste disponible pour en parler.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants\n06 17 75 56 17`;
+      const boite = (window.FIL_ROUGE_CONFIG || {}).emailFilRouge || "";
+      window.open(window.FilRougeContact.lienGmail(suivi.contact_email, `Votre proposition — Fil Rouge Apprenants`, texte, boite), "_blank", "noopener");
+      if (p.statut !== "envoyee" && p.statut !== "payee") {
+        await sb.from("propositions").update({ statut: "envoyee", envoyee_le: new Date().toISOString() }).eq("id", p.id);
+        await insererEchange({ organisme_id: org.id, date_echange: aujourdhui(), canal: "email", resume: `Proposition envoyée : ${p.titre}, ${euros(p.montant_total)} HT.`, auteur_id: etat.profil.id });
+      }
+      recharger("Email ouvert dans Gmail. La proposition est notée « envoyée ».");
+    });
+
+    const statutBouton = (texte, statut, extra) => {
+      const b = h("button", { type: "button", class: "bouton-lien" }, texte);
+      b.addEventListener("click", async () => {
+        const { error } = await sb.from("propositions").update({ statut, ...(extra || {}) }).eq("id", p.id);
+        if (error) return signaler(zoneMsg, "erreur", texteErreur(error));
+        recharger();
+      });
+      return b;
+    };
+    const bSupprimer = h("button", { type: "button", class: "bouton-lien bouton-lien-danger" }, "Supprimer");
+    bSupprimer.addEventListener("click", async () => {
+      if (!window.confirm("Supprimer cette proposition ?")) return;
+      const { error } = await sb.from("propositions").delete().eq("id", p.id);
+      if (error) return signaler(zoneMsg, "erreur", texteErreur(error));
+      recharger("Proposition supprimée.");
+    });
+
+    const lienAJour = p.stripe_lien_url && Number(p.stripe_lien_montant) === Number(p.montant_total) && p.stripe_lien_paiement === p.paiement;
+    const [couleur, libelle] = STATUT_PROPOSITION[p.statut] || ["neutre", p.statut];
+
+    return h("section", { class: `carte carte-large pile-serree propo${p.statut === "demande" ? " propo-demande" : ""}` },
+      h("div", { class: "propo-tete" },
+        h("strong", {}, p.titre),
+        pastille(couleur, libelle)),
+      p.demande_le
+        ? h("div", { class: "propo-demande-bloc" },
+            h("p", { class: "surtitre" }, `Demande reçue le ${dateHeureComplete(p.demande_le)}`),
+            h("p", {}, [p.demande_nb_apprenants ? pluriel(p.demande_nb_apprenants, "apprenant", "apprenants") : null, p.demande_formations].filter(Boolean).join(" · ") || "Pas de précision"),
+            p.demande_message ? h("p", { class: "texte-libre" }, p.demande_message) : null)
+        : null,
+      titre.bloc,
+      h("div", { class: "deux-colonnes" }, nb.bloc, duree.bloc),
+      h("div", { class: "deux-colonnes" }, appels.bloc, prix.bloc),
+      h("div", { class: "deux-colonnes" }, total.bloc, paiement.bloc),
+      resume,
+      description.bloc,
+      mot.bloc,
+      zoneMsg,
+      h("div", { class: "actions-ligne" }, bEnregistrer, p.statut !== "payee" ? bLien : null, bEnvoyer),
+      p.stripe_lien_url
+        ? h("p", { class: lienAJour ? "aide" : "message message-impaye" },
+            lienAJour ? "Lien de paiement : " : "Le montant ou le mode de paiement a changé : recrée le lien. Ancien lien : ",
+            h("a", { href: p.stripe_lien_url, target: "_blank", rel: "noopener" }, p.stripe_lien_url))
+        : h("p", { class: "aide" }, "Pas encore de lien de paiement."),
+      h("p", { class: "aide" }, "Page à envoyer au client : ", h("a", { href: pageClient, target: "_blank", rel: "noopener" }, "voir la page"), " · ",
+        (() => { const b = h("button", { type: "button", class: "bouton-lien" }, "copier le lien"); b.addEventListener("click", async () => { try { await navigator.clipboard.writeText(pageClient); b.textContent = "lien copié ✓"; } catch (e) { window.prompt("Lien à copier :", pageClient); } }); return b; })()),
+      p.paiement === "mensuel" ? h("p", { class: "aide" }, `Paiement mensuel : pense à arrêter l'abonnement dans Stripe après ${pluriel(p.duree_mois, "mensualité", "mensualités")}.`) : null,
+      h("div", { class: "actions-secondaires" },
+        p.statut !== "payee" ? statutBouton("Marquer payée", "payee", { payee_le: new Date().toISOString() }) : statutBouton("Annuler « payée »", "envoyee", { payee_le: null }),
+        p.statut !== "refusee" && p.statut !== "payee" ? statutBouton("Refusée", "refusee") : null,
+        bSupprimer));
+  }
+
+  // Page « Demandes de devis » : les demandes reçues depuis le site, à traiter.
+  async function ecranDevis() {
+    afficher(h("p", { class: "chargement" }, "Chargement des demandes…"));
+    const { data, error } = await sb.from("propositions")
+      .select("id, organisme_id, statut, demande_le, demande_nb_apprenants, demande_formations, demande_message, montant_total, titre, organismes ( nom, organismes_suivi_commercial ( contact_nom, contact_email, contact_telephone ) )")
+      .not("demande_le", "is", null)
+      .order("demande_le", { ascending: false });
+    if (error) return afficher(message("erreur", texteErreur(error)));
+    const ligne = (p) => {
+      const o = p.organismes || {};
+      const s = o.organismes_suivi_commercial || {};
+      const [couleur, libelle] = STATUT_PROPOSITION[p.statut] || ["neutre", p.statut];
+      return h("li", { class: "ligne" },
+        h("span", { class: "ligne-titre" }, lienInterne(`organisme/${p.organisme_id}/proposition`, o.nom || "Organisme")),
+        h("span", { class: "pastilles" }, pastille(couleur, libelle)),
+        h("span", { class: "ligne-detail" }, [dateHeureComplete(p.demande_le), s.contact_nom, s.contact_email, s.contact_telephone,
+          p.demande_nb_apprenants ? pluriel(p.demande_nb_apprenants, "apprenant", "apprenants") : null, p.demande_formations].filter(Boolean).join(" · ")),
+        p.demande_message ? h("span", { class: "ligne-detail texte-libre" }, p.demande_message) : null);
+    };
+    const aTraiter = data.filter((p) => p.statut === "demande");
+    const autres = data.filter((p) => p.statut !== "demande");
+    afficher(h("div", { class: "pile" },
+      h("div", {}, h("p", { class: "surtitre" }, "Tunnel de vente"), h("h1", {}, "Demandes de devis"),
+        h("p", { class: "chapo" }, "Les demandes envoyées depuis la page Offre pilote. Chaque demande crée la fiche de l'organisme ; ouvre-la pour préparer la proposition et le lien de paiement.")),
+      h("section", {}, h("div", { class: "section-titre" }, h("h2", {}, "À traiter"), h("p", {}, String(aTraiter.length))),
+        aTraiter.length ? h("ul", { class: "liste" }, aTraiter.map(ligne)) : message("info", "Aucune nouvelle demande.")),
+      autres.length ? h("section", {}, h("div", { class: "section-titre" }, h("h2", {}, "Déjà traitées")), h("ul", { class: "liste" }, autres.map(ligne))) : null));
   }
 
   function blocComptabilite(org, suivi) {
