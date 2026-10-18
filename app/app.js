@@ -2200,7 +2200,11 @@
         h("button", { type: "button", class: "puce", onclick: () => { dateSuite.champ.value = ajouterJours(aujourdhui(), n); } }, texte)),
       h("button", { type: "button", class: "puce", onclick: () => { dateSuite.champ.value = ""; suite.champ.value = ""; } }, "Aucune"));
     const conseil = h("div");
-    const bouton = h("button", { class: "bouton", type: "submit" }, "Enregistrer l'appel");
+    const commentaireAppel = champTexte("appel-commentaire", "Commentaire de l'appel (interne, jamais visible par l'organisme)", "", {
+      multiligne: true, placeholder: "Ce qui s'est dit, ce qu'il faut retenir pour le prochain appel…",
+    });
+    const bouton = h("button", { class: "bouton", type: "submit", title: "Range l'appel dans l'historique et le publie dans les commentaires" }, "Enregistrer");
+    const boutonHistorique = h("button", { class: "bouton bouton-secondaire", type: "button", title: "Range l'appel dans l'historique sans rien publier dans les commentaires" }, "Historique seulement");
 
     // Propositions automatiques tant que la personne n'a rien tapé.
     const toucheParUtilisateur = new Set();
@@ -2219,6 +2223,7 @@
     const formulaire = h("form", { novalidate: true, class: "formulaire" },
       h("div", { class: "groupe" }, h("p", { class: "etiquette" }, "Statut de l'appel"), choixResultat),
       conseil,
+      options.sansNotes ? commentaireAppel.bloc : null,
       options.sansNotes ? null : noteClient.bloc,
       options.sansNotes ? null : noteInterne.bloc,
       h("div", { class: "deux-colonnes" }, suite.bloc, dateSuite.bloc),
@@ -2226,31 +2231,45 @@
       h("details", { class: "depliant" },
         h("summary", {}, "Canal, date et heure"),
         h("div", { class: "deux-colonnes" }, canal.bloc, quand.bloc)),
-      zone, bouton);
+      zone,
+      h("div", { class: "actions-ligne" }, bouton, boutonHistorique),
+      h("p", { class: "aide" }, "« Enregistrer » range l'appel dans l'historique et le publie dans les commentaires. « Historique seulement » le range sans le publier."));
 
-    formulaire.addEventListener("submit", async (evenement) => {
-      evenement.preventDefault();
+    async function envoyer(publier, b) {
       const choisis = statuts.valeurs();
       if (!choisis.length) return signaler(zone, "erreur", "Choisissez au moins un statut.");
       const date = quand.champ.value ? new Date(quand.champ.value) : new Date();
       if (Number.isNaN(date.getTime())) return signaler(zone, "erreur", "La date et l'heure ne sont pas valables.");
       if (date.getTime() > Date.now() + 10 * 60000) return signaler(zone, "erreur", "La date de l'appel ne peut pas être dans le futur.");
       signaler(zone);
-      occupe(bouton, true, "Enregistrement…");
-      const { error } = await sb.rpc("noter_appel_statuts", {
-        p_apprenant: apprenant.id,
-        p_statuts: choisis,
-        p_canal: canal.champ.value,
-        p_date_appel: date.toISOString(),
-        p_note_client: options.sansNotes ? "" : noteClient.champ.value,
-        p_note_interne: options.sansNotes ? "" : noteInterne.champ.value,
-        p_prochaine_action: suite.champ.value,
-        p_date_prochaine_action: dateSuite.champ.value || null,
-      });
-      occupe(bouton, false);
+      occupe(b, true, "Enregistrement…");
+      const { error } = options.sansNotes
+        ? await sb.rpc("enregistrer_appel", {
+            p_apprenant: apprenant.id,
+            p_statuts: choisis,
+            p_commentaire: commentaireAppel.champ.value,
+            p_prochaine_action: suite.champ.value,
+            p_date_prochaine_action: dateSuite.champ.value || null,
+            p_canal: canal.champ.value,
+            p_date_appel: date.toISOString(),
+            p_publier: publier,
+          })
+        : await sb.rpc("noter_appel_statuts", {
+            p_apprenant: apprenant.id,
+            p_statuts: choisis,
+            p_canal: canal.champ.value,
+            p_date_appel: date.toISOString(),
+            p_note_client: noteClient.champ.value,
+            p_note_interne: noteInterne.champ.value,
+            p_prochaine_action: suite.champ.value,
+            p_date_prochaine_action: dateSuite.champ.value || null,
+          });
+      occupe(b, false);
       if (error) return signaler(zone, "erreur", texteErreur(error));
-      apresEnregistrement();
-    });
+      apresEnregistrement(publier);
+    }
+    formulaire.addEventListener("submit", (evenement) => { evenement.preventDefault(); envoyer(true, bouton); });
+    boutonHistorique.addEventListener("click", () => envoyer(false, boutonHistorique));
     return formulaire;
   }
 
@@ -2287,7 +2306,7 @@
       appel.prochaine_action || appel.date_prochaine_action
         ? h("span", { class: "ligne-detail" }, "Suite : ", [appel.prochaine_action, appel.date_prochaine_action ? `le ${dateLisible(appel.date_prochaine_action)}` : null].filter(Boolean).join(" "))
         : null,
-      noteInterne ? h("div", { class: "ligne-detail note-interne" }, h("strong", {}, "Note interne · "), noteInterne, " ",
+      noteInterne ? h("div", { class: "ligne-detail note-interne" }, h("strong", {}, "Commentaire (interne) · "), noteInterne, " ",
         peutSupprimer ? boutonEffacer(async () => {
           const r = await sb.from("notes_internes").delete().eq("appel_id", appel.id);
           if (!r.error) apresSuppression();
@@ -2948,7 +2967,13 @@
       ? h("section", { class: "pile-serree" },
           h("div", { class: "section-titre" }, h("h2", {}, "Statut de l'appel"), h("p", {}, "Résultat, suite prévue et date de la suite")),
           h("p", { class: "aide" }, "Le compte rendu pour l'organisme et les notes internes s'écrivent dans leurs onglets."),
-          h("div", { class: "carte carte-large" }, formulaireAppel(a, () => rafraichir("Appel enregistré. Le compteur repart à zéro."), { sansNotes: true })))
+          h("div", { class: "carte carte-large" }, formulaireAppel(a, (publie) => rafraichir(publie
+            ? "Appel enregistré et publié dans les commentaires. Le compteur repart à zéro."
+            : "Appel rangé dans l'historique (non publié). Le compteur repart à zéro."), { sansNotes: true })),
+          h("div", { class: "section-titre" }, h("h2", {}, "Historique"), h("p", {}, pluriel(appels.data.length, "contact", "contacts"))),
+          appels.data.length
+            ? h("ul", { class: "liste" }, appels.data.map(ligneHisto))
+            : message("info", "Aucun appel pour l'instant."))
       : null;
     const panneauHistorique = h("section", { class: "pile-serree" },
       h("div", { class: "section-titre" }, h("h2", {}, "Historique d'appels"), h("p", {}, pluriel(appels.data.length, "contact", "contacts"))),

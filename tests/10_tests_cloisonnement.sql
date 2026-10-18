@@ -720,17 +720,16 @@ rollback;
 begin;
 select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
 set local role authenticated;
-select tests.verifier(
-  (select count(*) from public.commentaires where source = 'appel') = (select count(*) from public.appels),
-  'reprise : un commentaire par appel déjà saisi');
+insert into public.commentaires (apprenant_id, organisme_id, contenu)
+values ('a1000000-0000-4000-8000-000000000002', 'a0000000-0000-4000-8000-000000000001', 'Commentaire sur un élève non confié');
 select tests.verifier(
   (select count(*) from public.commentaires
     where apprenant_id not in ('a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000003', 'a1000000-0000-4000-8000-000000000004')) > 0,
   'jeu d''essai : des commentaires existent sur des apprenants non confiés à l''appelante');
 select public.noter_appel('a1000000-0000-4000-8000-000000000001', 'joint', 'telephone', now(), 'Point fait, module 4 en cours', 'Fatiguée, garde alternée', 'Rappeler', current_date + 7);
 select tests.verifier(
-  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000001' and source = 'appel' and contenu like 'Appel · Joint·e%module 4%') = 1,
-  'appel noté : commentaire automatique avec le compte rendu');
+  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000001' and source = 'appel' and contenu like '%module 4%') = 0,
+  'appel noté hors onglet Statut : rien publié automatiquement dans le fil');
 select tests.verifier(
   (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000001' and source = 'note_interne' and contenu = 'Fatiguée, garde alternée') = 1,
   'note interne : commentaire automatique');
@@ -1017,12 +1016,39 @@ select tests.verifier(
   (select resultat = 'messagerie' and statuts = array['repondeur', 'email_envoye', 'suivi_15'] from public.appels where id = :'id_a'),
   'répondeur + email envoyé : plusieurs statuts, résultat « message laissé »');
 select tests.verifier(
-  (select count(*) from public.commentaires where contenu like 'Appel · Répondeur · Email envoyé · Suivi 15 jours%') = 1,
-  'commentaire automatique avec tous les statuts');
+  (select count(*) from public.commentaires where contenu like 'Appel · Répondeur · Email envoyé · Suivi 15 jours%') = 0,
+  'statuts : rien publié automatiquement dans le fil');
 select public.noter_appel_statuts(p_apprenant => 'a1000000-0000-4000-8000-000000000004', p_statuts => array['joint', 'email_envoye']) as id_b \gset
 select tests.verifier((select resultat = 'joint' from public.appels where id = :'id_b'), 'joint + email envoyé : compte comme contact abouti');
 select tests.doit_etre_refuse($$select public.noter_appel_statuts(p_apprenant => 'a1000000-0000-4000-8000-000000000004', p_statuts => array['inconnu'])$$, 'statut inconnu : refusé');
 select tests.doit_etre_refuse($$select public.noter_appel_statuts(p_apprenant => 'a1000000-0000-4000-8000-000000000004', p_statuts => array[]::text[])$$, 'aucun statut : refusé');
+rollback;
+
+\echo '== 24. Onglet Statut : publier dans les commentaires seulement sur « Enregistrer »'
+begin;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+set local role authenticated;
+select public.enregistrer_appel('a1000000-0000-4000-8000-000000000004', array['repondeur', 'sms_envoye'], 'Laissé un message, rappeler mardi', 'Rappeler', current_date + 2, 'telephone', now() - interval '2 minutes', false) as id_h \gset
+select tests.verifier(
+  (select count(*) from public.appels where id = :'id_h' and statuts = array['repondeur', 'sms_envoye']) = 1
+  and (select count(*) from public.notes_internes where appel_id = :'id_h' and contenu = 'Laissé un message, rappeler mardi') = 1,
+  '« Historique seulement » : appel et commentaire rangés dans l''historique');
+select tests.verifier(
+  (select count(*) from public.commentaires where contenu like '%rappeler mardi%') = 0,
+  '« Historique seulement » : rien dans le fil de commentaires');
+select public.enregistrer_appel('a1000000-0000-4000-8000-000000000004', array['joint', 'suivi_15'], 'Motivée, module 3 fini', 'Suivi 15 jours', current_date + 15) as id_p \gset
+select tests.verifier(
+  (select count(*) from public.commentaires where source = 'appel' and contenu like 'Appel · Joint·e · Suivi 15 jours%Motivée, module 3 fini%Suite : Suivi 15 jours le%') = 1
+  and (select count(*) from public.commentaires where contenu like '%Motivée, module 3 fini%') = 1,
+  '« Enregistrer » : un seul commentaire publié (statuts + commentaire + suite)');
+select tests.verifier((select resultat = 'joint' from public.appels where id = :'id_p'), '« Enregistrer » : contact abouti compté');
+select tests.session('22222222-2222-4222-8222-222222222222');
+select tests.doit_etre_refuse($$select public.enregistrer_appel('a1000000-0000-4000-8000-000000000004', array['joint'])$$, 'client : ne peut pas enregistrer d''appel');
+select tests.verifier((select count(*) from public.notes_internes) = 0, 'client : ne lit pas le commentaire d''appel (interne)');
+select tests.session('44444444-4444-4444-8444-444444444444');
+select public.enregistrer_appel('a1000000-0000-4000-8000-000000000004', array['joint'], 'Par l''appelante');
+select tests.verifier((select count(*) from public.commentaires where contenu like '%Par l''appelante%') = 1, 'appelante : enregistre et publie pour son apprenant confié');
+select tests.doit_etre_refuse($$select public.enregistrer_appel('a1000000-0000-4000-8000-000000000002', array['joint'])$$, 'appelante : pas d''appel pour un apprenant non confié');
 rollback;
 
 \echo
