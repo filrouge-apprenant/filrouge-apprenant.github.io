@@ -2282,6 +2282,7 @@
     appel: ["📞", "Appel"],
     note_interne: ["🔒", "Note interne"],
     coaching: ["🎯", "Coaching"],
+    compte_rendu: ["📄", "Compte rendu organisme"],
   };
 
   function blocCommentaires(a, liste) {
@@ -2305,7 +2306,7 @@
     }
     function dessiner() {
       const compte = (src) => commentaires.filter((c) => src === "tous" || c.source === src).length;
-      filtres.replaceChildren(...[["tous", "Tout"], ["manuel", "Commentaires"], ["appel", "Appels"], ["note_interne", "Notes"], ["coaching", "Coaching"]]
+      filtres.replaceChildren(...[["tous", "Tout"], ["manuel", "Commentaires"], ["appel", "Appels"], ["note_interne", "Notes"], ["coaching", "Coaching"], ["compte_rendu", "Comptes rendus"]]
         .filter(([cle]) => cle === "tous" || compte(cle))
         .map(([cle, texte]) => {
           const b = h("button", { type: "button", class: `filtre filtre-source-${cle}`, "aria-pressed": String(cle === filtre) }, texte, h("span", { class: "filtre-nombre" }, String(compte(cle))));
@@ -2510,7 +2511,7 @@
     const entete = () => (estAdmin ? [navigationAdmin("rappels")] : []);
     afficher(...entete(), h("p", { class: "chargement" }, "Chargement de la fiche…"));
 
-    const [apprenant, appels, coaching, situation, commentaires] = await Promise.all([
+    const [apprenant, appels, coaching, situation, commentaires, comptesRendus] = await Promise.all([
       sb.from("apprenants")
         .select("id, organisme_id, appelante_id, identifiant_externe, prenom, nom, telephone, email, parcours, date_inscription, date_entree_formation, date_sortie_formation, avancement_pct, derniere_connexion, statut, date_dernier_contact, cree_le, date_examen, presence_examen, resultat_examen, organismes ( nom, seuil_vert_jours, seuil_orange_jours )")
         .eq("id", id).maybeSingle(),
@@ -2526,8 +2527,9 @@
       peutNoter
         ? sb.from("commentaires").select("id, source, contenu, cree_le, auteur_nom").eq("apprenant_id", id).order("cree_le", { ascending: false }).limit(300)
         : Promise.resolve({ data: [], error: null }),
+      sb.from("comptes_rendus").select("id, contenu, cree_le, auteur_nom").eq("apprenant_id", id).order("cree_le", { ascending: false }),
     ]);
-    const erreur = apprenant.error || appels.error || coaching.error || situation.error || commentaires.error;
+    const erreur = apprenant.error || appels.error || coaching.error || situation.error || commentaires.error || comptesRendus.error;
     if (erreur) return afficher(...entete(), message("erreur", texteErreur(erreur)));
     const retourParDefaut = estAdmin ? (apprenant.data ? `eleves/${apprenant.data.organisme_id}` : "rappels") : "";
     if (!apprenant.data) {
@@ -2610,30 +2612,76 @@
             c.auteur_nom ? h("p", { class: "commentaire-auteur" }, c.auteur_nom) : null)))
         : message("info", "Aucune note interne pour l'instant."));
 
-    // --- Compte rendu pour l'organisme : exactement ce que voit le client ---
-    const avecCompteRendu = appels.data.filter((ap) => ap.note_client || ap.prochaine_action);
+    // --- Compte rendu pour l'organisme : ce que voit le client ---
+    // Comptes rendus écrits ici (avec le dernier coaching ou le dernier appel en un clic)
+    // + comptes rendus des appels, du plus récent au plus ancien.
+    const texteAppel = (ap) => [
+      `${dateLisible(ap.date_appel.slice(0, 10))} · ${LIBELLE_CANAL_APPEL[ap.canal] || ap.canal} · ${LIBELLE_RESULTAT_APPEL[ap.resultat] || ap.resultat}`,
+      ap.note_client || "",
+      ap.prochaine_action || ap.date_prochaine_action ? `Suite : ${[ap.prochaine_action, ap.date_prochaine_action ? `le ${dateLisible(ap.date_prochaine_action)}` : null].filter(Boolean).join(" ")}` : "",
+    ].filter(Boolean).join("\n");
+    const elements = [
+      ...comptesRendus.data.map((cr) => ({ type: "ecrit", date: cr.cree_le, cr })),
+      ...appels.data.filter((ap) => ap.note_client || ap.prochaine_action).map((ap) => ({ type: "appel", date: ap.date_appel, ap })),
+    ].sort((x, y) => y.date.localeCompare(x.date));
     const texteCompteRendu = () => [
       `Compte rendu de suivi — ${nomApprenant(a)}${a.parcours ? ` (${a.parcours})` : ""}`, "",
-      ...avecCompteRendu.slice().reverse().map((ap) => [
-        `${dateLisible(ap.date_appel.slice(0, 10))} · ${LIBELLE_CANAL_APPEL[ap.canal] || ap.canal} · ${LIBELLE_RESULTAT_APPEL[ap.resultat] || ap.resultat}`,
-        ap.note_client || "",
-        ap.prochaine_action || ap.date_prochaine_action ? `Suite : ${[ap.prochaine_action, ap.date_prochaine_action ? `le ${dateLisible(ap.date_prochaine_action)}` : null].filter(Boolean).join(" ")}` : "",
-      ].filter(Boolean).join("\n")),
+      ...elements.slice().reverse().map((el) => el.type === "appel" ? texteAppel(el.ap) : `${dateLisible(el.date.slice(0, 10))} · Compte rendu\n${el.cr.contenu}`),
     ].join("\n\n");
-    const copierCompteRendu = h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit" }, "Copier le compte rendu");
+    const copierCompteRendu = h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit" }, "Copier tout le suivi");
     copierCompteRendu.addEventListener("click", () => copier(texteCompteRendu(), copierCompteRendu));
+
+    let redaction = null;
+    if (peutNoter) {
+      const zone = h("div");
+      const champCR = h("textarea", { rows: "8", maxlength: "6000", class: "commentaire-champ", placeholder: `Écrire le compte rendu pour ${org.nom || "l'organisme"}…`, "aria-label": "Compte rendu pour l'organisme" });
+      const inserer = (texte) => {
+        champCR.value = [champCR.value.trim(), texte].filter(Boolean).join("\n\n");
+        champCR.focus();
+      };
+      // Dernier commentaire coaching (bandeau de droite) et dernier appel.
+      const dernierCoaching = (commentaires.data || []).find((c) => c.source === "coaching");
+      const dernierAppel = appels.data[0];
+      const boutonCoaching = h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit bouton-coaching", disabled: dernierCoaching ? null : true }, "＋ Dernier commentaire coaching");
+      boutonCoaching.addEventListener("click", () => inserer(dernierCoaching.contenu.replace(/^Coaching( · [^\n]*)?\n\n/, "")));
+      const boutonAppel = h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit", disabled: dernierAppel ? null : true }, "＋ Dernier appel");
+      boutonAppel.addEventListener("click", () => inserer(texteAppel(dernierAppel)));
+      const publier = h("button", { type: "submit", class: "bouton" }, "Publier pour l'organisme");
+      redaction = h("form", { class: "carte carte-large pile-serree", novalidate: true },
+        h("div", { class: "actions-ligne" }, boutonCoaching, boutonAppel),
+        champCR, zone,
+        h("div", { class: "actions-ligne" }, publier),
+        h("p", { class: "aide" }, `Publié, il est visible tout de suite par ${org.nom || "l'organisme"} et s'ajoute à tes commentaires. Ne mets jamais ici ce qui relève des notes internes.`));
+      redaction.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const texte = champCR.value.trim();
+        if (!texte) return signaler(zone, "erreur", "Le compte rendu est vide.");
+        occupe(publier, true, "Publication…");
+        const { error } = await sb.from("comptes_rendus").insert({ apprenant_id: a.id, organisme_id: a.organisme_id, contenu: texte });
+        occupe(publier, false);
+        if (error) return signaler(zone, "erreur", texteErreur(error));
+        rafraichir("Compte rendu publié pour l'organisme.");
+      });
+    }
+
     const panneauCompteRendu = h("section", { class: "pile-serree" },
-      h("div", { class: "section-titre" }, h("h2", {}, "Compte rendu pour l'organisme"), h("p", {}, pluriel(avecCompteRendu.length, "compte rendu", "comptes rendus"))),
-      h("p", { class: "aide" }, peutNoter ? `C'est exactement ce que ${org.nom || "l'organisme"} voit dans son espace. Les notes internes n'y figurent jamais.` : "Les comptes rendus des appels de suivi, du plus récent au plus ancien."),
-      avecCompteRendu.length && peutNoter ? h("div", { class: "actions-ligne" }, copierCompteRendu) : null,
-      avecCompteRendu.length
-        ? h("ul", { class: "liste" }, avecCompteRendu.map((ap) => h("li", { class: "ligne ligne-echange" },
-            h("span", { class: "ligne-titre" }, dateHeureComplete(ap.date_appel)),
-            h("span", { class: "pastilles" }, pastille(COULEUR_RESULTAT_APPEL[ap.resultat] || "neutre", LIBELLE_RESULTAT_APPEL[ap.resultat] || ap.resultat)),
-            ap.note_client ? h("span", { class: "ligne-detail texte-libre" }, ap.note_client) : null,
-            ap.prochaine_action || ap.date_prochaine_action
-              ? h("span", { class: "ligne-detail" }, "Suite : ", [ap.prochaine_action, ap.date_prochaine_action ? `le ${dateLisible(ap.date_prochaine_action)}` : null].filter(Boolean).join(" "))
-              : null)))
+      h("div", { class: "section-titre" }, h("h2", {}, "Compte rendu pour l'organisme"), h("p", {}, pluriel(elements.length, "élément", "éléments"))),
+      redaction,
+      elements.length && peutNoter ? h("div", { class: "actions-ligne" }, copierCompteRendu) : null,
+      elements.length
+        ? h("ul", { class: "liste" }, elements.map((el) => el.type === "ecrit"
+            ? h("li", { class: "ligne ligne-echange" },
+                h("span", { class: "ligne-titre" }, dateHeureComplete(el.cr.cree_le)),
+                h("span", { class: "pastilles" }, pastille("vert", "Compte rendu")),
+                h("span", { class: "ligne-detail texte-libre" }, el.cr.contenu),
+                el.cr.auteur_nom ? h("span", { class: "ligne-detail aide" }, el.cr.auteur_nom) : null)
+            : h("li", { class: "ligne ligne-echange" },
+                h("span", { class: "ligne-titre" }, dateHeureComplete(el.ap.date_appel)),
+                h("span", { class: "pastilles" }, pastille(COULEUR_RESULTAT_APPEL[el.ap.resultat] || "neutre", LIBELLE_RESULTAT_APPEL[el.ap.resultat] || el.ap.resultat)),
+                el.ap.note_client ? h("span", { class: "ligne-detail texte-libre" }, el.ap.note_client) : null,
+                el.ap.prochaine_action || el.ap.date_prochaine_action
+                  ? h("span", { class: "ligne-detail" }, "Suite : ", [el.ap.prochaine_action, el.ap.date_prochaine_action ? `le ${dateLisible(el.ap.date_prochaine_action)}` : null].filter(Boolean).join(" "))
+                  : null)))
         : message("info", "Aucun compte rendu pour l'instant."));
 
     // --- Onglets en haut de la fiche ---
@@ -2662,6 +2710,7 @@
          ["compte-rendu", "Compte rendu organisme", panneauCompteRendu],
          ["coaching", "Coaching", panneauCoaching]]
       : [["fiche", "Fiche", panneauFiche],
+         ["compte-rendu", `Comptes rendus${nb(comptesRendus.data.length)}`, panneauCompteRendu],
          ["historique", `Historique d'appels${nb(appels.data.length)}`, panneauHistorique],
          ["coaching", "Coaching", panneauCoaching]];
     const ongletsFiche = barreOnglets("fiche", listeOnglets,

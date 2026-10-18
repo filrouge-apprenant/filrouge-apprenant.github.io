@@ -1126,3 +1126,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--violet); }
 .coaching-tete-champ { flex: 1 1 auto; min-width: 0; }
 .bouton-partie { flex: 0 0 auto; white-space: nowrap; margin-bottom: 0.15rem; }
 @media (max-width: 30rem) { .coaching-tete { flex-direction: column; align-items: stretch; } }
+
+.commentaire-compte_rendu { border-left-color: var(--alerte-vert); background: var(--alerte-vert-fond); }
+.bouton-coaching { border-color: var(--coaching-trait); color: var(--coaching-texte); }

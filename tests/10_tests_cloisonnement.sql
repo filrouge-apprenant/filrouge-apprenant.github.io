@@ -841,5 +841,38 @@ select tests.doit_etre_refuse(
   'appelante : pas de coaching sur un apprenant non confié');
 rollback;
 
+\echo '== 20. Comptes rendus pour l''organisme'
+begin;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+set local role authenticated;
+insert into public.comptes_rendus (apprenant_id, organisme_id, contenu, auteur_id, cree_le)
+values ('a1000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000002', 'Point du mois : module 4 terminé.', '44444444-4444-4444-8444-444444444444', '2020-01-01');
+select tests.verifier(
+  (select organisme_id = 'a0000000-0000-4000-8000-000000000001' and auteur_id = '11111111-1111-4111-8111-111111111111' and cree_le > now() - interval '1 minute'
+     from public.comptes_rendus where contenu = 'Point du mois : module 4 terminé.'),
+  'compte rendu : bon dossier, auteur et heure réels imposés par la base');
+select tests.verifier(
+  (select count(*) from public.commentaires where source = 'compte_rendu' and contenu = 'Point du mois : module 4 terminé.') = 1,
+  'compte rendu : copié dans le fil de commentaires interne');
+select tests.session('22222222-2222-4222-8222-222222222222');
+select tests.verifier((select count(*) from public.comptes_rendus) = 1, 'client Horizon : lit le compte rendu de SON apprenant');
+select tests.doit_etre_refuse(
+  $$insert into public.comptes_rendus (apprenant_id, organisme_id, contenu) values ('a1000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001', 'x')$$,
+  'client : ne peut pas écrire de compte rendu');
+select tests.session('33333333-3333-4333-8333-333333333333');
+select tests.verifier((select count(*) from public.comptes_rendus) = 0, 'client Boréal : ne voit pas les comptes rendus d''Horizon');
+select tests.session('44444444-4444-4444-8444-444444444444');
+insert into public.comptes_rendus (apprenant_id, organisme_id, contenu) values ('a1000000-0000-4000-8000-000000000003', 'a0000000-0000-4000-8000-000000000001', 'Stage trouvé.');
+select tests.verifier((select count(*) from public.comptes_rendus) = 2, 'appelante : écrit un compte rendu pour son apprenante confiée');
+select tests.doit_etre_refuse(
+  $$insert into public.comptes_rendus (apprenant_id, organisme_id, contenu) values ('a1000000-0000-4000-8000-000000000002', 'a0000000-0000-4000-8000-000000000001', 'x')$$,
+  'appelante : pas de compte rendu pour un apprenant non confié');
+rollback;
+
+begin;
+set local role anon;
+select tests.doit_etre_refuse($$select * from public.comptes_rendus$$, 'visiteur non connecté : aucun compte rendu');
+rollback;
+
 \echo
 \echo 'TOUS LES TESTS SONT PASSÉS'
