@@ -1196,3 +1196,22 @@ label.case input {
 .menu-statuts-option { display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.5rem; border-radius: var(--rayon); cursor: pointer; }
 .menu-statuts-option:hover { background: var(--rose); }
 .menu-statuts-option input { width: 1.1rem; height: 1.1rem; accent-color: var(--violet); }
+
+/* Échanges avec un organisme : sous-onglets par canal (pastilles) */
+.onglets-canaux .barre-onglets { border-bottom: none; gap: 0.5rem; flex-wrap: wrap; overflow: visible; }
+.onglets-canaux .onglet-fiche {
+  font-family: var(--police-texte);
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 0.45rem 1rem;
+  border: 1px solid var(--filet);
+  border-radius: 999px;
+  margin: 0;
+  color: var(--texte);
+}
+.onglets-canaux .onglet-fiche:hover { border-color: var(--violet); }
+.onglets-canaux .onglet-fiche[aria-selected="true"] { background: var(--rose); border-color: var(--violet); color: var(--violet); }
+.onglets-canaux .panneau-onglet { padding-top: 1rem; }
+.onglets-canaux .carte form, .onglets-canaux .carte { gap: 0.9rem; }
+.bouton-inactif { opacity: 0.5; }
+.note-echange { background: var(--fond-doux); }

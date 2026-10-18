@@ -620,7 +620,18 @@
   const COULEUR_ETAPE = {
     prospect: "neutre", contacte: "orange", test_gratuit: "orange", client: "vert", perdu: "neutre",
   };
-  const CANAUX = { email: "Email", telephone: "Téléphone", linkedin: "LinkedIn", visio: "Visio", autre: "Autre" };
+  const CANAUX = { email: "Email", telephone: "Téléphone", whatsapp: "WhatsApp", sms: "SMS", linkedin: "LinkedIn", visio: "Visio", autre: "Autre" };
+
+  // Enregistre un échange commercial. Si la base ne connaît pas encore le canal
+  // (WhatsApp, SMS avant leur ajout), l'échange est rangé dans « Autre » avec
+  // le nom du canal en tête : rien n'est perdu.
+  async function insererEchange(ligne) {
+    const r = await sb.from("echanges_commerciaux").insert(ligne);
+    if (r.error && /canal_echange/.test(r.error.message || "") && ligne.canal !== "autre") {
+      return sb.from("echanges_commerciaux").insert({ ...ligne, canal: "autre", resume: `${CANAUX[ligne.canal] || ligne.canal} : ${ligne.resume}` });
+    }
+    return r;
+  }
   const FORMULES = { "": "—", "30": "Jusqu'à 30 apprenants (590 €/mois)", "80": "Jusqu'à 80 apprenants (990 €/mois)", "150": "Jusqu'à 150 apprenants (1 490 €/mois)", sur_devis: "Sur devis" };
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -1061,7 +1072,7 @@
       if (!resume.champ.value.trim()) return signaler(zoneEchange, "erreur", "Décrivez l'échange en une phrase.");
       signaler(zoneEchange);
       occupe(boutonEchange, true, "Ajout…");
-      const { error } = await sb.from("echanges_commerciaux").insert({
+      const { error } = await insererEchange({
         organisme_id: id,
         date_echange: dateEchange.champ.value || aujourdhui(),
         canal: canal.champ.value,
@@ -1162,10 +1173,14 @@
         apprenantsCount ? h("a", { href: `#/preuves/${id}`, class: "bouton bouton-secondaire bouton-petit" }, "Dossier de preuves Qualiopi") : null),
       apprenantsCount ? null : message("info", "Aucun élève pour l'instant : importe le fichier envoyé par ce client."));
 
-    // --- Onglet Historique des échanges ---
-    const panneauEchanges = h("section", { class: "pile-serree" },
-      h("div", { class: "section-titre" }, h("h2", {}, "Historique des échanges"), h("p", {}, pluriel(echanges.data.length, "échange", "échanges"))),
-      h("div", { class: "carte carte-large" }, formulaireEchange),
+    // --- Onglet Échanges : contacter par canal (Email, Téléphone, WhatsApp, SMS), puis noter ---
+    const panneauEchanges = h("section", { class: "pile" },
+      h("div", { class: "section-titre" }, h("h2", {}, "Échanges"), h("p", {}, pluriel(echanges.data.length, "échange", "échanges"))),
+      blocCanauxOrganisme(org.data, s, () => ecranOrganisme(id)),
+      h("details", { class: "carte carte-large depliant" },
+        h("summary", {}, "Noter un autre échange (visio, LinkedIn, rendez-vous…)"),
+        formulaireEchange),
+      h("div", { class: "section-titre" }, h("h2", {}, "Historique"), h("p", {}, pluriel(echanges.data.length, "échange", "échanges"))),
       historique);
 
     // --- Onglet Suivi commercial ---
@@ -1214,7 +1229,7 @@
       const t = texteRapide.value.trim();
       if (!t) return;
       occupe(publierRapide, true, "…");
-      const { error } = await sb.from("echanges_commerciaux").insert({ organisme_id: id, date_echange: aujourdhui(), canal: canalRapide.value, resume: t, auteur_id: etat.profil.id });
+      const { error } = await insererEchange({ organisme_id: id, date_echange: aujourdhui(), canal: canalRapide.value, resume: t, auteur_id: etat.profil.id });
       occupe(publierRapide, false);
       if (error) return signaler(zoneRapide, "erreur", texteErreur(error));
       ecranOrganisme(id);
@@ -1241,7 +1256,7 @@
     const nb = (n) => (n ? ` (${n})` : "");
     const ongletsOrg = barreOnglets("organisme", [
       ["fiche", "Fiche", panneauFiche],
-      ["echanges", `Historique des échanges${nb(echanges.data.length)}`, panneauEchanges],
+      ["echanges", `Échanges${nb(echanges.data.length)}`, panneauEchanges],
       ["suivi", "Suivi commercial", panneauSuivi],
       ["eleves", `Élèves${nb(apprenantsCount)}`, panneauEleves],
       ["acces", `Accès plateforme${nb(comptes.length)}`, panneauAcces],
@@ -4164,7 +4179,7 @@
       boutons.push(b);
       panneaux.push(h("div", { role: "tabpanel", id: `panneau-${nom}-${cle}`, "aria-labelledby": `onglet-${nom}-${cle}`, class: "panneau-onglet" }, contenuPanneau));
     });
-    const barre = h("div", { role: "tablist", class: "barre-onglets", "aria-label": nom === "fiche" ? "Parties de la fiche" : "Coaching" }, boutons);
+    const barre = h("div", { role: "tablist", class: "barre-onglets", "aria-label": options.libelle || (nom === "fiche" ? "Parties de la fiche" : "Coaching") }, boutons);
     const bloc = options.separe
       ? h("div", { class: `onglets-fiche onglets-${nom}` }, panneaux)
       : h("div", { class: `onglets-fiche onglets-${nom}` }, barre, panneaux);
@@ -4176,6 +4191,152 @@
       panneaux[i].hidden = c !== depart;
     });
     return bloc;
+  }
+
+
+  // ===========================================================================
+  // ÉCHANGES AVEC UN ORGANISME : un sous-onglet par canal
+  // ===========================================================================
+  // Email    : fenêtre Gmail de la boîte Fil Rouge, déjà remplie.
+  // Téléphone: lance l'appel (tel:) depuis l'appareil utilisé.
+  // WhatsApp : ouvre la conversation (WhatsApp Web sur ordinateur).
+  // SMS      : ouvre l'application SMS (téléphone).
+  // Après chaque action : « Noter dans l'historique », déjà rempli.
+  // Un nouveau canal = une entrée de plus dans CANAUX_CONTACT.
+  // ===========================================================================
+
+  const CANAUX_CONTACT = [
+    ["email", "📧 Email"],
+    ["telephone", "📞 Téléphone"],
+    ["whatsapp", "💬 WhatsApp"],
+    ["sms", "✉️ SMS"],
+  ];
+  let canalOrganismeMemo = "email";
+
+  function blocCanauxOrganisme(org, suivi, apresNote) {
+    const C = window.FilRougeContact;
+    const boite = (window.FIL_ROUGE_CONFIG || {}).emailFilRouge || "";
+    const surIphone = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const prenomContact = (suivi.contact_nom || "").trim().split(" ")[0];
+    const salutation = `Bonjour${prenomContact ? " " + prenomContact : ""},`;
+    const signature = "Émilie Rachas\nFil Rouge Apprenants";
+
+    // Note rapide dans l'historique, proposée après l'action.
+    function noter(zone, canal, texteParDefaut) {
+      const champ = h("textarea", { class: "commentaire-champ", rows: "2", "aria-label": "Résumé de l'échange" });
+      champ.value = texteParDefaut;
+      const ok = h("button", { type: "button", class: "bouton bouton-petit" }, "Ajouter à l'historique");
+      const non = h("button", { type: "button", class: "bouton-lien" }, "Pas maintenant");
+      const retour = h("div");
+      non.addEventListener("click", () => zone.replaceChildren());
+      ok.addEventListener("click", async () => {
+        if (!champ.value.trim()) return signaler(retour, "erreur", "Écris l'échange en une phrase.");
+        occupe(ok, true, "Ajout…");
+        const { error } = await insererEchange({ organisme_id: org.id, date_echange: aujourdhui(), canal, resume: champ.value.trim(), auteur_id: etat.profil.id });
+        occupe(ok, false);
+        if (error) return signaler(retour, "erreur", texteErreur(error));
+        apresNote();
+      });
+      zone.replaceChildren(h("div", { class: "carte carte-large pile-serree note-echange" },
+        h("p", { class: "aide" }, "C'est fait ? Note-le dans l'historique (modifiable) :"),
+        champ, retour, h("div", { class: "actions-ligne" }, ok, non)));
+      champ.focus();
+    }
+
+    const champNumero = (prefixe, libelle) => champTexte(`${prefixe}-numero`, libelle, suivi.contact_telephone || "", { type: "tel", inputmode: "tel", placeholder: "06 12 34 56 78" });
+    const champMessage = (prefixe, texte) => {
+      const c = champTexte(`${prefixe}-message`, "Message (modifiable)", texte, { multiligne: true });
+      c.champ.rows = 6;
+      return c;
+    };
+    const sansContact = (quoi) => h("p", { class: "aide" }, `Pas de ${quoi} enregistré pour ce contact : tape-le ici, ou complète-le dans l'onglet Suivi commercial.`);
+
+    // --- Email ---
+    const zoneEmail = h("div");
+    const dest = champTexte("canal-email-dest", "Destinataire", suivi.contact_email || "", { type: "email", inputmode: "email" });
+    const objet = champTexte("canal-email-objet", "Objet", `Fil Rouge Apprenants — ${org.nom}`);
+    const corpsEmail = champMessage("canal-email", `${salutation}\n\n\n\nBelle journée,\n${signature}`);
+    const ouvrirEmail = h("a", { class: "bouton", target: "_blank", rel: "noopener" }, "Ouvrir dans Gmail (boîte Fil Rouge)");
+    const majEmail = () => {
+      const lien = C.lienGmail(dest.champ.value, objet.champ.value, corpsEmail.champ.value, boite);
+      if (lien) ouvrirEmail.setAttribute("href", lien); else ouvrirEmail.removeAttribute("href");
+      ouvrirEmail.classList.toggle("bouton-inactif", !lien);
+    };
+    [dest, objet, corpsEmail].forEach((c) => c.champ.addEventListener("input", majEmail));
+    majEmail();
+    ouvrirEmail.addEventListener("click", (e) => {
+      if (!ouvrirEmail.getAttribute("href")) { e.preventDefault(); return signaler(zoneEmail, "erreur", "Indique une adresse email valable."); }
+      noter(zoneEmail, "email", `Email envoyé : ${objet.champ.value.trim()}`);
+    });
+    const panneauEmail = h("div", { class: "carte carte-large pile-serree" },
+      suivi.contact_email ? null : sansContact("email"),
+      h("p", { class: "aide" }, `L'email part de ${boite || "la boîte Fil Rouge"}, avec ta signature.`),
+      dest.bloc, objet.bloc, corpsEmail.bloc,
+      h("div", { class: "actions-ligne" }, ouvrirEmail), zoneEmail);
+
+    // --- Téléphone ---
+    const zoneTel = h("div");
+    const numTel = champNumero("canal-tel", "Numéro à appeler");
+    const appeler = h("a", { class: "bouton" }, "📞 Appeler");
+    const majTel = () => {
+      const n = numTel.champ.value.replace(/[^\d+]/g, "");
+      if (n.length >= 6) appeler.setAttribute("href", `tel:${n}`); else appeler.removeAttribute("href");
+      appeler.textContent = n.length >= 6 ? `📞 Appeler · ${numTel.champ.value.trim()}` : "📞 Appeler";
+    };
+    numTel.champ.addEventListener("input", majTel);
+    majTel();
+    appeler.addEventListener("click", (e) => {
+      if (!appeler.getAttribute("href")) { e.preventDefault(); return signaler(zoneTel, "erreur", "Indique un numéro de téléphone."); }
+      noter(zoneTel, "telephone", "Appel : ");
+    });
+    const panneauTel = h("div", { class: "carte carte-large pile-serree" },
+      suivi.contact_telephone ? null : sansContact("téléphone"),
+      h("p", { class: "aide" }, "L'appel part de l'appareil sur lequel tu cliques : ton téléphone, ou ton ordinateur s'il est relié à un téléphone. Quand tu auras ta ligne pro, il suffira d'appeler depuis ce téléphone."),
+      numTel.bloc, h("div", { class: "actions-ligne" }, appeler), zoneTel);
+
+    // --- WhatsApp ---
+    const zoneWa = h("div");
+    const numWa = champNumero("canal-wa", "Numéro WhatsApp");
+    const messageWa = champMessage("canal-wa", `${salutation}\n\n\n\n${signature}`);
+    const ouvrirWa = h("a", { class: "bouton", target: "_blank", rel: "noopener" }, "💬 Ouvrir WhatsApp");
+    const majWa = () => {
+      const lien = C.lienWhatsApp(numWa.champ.value, messageWa.champ.value);
+      if (lien) ouvrirWa.setAttribute("href", lien); else ouvrirWa.removeAttribute("href");
+    };
+    [numWa, messageWa].forEach((c) => c.champ.addEventListener("input", majWa));
+    majWa();
+    ouvrirWa.addEventListener("click", (e) => {
+      if (!ouvrirWa.getAttribute("href")) { e.preventDefault(); return signaler(zoneWa, "erreur", "Indique un numéro de téléphone."); }
+      noter(zoneWa, "whatsapp", "Message WhatsApp envoyé : ");
+    });
+    const panneauWa = h("div", { class: "carte carte-large pile-serree" },
+      suivi.contact_telephone ? null : sansContact("téléphone"),
+      h("p", { class: "aide" }, "Sur ordinateur, s'ouvre dans WhatsApp Web ; sur téléphone, dans l'application. Le message est déjà écrit, il ne reste qu'à l'envoyer."),
+      numWa.bloc, messageWa.bloc, h("div", { class: "actions-ligne" }, ouvrirWa), zoneWa);
+
+    // --- SMS ---
+    const zoneSms = h("div");
+    const numSms = champNumero("canal-sms", "Numéro");
+    const messageSms = champMessage("canal-sms", `${salutation} \n\nÉmilie, Fil Rouge Apprenants`);
+    const ouvrirSms = h("a", { class: "bouton" }, "✉️ Ouvrir les SMS");
+    const majSms = () => {
+      const lien = C.lienSms(numSms.champ.value, messageSms.champ.value, surIphone);
+      if (lien) ouvrirSms.setAttribute("href", lien); else ouvrirSms.removeAttribute("href");
+    };
+    [numSms, messageSms].forEach((c) => c.champ.addEventListener("input", majSms));
+    majSms();
+    ouvrirSms.addEventListener("click", (e) => {
+      if (!ouvrirSms.getAttribute("href")) { e.preventDefault(); return signaler(zoneSms, "erreur", "Indique un numéro de téléphone."); }
+      noter(zoneSms, "sms", "SMS envoyé : ");
+    });
+    const panneauSms = h("div", { class: "carte carte-large pile-serree" },
+      suivi.contact_telephone ? null : sansContact("téléphone"),
+      h("p", { class: "aide" }, "Fonctionne depuis un téléphone (sur ordinateur, seulement s'il est relié à un téléphone)."),
+      numSms.bloc, messageSms.bloc, h("div", { class: "actions-ligne" }, ouvrirSms), zoneSms);
+
+    const panneaux = { email: panneauEmail, telephone: panneauTel, whatsapp: panneauWa, sms: panneauSms };
+    return barreOnglets("canaux", CANAUX_CONTACT.map(([cle, texte]) => [cle, texte, panneaux[cle]]),
+      canalOrganismeMemo, (cle) => { canalOrganismeMemo = cle; }, { libelle: "Canal de contact" });
   }
 
   // Onglet « Coaching » de la fiche : Stage, Examen, Projet, Organisation.
