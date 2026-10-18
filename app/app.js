@@ -657,7 +657,7 @@
     if (morceaux[0] === "rappels") return { nom: "rappels", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "import") return { nom: "import", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "examens") return { nom: "examens", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
-    if (morceaux[0] === "acces") return { nom: "acces" };
+    if (morceaux[0] === "acces") return { nom: "acces", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "apprenant" && UUID.test(morceaux[1] || "")) return { nom: "apprenant", id: morceaux[1], onglet: morceaux[2] || null, partie: morceaux[3] || null };
     if (morceaux[0] === "preuves") return { nom: "preuves", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "eleves" && UUID.test(morceaux[1] || "")) return { nom: "eleves", id: morceaux[1] };
@@ -696,7 +696,7 @@
     if (route.nom === "import") return ecranImport(route.id);
     if (route.nom === "examens") return ecranExamens(route.id);
     if (route.nom === "apprenant") return ecranApprenant(route.id);
-    if (route.nom === "acces") return ecranAcces();
+    if (route.nom === "acces") return ecranAcces(null, route.id);
     if (route.nom === "preuves") return route.id ? ecranPreuves(route.id) : ecranExamens(null);
     return accueilAdmin(etat.profil);
   }
@@ -1185,7 +1185,9 @@
               `créé le ${dateLisible(c.cree_le.slice(0, 10))}`,
               c.derniere_connexion ? `dernière connexion le ${dateHeureComplete(c.derniere_connexion)}` : "jamais connecté·e"].join(" · ")))))
         : message("info", "Aucun compte pour cet organisme."),
-      h("div", { class: "actions-ligne" }, h("a", { href: "#/acces", class: "bouton bouton-secondaire bouton-petit" }, "Créer ou gérer les comptes")));
+      h("div", { class: "actions-ligne" },
+        h("a", { href: `#/acces/${id}`, class: "bouton bouton-petit" }, "Créer un compte pour ce client"),
+        h("a", { href: "#/acces", class: "bouton bouton-secondaire bouton-petit" }, "Gérer les accès (durée, droits)")));
 
     // --- Colonne de gauche : contact ---
     const ligneContact = (libelle, valeur, lien) => h("div", { class: "perso-case" },
@@ -3181,7 +3183,9 @@
     };
   }
 
-  async function ecranAcces(info) {
+  // organismePrechoisi : venu de la fiche d'un client, le formulaire « Nouveau
+  // compte » s'ouvre directement avec cet organisme déjà choisi.
+  async function ecranAcces(info, organismePrechoisi) {
     afficher(h("p", { class: "chargement" }, "Chargement des accès…"));
 
     const [comptes, organismes, confies] = await Promise.all([
@@ -3301,7 +3305,7 @@
     const email = champTexte("acces-email", "Adresse email", "", { type: "email", inputmode: "email", autocomplete: "off", obligatoire: true });
     const nom = champTexte("acces-nom", "Prénom et nom", "", { placeholder: "Ex. : Sophie Durand" });
     const role = champChoix("acces-role", "Type de compte", { client: "Client (lecture seule)", appelante: "Appelante (renfort d'appels)" }, "client");
-    const organisme = champChoix("acces-organisme", "Organisme", choixOrganismes, "");
+    const organisme = champChoix("acces-organisme", "Organisme", choixOrganismes, organismePrechoisi && organismePrechoisi in choixOrganismes ? organismePrechoisi : "");
     const periode = champsPeriode("nouveau", null);
     const droits = casesDroits("nouveau-droit", null);
     const blocClient = h("div", { class: "pile-serree" }, organisme.bloc, droits.bloc);
@@ -3314,10 +3318,11 @@
     formulaire.addEventListener("submit", async (evenement) => {
       evenement.preventDefault();
       const adresse = email.champ.value.trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(adresse)) return signaler(zone, "erreur", "Indiquez une adresse email valable.");
-      if (role.champ.value === "client" && !organisme.champ.value) return signaler(zone, "erreur", "Choisissez l'organisme de ce client.");
+      const refuser = (texte) => { signaler(zone, "erreur", texte); zone.scrollIntoView({ behavior: "smooth", block: "center" }); };
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(adresse)) return refuser("Indiquez une adresse email valable.");
+      if (role.champ.value === "client" && !organisme.champ.value) return refuser("Choisissez l'organisme de ce client, juste au-dessus.");
       const probleme = periode.verifier();
-      if (probleme) return signaler(zone, "erreur", probleme);
+      if (probleme) return refuser(probleme);
       signaler(zone);
       occupe(bouton, true, "Création…");
       const { data, error } = await sb.functions.invoke("gerer-comptes", {
@@ -3357,6 +3362,8 @@
         h("p", { class: "aide" }, "Rappel : aucune donnée réelle d'apprenant avant la signature du contrat de sous-traitance et de l'accord RGPD avec le client."),
         formulaire));
 
+    if (organismePrechoisi) nouveau.open = true;
+
     afficher(
       h("div", { class: "pile" },
         h("div", {},
@@ -3371,7 +3378,12 @@
         sectionAppelantes,
         h("p", { class: "aide" }, "Couper l'accès ou dépasser la date de fin bloque tout immédiatement, sans rien effacer. Ces règles sont appliquées par la base de données elle-même, pas seulement à l'écran. Pour confier un apprenant à une appelante, ouvrez sa fiche."))
     );
-    window.scrollTo(0, 0);
+    if (organismePrechoisi) {
+      nouveau.scrollIntoView({ block: "start" });
+      email.champ.focus();
+    } else {
+      window.scrollTo(0, 0);
+    }
   }
 
   // Bloc « Confié à » de la fiche apprenant (administratrice).
