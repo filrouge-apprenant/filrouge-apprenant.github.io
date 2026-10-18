@@ -52,6 +52,16 @@
     return `mailto:${a}?subject=${encodeURIComponent(objet || "")}&body=${encodeURIComponent(texte || "")}`;
   }
 
+  // Fenêtre « Nouveau message » de Gmail, sur le compte donné (authuser),
+  // déjà remplie : destinataire, objet, texte.
+  function lienGmail(adresse, objet, texte, compte) {
+    const a = String(adresse || "").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(a)) return null;
+    const p = new URLSearchParams({ view: "cm", fs: "1", to: a, su: objet || "", body: texte || "" });
+    if (compte) p.set("authuser", compte);
+    return `https://mail.google.com/mail/?${p.toString()}`;
+  }
+
   // ---------------------------------------------------------------------------
   // Modèles de messages. {prenom}, {moi}, {organisme}, {date_examen},
   // {avancement} sont remplacés automatiquement ; le texte reste modifiable.
@@ -148,7 +158,7 @@
     return "point_mois";
   }
 
-  const api = { MODELES, numeroInternational, lienWhatsApp, lienSms, lienEmail, remplir, modeleConseille, dateEnLettres };
+  const api = { MODELES, numeroInternational, lienWhatsApp, lienSms, lienEmail, lienGmail, remplir, modeleConseille, dateEnLettres };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else racine.FilRougeContact = api;
 })(typeof window !== "undefined" ? window : globalThis);

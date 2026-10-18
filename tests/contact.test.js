@@ -54,5 +54,15 @@ test("modèle conseillé selon la situation", () => {
   assert.equal(C.modeleConseille({ avancement_pct: 30 }, "2026-10-17"), "point_mois");
   assert.equal(C.modeleConseille({ date_examen: "2026-10-18", presence_examen: "present" }, "2026-10-17"), "point_mois");
 });
+test("email via Gmail Fil Rouge : fenêtre de rédaction déjà remplie", () => {
+  const l = new URL(C.lienGmail("leo@exemple.fr", "Votre examen", "Bonjour Léo,\nà bientôt", "contact.filrouge.apprenant@gmail.com"));
+  assert.equal(l.hostname, "mail.google.com");
+  assert.equal(l.searchParams.get("view"), "cm");
+  assert.equal(l.searchParams.get("to"), "leo@exemple.fr");
+  assert.equal(l.searchParams.get("su"), "Votre examen");
+  assert.equal(l.searchParams.get("body"), "Bonjour Léo,\nà bientôt");
+  assert.equal(l.searchParams.get("authuser"), "contact.filrouge.apprenant@gmail.com");
+  assert.equal(C.lienGmail("pas-une-adresse", "x", "y"), null);
+});
 
 console.log(`\n${n} tests passés`);

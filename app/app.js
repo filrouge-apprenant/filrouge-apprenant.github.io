@@ -1316,8 +1316,16 @@
         // Envoi par groupes de lignes ayant les mêmes colonnes : une ligne dont
         // une cellule d'examen est vide n'envoie pas cette colonne, et ne doit
         // pas effacer ce qui a été saisi dans la plateforme.
+        // La date de naissance va dans la situation personnelle (équipe Fil Rouge
+        // uniquement), pas dans la fiche apprenant que le client peut lire.
+        const naissances = new Map();
+        const lignesApprenants = r.valides.map((v) => {
+          const { date_naissance, ...reste } = v;
+          if (date_naissance) naissances.set(reste.identifiant_externe, date_naissance);
+          return reste;
+        });
         const groupes = new Map();
-        for (const v of r.valides) {
+        for (const v of lignesApprenants) {
           const signature = Object.keys(v).sort().join(",");
           if (!groupes.has(signature)) groupes.set(signature, []);
           groupes.get(signature).push(v);
@@ -1327,6 +1335,17 @@
           for (let i = 0; i < groupe.length && !erreur; i += 500) {
             const lot = groupe.slice(i, i + 500);
             const res = await sb.from("apprenants").upsert(lot, { onConflict: "organisme_id,identifiant_externe", defaultToNull: false });
+            erreur = res.error;
+          }
+        }
+        if (!erreur && naissances.size) {
+          const ids = await toutLire(() => sb.from("apprenants").select("id, identifiant_externe").eq("organisme_id", etatImport.organismeId).order("id"));
+          erreur = ids.error;
+          const lignesSituation = (ids.data || [])
+            .filter((x) => naissances.has(x.identifiant_externe))
+            .map((x) => ({ apprenant_id: x.id, organisme_id: etatImport.organismeId, date_naissance: naissances.get(x.identifiant_externe) }));
+          for (let i = 0; i < lignesSituation.length && !erreur; i += 500) {
+            const res = await sb.from("situation_personnelle").upsert(lignesSituation.slice(i, i + 500), { onConflict: "apprenant_id", defaultToNull: false });
             erreur = res.error;
           }
         }
@@ -2073,6 +2092,72 @@
   // ---------------------------------------------------------------------------
   const NOTE_MESSAGE_ENVOYE = { whatsapp: "Message WhatsApp envoyé", sms: "SMS envoyé", email: "Email envoyé" };
 
+  // Fenêtre « Écrire un email » : s'ouvre sur la fiche, texte prêt et modifiable.
+  // « Envoyer avec Gmail » ouvre la fenêtre de rédaction de la boîte Fil Rouge,
+  // déjà remplie : il ne reste qu'à cliquer « Envoyer » dans Gmail.
+  function fenetreEmail(a, { objet = "", texte = "", modele = null, apresEnvoi } = {}) {
+    const C = window.FilRougeContact;
+    const boite = (window.FIL_ROUGE_CONFIG || {}).emailFilRouge || "";
+    const estAdmin = etat.profil?.role === "admin";
+    const moi = (etat.profil?.nom_affiche || "").trim().split(" ")[0] || (estAdmin ? "Émilie" : "");
+    const contexte = { prenom: a.prenom, moi, organisme: a.organismes?.nom, date_examen: a.date_examen, avancement_pct: a.avancement_pct };
+
+    const choixModeles = { "": "— Message libre —", ...Object.fromEntries(Object.entries(C.MODELES).map(([cle, m]) => [cle, m.titre])) };
+    const choix = champChoix("email-modele", "Message tout prêt", choixModeles, modele || "");
+    const champObjet = champTexte("email-objet", "Objet", objet);
+    const champTexteEmail = champTexte("email-texte", "Message", texte, { multiligne: true });
+    champTexteEmail.champ.rows = 10;
+    choix.champ.addEventListener("change", () => {
+      if (!choix.champ.value) return;
+      const r = C.remplir(choix.champ.value, contexte);
+      champObjet.champ.value = r.objet || champObjet.champ.value;
+      champTexteEmail.champ.value = r.texte;
+    });
+
+    const zone = h("div");
+    // Administratrice : Gmail Fil Rouge. Appelante : sa propre messagerie (elle n'a pas la boîte Fil Rouge).
+    const viaGmail = estAdmin && boite;
+    const envoyer = h("button", { type: "submit", class: "bouton" }, viaGmail ? "Envoyer avec Gmail Fil Rouge" : "Ouvrir ma messagerie");
+    const autre = viaGmail ? h("button", { type: "button", class: "bouton-lien" }, "Utiliser une autre messagerie") : null;
+    const fermer = h("button", { type: "button", class: "bouton bouton-secondaire" }, "Annuler");
+
+    const formulaire = h("form", { class: "formulaire", method: "dialog", novalidate: true },
+      h("div", { class: "email-entete" },
+        viaGmail ? h("p", {}, h("span", { class: "compteur-libelle" }, "De : "), boite) : null,
+        h("p", {}, h("span", { class: "compteur-libelle" }, "À : "), `${nomApprenant(a)} <${a.email}>`)),
+      choix.bloc, champObjet.bloc, champTexteEmail.bloc, zone,
+      h("div", { class: "actions-ligne" }, envoyer, fermer),
+      autre);
+    const dialogue = h("dialog", { class: "dialogue", "aria-label": "Écrire un email" },
+      h("div", { class: "dialogue-titre" }, h("h2", {}, "Écrire un email"),
+        h("button", { type: "button", class: "dialogue-fermer", "aria-label": "Fermer" }, "×")),
+      formulaire);
+
+    const fin = () => { dialogue.close(); dialogue.remove(); };
+    dialogue.querySelector(".dialogue-fermer").addEventListener("click", fin);
+    fermer.addEventListener("click", fin);
+    dialogue.addEventListener("cancel", () => setTimeout(() => dialogue.remove(), 0));
+
+    function ouvrir(lien, nouvelOnglet) {
+      if (!champObjet.champ.value.trim()) return signaler(zone, "erreur", "Indiquez un objet.");
+      if (!champTexteEmail.champ.value.trim()) return signaler(zone, "erreur", "Le message est vide.");
+      if (!lien) return signaler(zone, "erreur", "L'adresse email de l'apprenant n'est pas valide.");
+      if (nouvelOnglet) window.open(lien, "_blank", "noopener"); else window.location.href = lien;
+      fin();
+      if (apresEnvoi) setTimeout(apresEnvoi, 300);
+    }
+    formulaire.addEventListener("submit", (evenement) => {
+      evenement.preventDefault();
+      const o = champObjet.champ.value, t = champTexteEmail.champ.value;
+      ouvrir(viaGmail ? C.lienGmail(a.email, o, t, boite) : C.lienEmail(a.email, o, t), !!viaGmail);
+    });
+    if (autre) autre.addEventListener("click", () => ouvrir(C.lienEmail(a.email, champObjet.champ.value, champTexteEmail.champ.value), false));
+
+    document.body.append(dialogue);
+    dialogue.showModal();
+    champTexteEmail.champ.focus();
+  }
+
   function blocContacter(a, rafraichir) {
     const C = window.FilRougeContact;
     const surIphone = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -2088,7 +2173,7 @@
     const appeler = a.telephone ? h("a", { class: "bouton", href: `tel:${a.telephone.replace(/[^\d+]/g, "")}` }, `📞 Appeler · ${a.telephone}`) : null;
     const whatsapp = h("a", { class: "bouton bouton-secondaire", target: "_blank", rel: "noopener" }, "💬 WhatsApp");
     const sms = h("a", { class: "bouton bouton-secondaire" }, "✉️ SMS");
-    const email = h("a", { class: "bouton bouton-secondaire" }, "📧 Email");
+    const email = h("button", { type: "button", class: "bouton bouton-secondaire" }, "📧 Email");
     const copierTexte = h("button", { type: "button", class: "bouton-lien" }, "Copier le texte");
     copierTexte.addEventListener("click", () => copier(texte.champ.value, copierTexte));
 
@@ -2096,8 +2181,8 @@
       const liens = [
         [whatsapp, C.lienWhatsApp(a.telephone, texte.champ.value)],
         [sms, C.lienSms(a.telephone, texte.champ.value, surIphone)],
-        [email, C.lienEmail(a.email, objet, texte.champ.value)],
       ];
+      email.hidden = !C.lienEmail(a.email, "", "");
       for (const [lien, adresse] of liens) {
         lien.hidden = !adresse;
         if (adresse) lien.setAttribute("href", adresse); else lien.removeAttribute("href");
@@ -2144,7 +2229,10 @@
     }
     whatsapp.addEventListener("click", () => setTimeout(() => proposerHistorique("whatsapp"), 300));
     sms.addEventListener("click", () => setTimeout(() => proposerHistorique("sms"), 300));
-    email.addEventListener("click", () => setTimeout(() => proposerHistorique("email"), 300));
+    email.addEventListener("click", () => fenetreEmail(a, {
+      objet, texte: texte.champ.value, modele: modele.champ.value,
+      apresEnvoi: () => proposerHistorique("email"),
+    }));
 
     const manque = !a.telephone && !a.email ? "Pas de numéro de téléphone ni d'adresse email sur la fiche."
       : !a.telephone ? "Pas de numéro de téléphone sur la fiche." : !a.email ? "Pas d'adresse email sur la fiche." : null;
@@ -2155,7 +2243,7 @@
         h("div", { class: "actions-ligne" }, appeler, whatsapp, sms, email),
         manque ? h("p", { class: "aide" }, manque) : null,
         h("div", { class: "formulaire" }, modele.bloc, texte.bloc),
-        h("p", { class: "aide" }, "Le bouton ouvre WhatsApp, vos SMS ou votre messagerie avec ce texte déjà écrit : vous n'avez plus qu'à envoyer. ", copierTexte),
+        h("p", { class: "aide" }, "WhatsApp et SMS s'ouvrent avec ce texte déjà écrit. « Email » ouvre une fenêtre pour relire l'email avant de l'envoyer depuis la boîte Fil Rouge. ", copierTexte),
         zoneConfirmation));
   }
 

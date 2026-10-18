@@ -161,4 +161,13 @@ test("action de formation : entrée et sortie devinées", () => {
   assert.equal(c.date_sortie_formation, 4);
 });
 
+test("date de naissance : devinée et lue", () => {
+  const c = I.devinerCorrespondance(["Identifiant", "Nom", "Prénom", "Date de naissance", "Date d'entrée en formation"]);
+  assert.equal(c.date_naissance, 3);
+  assert.equal(c.date_entree_formation, 4);
+  const r = I.preparer([["A1", "Roux", "Léa", "12/05/1990", "01/09/2026"], ["A2", "Roux", "Tom", "01/09/2026", ""]], c, "org-1");
+  assert.equal(r.valides[0].date_naissance, "1990-05-12");
+  assert.equal(r.erreurs.length, 1);
+});
+
 console.log(`\n${n} tests de lecture de fichier réussis`);

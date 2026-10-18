@@ -980,3 +980,12 @@ input:focus, select:focus, textarea:focus { border-color: var(--violet); }
 .perso-valeur { font-weight: 600; font-size: 1.05rem; overflow-wrap: anywhere; }
 .perso-vide { font-weight: 400; color: var(--texte-doux); font-style: italic; font-size: 0.95rem; }
 .perso-contraintes { margin: 0; padding: 0.5rem 0.75rem; background: var(--fond-doux); border-radius: var(--rayon); font-size: 0.95rem; }
+
+/* ---------- Fenêtre « Écrire un email » ---------- */
+.dialogue { width: min(40rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); border: 1px solid var(--filet); border-radius: var(--rayon); padding: 1.25rem; background: var(--fond); color: var(--texte); box-shadow: 0 12px 40px rgba(59, 31, 92, 0.18); }
+.dialogue::backdrop { background: rgba(59, 31, 92, 0.25); }
+.dialogue-titre { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; border-bottom: 1px solid var(--filet); padding-bottom: 0.5rem; }
+.dialogue-titre h2 { margin: 0; }
+.dialogue-fermer { background: none; border: none; font-size: 1.6rem; line-height: 1; cursor: pointer; color: var(--texte-doux); padding: 0.25rem 0.5rem; }
+.email-entete { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.5rem 0.75rem; background: var(--fond-doux); border-radius: var(--rayon); }
+.email-entete p { margin: 0; overflow-wrap: anywhere; }

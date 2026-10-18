@@ -10,4 +10,7 @@
 window.FIL_ROUGE_CONFIG = {
   supabaseUrl: "https://cafcevtehuywovvsllvp.supabase.co",
   supabaseCle: "sb_publishable_sp8UoIBe7DMUKXei97PQAw_Kydu7pS8",
+  // Boîte Gmail de Fil Rouge : les emails aux apprenants partent de là
+  // (fenêtre de rédaction Gmail ouverte déjà remplie, sur ce compte).
+  emailFilRouge: "contact.filrouge.apprenant@gmail.com",
 };

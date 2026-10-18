@@ -17,6 +17,7 @@
     { cle: "identifiant_externe", libelle: "Identifiant de l'apprenant", motsCles: ["identifiant", "id apprenant", "id", "matricule", "numero", "numéro", "code apprenant", "ref", "référence", "reference", "n° dossier", "dossier"] },
     { cle: "prenom", libelle: "Prénom", motsCles: ["prenom", "prénom", "first name", "firstname"] },
     { cle: "nom", libelle: "Nom", motsCles: ["nom", "nom de famille", "last name", "lastname", "name"] },
+    { cle: "date_naissance", libelle: "Date de naissance", motsCles: ["date de naissance", "date naissance", "naissance", "ne le", "nee le", "ne(e) le", "birth", "birthdate", "date of birth", "ddn"] },
     { cle: "telephone", libelle: "Téléphone", motsCles: ["telephone", "téléphone", "tel", "tél", "portable", "mobile", "phone", "gsm"] },
     { cle: "email", libelle: "Email", motsCles: ["email", "e-mail", "mail", "courriel", "adresse mail", "adresse email"] },
     { cle: "date_entree_formation", libelle: "Entrée en formation", motsCles: ["entree en formation", "date d'entree", "date entree", "entree", "date de debut", "date debut", "debut de formation", "debut", "start", "date de demarrage"] },
@@ -32,7 +33,7 @@
     { cle: "resultat_examen", libelle: "Résultat de l'examen", motsCles: ["resultat", "résultat", "resultat examen", "résultat examen", "admis", "decision", "décision", "obtention"] },
   ];
 
-  const CHAMPS_DATE = ["date_inscription", "date_entree_formation", "date_sortie_formation", "derniere_connexion", "date_dernier_contact", "date_examen"];
+  const CHAMPS_DATE = ["date_naissance", "date_inscription", "date_entree_formation", "date_sortie_formation", "derniere_connexion", "date_dernier_contact", "date_examen"];
 
   // ---------------------------------------------------------------------------
   // Texte : enlever accents, minuscules — pour comparer des en-têtes.
@@ -207,6 +208,7 @@
     const valides = [];
     const erreurs = [];
     const champsUtilises = CHAMPS.filter((c) => Number.isInteger(correspondance[c.cle]));
+    const brutDe = (ligne, cle) => (Number.isInteger(correspondance[cle]) ? ligne[correspondance[cle]] : "");
     const val = (ligne, cle) => (Number.isInteger(correspondance[cle]) ? ligne[correspondance[cle]] : "");
 
     // Avancement exprimé en fraction (0,35) si toutes les valeurs sont ≤ 1.
@@ -253,6 +255,11 @@
         } else {
           sortie[champ.cle] = brut || null;
         }
+      }
+
+      // Date de naissance invraisemblable (souvent une autre date mal placée).
+      if (sortie.date_naissance && (sortie.date_naissance < "1920-01-01" || sortie.date_naissance > "2015-12-31")) {
+        problemes.push(`Date de naissance : ${brutDe(ligne, "date_naissance")} n'est pas une date de naissance plausible`);
       }
 
       // Examen : un résultat implique la présence ; présence ou résultat sans date = incohérent.
