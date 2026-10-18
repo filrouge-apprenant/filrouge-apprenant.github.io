@@ -15,6 +15,7 @@ Le cahier des charges complet est dans le document « Plateforme Fil Rouge — C
 | 5. Jusqu'à l'examen | Date d'examen, présence, résultat ; relances J-30 / J-7 / J-1 ; taux par cohorte ; dossier de preuves Qualiopi | Terminée |
 | 6. Fiche apprenant et appels | Fiche, « Noter un appel », note interne, historique, apprenant suivant | Terminée |
 | 7. Comptes et portail client | Création des comptes clients et appelantes depuis l'onglet Accès, désactivation, apprenants confiés ; espace client en lecture seule avec exports | Terminée |
+| 8. Satisfaction des élèves | Onglet « Satisfaction » : envoi du questionnaire élève par élève, réponses privées, déblocage pour le client, récap mensuel ; page publique questionnaire.html | Terminée |
 | 7. Sécurité et mise en ligne | Plan Pro, nom de domaine, hébergement | À faire |
 
 ## Contenu du dossier

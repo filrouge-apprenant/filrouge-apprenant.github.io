@@ -944,3 +944,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--violet); }
   .marque { font-size: 1.3rem; padding: 0.7rem 1.3rem 0.8rem 1.5rem; }
   .bandeau-interieur { gap: 0.25rem 0.6rem; }
 }
+
+/* --- Satisfaction des élèves --------------------------------------------- */
+.sat-liste { display: flex; flex-direction: column; gap: 0.75rem; border-top: none; }
+.sat-reponse { display: flex; flex-direction: column; gap: 0.45rem; }
+.sat-entete { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; align-items: baseline; }
+.sat-reponse p { margin: 0; }
+.sat-note { line-height: 1.5; }
+.sat-citation { border-left: 2px solid var(--rose-fort); padding-left: 0.7rem; line-height: 1.5; }

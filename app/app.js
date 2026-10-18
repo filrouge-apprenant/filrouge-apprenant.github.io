@@ -613,6 +613,7 @@
     if (morceaux[0] === "apprenant" && UUID.test(morceaux[1] || "")) return { nom: "apprenant", id: morceaux[1], onglet: morceaux[2] || null, partie: morceaux[3] || null };
     if (morceaux[0] === "preuves") return { nom: "preuves", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "eleves" && UUID.test(morceaux[1] || "")) return { nom: "eleves", id: morceaux[1] };
+    if (morceaux[0] === "satisfaction") return { nom: "satisfaction", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "coaching") return { nom: "coaching", type: morceaux[1] || "stage", id: UUID.test(morceaux[2] || "") ? morceaux[2] : null };
     return { nom: "accueil" };
   }
@@ -639,6 +640,7 @@
     chargerMenu();
     if (route.nom === "eleves") return ecranDossierEleves(route.id);
     if (route.nom === "coaching") return ecranCoaching(route.type, route.id);
+    if (route.nom === "satisfaction") return ecranSatisfaction(route.id);
     if (route.nom === "prospection") return ecranProspection(route.etape);
     if (route.nom === "nouveau") return ecranNouvelOrganisme();
     if (route.nom === "organisme") return ecranOrganisme(route.id);
@@ -2449,6 +2451,7 @@
     const erreur = organisme.error || apprenants.error || tauxCohortes.error || examensAVenir.error;
     if (erreur) return afficher(message("erreur", texteErreur(erreur)));
     const totalExamens = totalTaux(tauxCohortes.data);
+    const avis = await blocAvisClient();
 
     afficher(
       h("div", { class: "pile" },
@@ -2469,6 +2472,7 @@
             h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, pourcentage(totalExamens.taux_reussite)), h("span", { class: "compteur-libelle" }, "taux de réussite")),
             h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, totalExamens.presents + totalExamens.absents), h("span", { class: "compteur-libelle" }, "examens renseignés"))),
           tauxCohortes.data.some((l) => Number(l.inscrits_examen)) ? tableauTaux(tauxCohortes.data, organisme.data?.taux_presence_depart) : null),
+        avis,
         h("section", {},
           h("div", { class: "section-titre" },
             h("h2", {}, "Vos apprenants"),
@@ -2496,6 +2500,279 @@
         listeApprenants(trierParUrgence(data))
       )
     );
+  }
+
+  // ===========================================================================
+  // SATISFACTION (#/satisfaction) — administratrice uniquement
+  // ===========================================================================
+  // 1. Émilie déclenche l'envoi, élève par élève : le bouton ouvre sa
+  //    messagerie avec l'email et le lien personnel déjà écrits.
+  // 2. Les réponses arrivent ici, et nulle part ailleurs (« nouvelle » tant
+  //    qu'elle ne les a pas vues).
+  // 3. Rien ne part chez le client tant qu'elle n'a pas débloqué la réponse.
+  //    Les réponses débloquées apparaissent dans l'espace client et dans le
+  //    récap mensuel qu'elle envoie elle-même.
+  // ===========================================================================
+
+  const LIBELLE_FREQUENCE = { pas_assez: "pas assez d'appels", juste: "nombre d'appels juste bien", trop: "trop d'appels" };
+
+  function moyenne(valeurs) {
+    const v = valeurs.filter((x) => x !== null && x !== undefined);
+    return v.length ? v.reduce((a, b) => a + Number(b), 0) / v.length : null;
+  }
+  function note(v, sur) {
+    return v === null || v === undefined ? "–" : `${Number(v).toFixed(1).replace(".", ",").replace(",0", "")}/${sur}`;
+  }
+
+  function texteEmailQuestionnaire(a, organisme, lien) {
+    const moi = (etat.profil?.nom_affiche || "").trim().split(" ")[0] || "Émilie";
+    return {
+      objet: "Votre avis sur votre suivi de formation (2 minutes)",
+      texte: `Bonjour ${a.prenom || ""},\n\nDepuis le début de votre formation avec ${organisme}, je vous accompagne par téléphone pour vous aider à avancer jusqu'à votre examen.\n\nJ'aimerais savoir ce que vous pensez de ces appels : ce qui vous aide, et ce que je peux améliorer. Cela prend 2 minutes :\n\n${lien}\n\nMerci beaucoup, et bon courage pour la suite !\n\n${moi}\nFil Rouge Apprenants`,
+    };
+  }
+
+  function texteRecap(organisme, contactNom, mois, reponses) {
+    const bonjour = contactNom ? `Bonjour ${contactNom.split(" ")[0]},` : "Bonjour,";
+    const nps = reponses.filter((r) => r.recommandation !== null);
+    const promoteurs = nps.filter((r) => r.recommandation >= 9).length;
+    const detracteurs = nps.filter((r) => r.recommandation <= 6).length;
+    const lignes = [
+      bonjour, "",
+      `Voici le récapitulatif de satisfaction de vos apprenants accompagnés par Fil Rouge Apprenants pour ${mois}.`, "",
+      `• ${pluriel(reponses.length, "réponse", "réponses")}`,
+      `• Note globale des appels : ${note(moyenne(reponses.map((r) => r.note_globale)), 5)}`,
+      `• Écoute : ${note(moyenne(reponses.map((r) => r.note_ecoute)), 5)}`,
+      `• Clarté des informations : ${note(moyenne(reponses.map((r) => r.note_clarte)), 5)}`,
+      `• Aide pour avancer : ${note(moyenne(reponses.map((r) => r.note_utilite)), 5)}`,
+      nps.length ? `• Recommandation : ${note(moyenne(nps.map((r) => r.recommandation)), 10)} (${promoteurs} très favorables, ${detracteurs} réservés)` : null,
+    ].filter((l) => l !== null);
+    const commentaires = reponses.filter((r) => r.point_fort || r.amelioration);
+    if (commentaires.length) {
+      lignes.push("", "Ce que disent vos apprenants :");
+      for (const r of commentaires) {
+        const qui = r.anonyme ? "Anonyme" : nomApprenant(r.apprenants || {});
+        if (r.point_fort) lignes.push(`• ${qui} : « ${r.point_fort} »`);
+        if (r.amelioration) lignes.push(`• ${qui}, à améliorer : « ${r.amelioration} »`);
+      }
+    }
+    lignes.push("", "Ces réponses sont aussi disponibles dans votre espace Fil Rouge, utilisables comme preuve Qualiopi (recueil des appréciations des bénéficiaires) :", adresseSite(),
+      "", "Belle journée,", "Émilie Rachas", "Fil Rouge Apprenants");
+    return lignes.join("\n");
+  }
+
+  async function ecranSatisfaction(organismeId) {
+    afficher(h("p", { class: "chargement" }, "Chargement des questionnaires…"));
+    const [orgs, appr, sat] = await Promise.all([
+      sb.from("organismes").select("id, nom, organismes_suivi_commercial ( contact_nom, contact_email, etape )").order("nom"),
+      sb.from("apprenants").select("id, prenom, nom, identifiant_externe, email, statut, organisme_id").order("nom").order("prenom"),
+      sb.from("satisfaction").select("*, apprenants ( prenom, nom, identifiant_externe )").order("cree_le", { ascending: false }),
+    ]);
+    const erreur = orgs.error || appr.error || sat.error;
+    if (erreur) return afficher(message("erreur", texteErreur(erreur)));
+
+    const nomOrg = new Map(orgs.data.map((o) => [o.id, o.nom]));
+    const suiviDe = (o) => (Array.isArray(o.organismes_suivi_commercial) ? o.organismes_suivi_commercial[0] : o.organismes_suivi_commercial) || {};
+    const avecEleves = orgs.data.filter((o) => appr.data.some((a) => a.organisme_id === o.id));
+    if (organismeId && !nomOrg.has(organismeId)) organismeId = null;
+    const filtreOrg = (x) => !organismeId || x.organisme_id === organismeId;
+
+    const lignes = sat.data.filter(filtreOrg);
+    const reponses = lignes.filter((s) => s.repondu_le).sort((a, b) => b.repondu_le.localeCompare(a.repondu_le));
+    const nouvelles = new Set(reponses.filter((s) => !s.lu_le).map((s) => s.id));
+    const dernierPar = new Map(); // apprenant → questionnaire le plus récent
+    for (const s of sat.data) if (!dernierPar.has(s.apprenant_id)) dernierPar.set(s.apprenant_id, s);
+
+    // Les réponses affichées ici sont désormais « lues ».
+    if (nouvelles.size) {
+      sb.from("satisfaction").update({ lu_le: new Date().toISOString() }).in("id", [...nouvelles]).then(() => chargerMenu());
+    }
+
+    // --- Choix du client -------------------------------------------------------
+    const choixOrg = champChoix("sat-organisme", "Client", { "": "Tous les clients", ...Object.fromEntries(avecEleves.map((o) => [o.id, o.nom])) }, organismeId || "");
+    choixOrg.champ.addEventListener("change", () => aller(choixOrg.champ.value ? `satisfaction/${choixOrg.champ.value}` : "satisfaction"));
+
+    // --- Réponses reçues -------------------------------------------------------
+    function carteReponse(s) {
+      const zone = h("div");
+      const bouton = h("button", { type: "button", class: s.partage_client ? "bouton bouton-secondaire bouton-petit" : "bouton bouton-petit" },
+        s.partage_client ? "Masquer au client" : "Débloquer pour le client");
+      bouton.addEventListener("click", async () => {
+        occupe(bouton, true, "Enregistrement…");
+        const partage = !s.partage_client;
+        const { error } = await sb.from("satisfaction").update({ partage_client: partage, partage_le: partage ? new Date().toISOString() : null }).eq("id", s.id);
+        occupe(bouton, false);
+        if (error) return signaler(zone, "erreur", texteErreur(error));
+        s.partage_client = partage;
+        carte.replaceWith(carteReponse(s));
+      });
+      const details = [
+        ["Écoute", note(s.note_ecoute, 5)], ["Clarté", note(s.note_clarte, 5)], ["Aide pour avancer", note(s.note_utilite, 5)],
+        ["Recommandation", note(s.recommandation, 10)],
+      ].filter(([, v]) => v !== "–");
+      const carte = h("li", { class: "carte carte-large sat-reponse" },
+        h("div", { class: "sat-entete" },
+          h("span", { class: "ligne-titre" }, lienInterne(`apprenant/${s.apprenant_id}`, nomApprenant(s.apprenants || {}))),
+          h("span", { class: "pastilles" },
+            nouvelles.has(s.id) ? pastille("orange", "Nouvelle") : null,
+            s.partage_client ? pastille("vert", "Visible par le client") : pastille("neutre", "Privée"),
+            s.anonyme ? pastille("neutre", "Souhaite rester anonyme") : null)),
+        h("p", { class: "ligne-detail" }, `${nomOrg.get(s.organisme_id) || ""} · reçue le ${dateHeureLisible(s.repondu_le)}`),
+        h("p", { class: "sat-note" }, h("strong", {}, `Note globale : ${note(s.note_globale, 5)}`),
+          details.length ? ` · ${details.map(([k, v]) => `${k} ${v}`).join(" · ")}` : "",
+          s.frequence ? ` · ${LIBELLE_FREQUENCE[s.frequence]}` : ""),
+        s.point_fort ? h("p", { class: "sat-citation" }, h("span", { class: "aide" }, "Ce qui l'a aidé·e : "), `« ${s.point_fort} »`) : null,
+        s.amelioration ? h("p", { class: "sat-citation" }, h("span", { class: "aide" }, "À améliorer : "), `« ${s.amelioration} »`) : null,
+        h("div", { class: "actions-ligne" }, bouton),
+        zone);
+      return carte;
+    }
+
+    // --- Envoyer le questionnaire ----------------------------------------------
+    let recherche = "";
+    const champRecherche = h("input", { type: "search", class: "recherche", placeholder: "Rechercher un élève", "aria-label": "Rechercher un élève", autocomplete: "off" });
+    const zoneEleves = h("div");
+    champRecherche.addEventListener("input", () => { recherche = champRecherche.value; dessinerEleves(); });
+
+    function ligneEnvoi(a) {
+      const s = dernierPar.get(a.id);
+      const zone = h("div", { class: "ligne-edition" });
+      const etatEnvoi = !s ? pastille("neutre", "Jamais envoyé")
+        : s.repondu_le ? pastille("vert", `Répondu le ${dateLisible(s.repondu_le.slice(0, 10))}`)
+        : s.envoye_le ? pastille("orange", `Envoyé le ${dateLisible(s.envoye_le.slice(0, 10))}, sans réponse`)
+        : pastille("neutre", "Jamais envoyé");
+      const libelle = s && !s.repondu_le && s.envoye_le ? "Relancer" : s && s.repondu_le ? "Renvoyer un questionnaire" : "Envoyer le questionnaire";
+      const bouton = h("button", { type: "button", class: s && s.repondu_le ? "bouton bouton-secondaire bouton-petit" : "bouton bouton-petit", disabled: !a.email || null }, libelle);
+      bouton.addEventListener("click", async () => {
+        occupe(bouton, true, "Préparation…");
+        const { data, error } = await sb.rpc("preparer_questionnaire", { p_apprenant: a.id });
+        occupe(bouton, false);
+        if (error || !data?.[0]) return signaler(zone, "erreur", texteErreur(error));
+        const { id, lien } = data[0];
+        const mail = texteEmailQuestionnaire(a, nomOrg.get(a.organisme_id) || "votre organisme", lien);
+        const adresse = window.FilRougeContact.lienEmail(a.email, mail.objet, mail.texte);
+        const ouvrir = h("a", { class: "bouton bouton-petit", href: adresse }, "📧 Ouvrir ma messagerie");
+        const copie = h("button", { type: "button", class: "bouton-lien" }, "Copier le lien seul");
+        copie.addEventListener("click", () => copier(lien, copie));
+        const confirmer = h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit" }, "C'est envoyé ✓");
+        confirmer.addEventListener("click", async () => {
+          occupe(confirmer, true, "Enregistrement…");
+          const maintenant = new Date().toISOString();
+          const r = await sb.from("satisfaction").update({ envoye_le: maintenant }).eq("id", id).select("*").single();
+          occupe(confirmer, false);
+          if (r.error) return signaler(zone, "erreur", texteErreur(r.error));
+          dernierPar.set(a.id, r.data);
+          ligne.replaceWith(ligneEnvoi(a));
+        });
+        zone.replaceChildren(h("div", { class: "message message-action pile pile-serree" },
+          h("span", {}, `Email prêt pour ${a.email}, avec son lien personnel. Ouvrez votre messagerie, envoyez, puis confirmez ici.`),
+          h("div", { class: "actions-ligne" }, ouvrir, confirmer, copie)));
+      });
+      const ligne = h("li", { class: "ligne" },
+        h("span", { class: "ligne-titre" }, lienInterne(`apprenant/${a.id}`, nomApprenant(a))),
+        h("span", { class: "pastilles" }, etatEnvoi),
+        h("span", { class: "ligne-detail" }, [organismeId ? null : nomOrg.get(a.organisme_id), a.email || "pas d'email sur la fiche", LIBELLE_STATUT[a.statut]].filter(Boolean).join(" · ")),
+        h("div", { class: "ligne-edition" }, h("div", { class: "actions-ligne" }, bouton)),
+        zone);
+      return ligne;
+    }
+
+    function dessinerEleves() {
+      const q = pourRecherche(recherche);
+      const visibles = appr.data.filter(filtreOrg).filter((a) => a.statut !== "abandon")
+        .filter((a) => !q || pourRecherche([a.prenom, a.nom, a.identifiant_externe, a.email].join(" ")).includes(q));
+      zoneEleves.replaceChildren(visibles.length
+        ? h("ul", { class: "liste" }, visibles.map(ligneEnvoi))
+        : message("info", q ? "Aucun élève ne correspond à cette recherche." : "Aucun élève dans ce dossier."));
+    }
+    dessinerEleves();
+
+    // --- Récap mensuel au client ----------------------------------------------
+    function blocRecap() {
+      if (!organismeId) return h("p", { class: "aide" }, "Choisissez un client en haut de la page pour préparer son récap du mois.");
+      const org = orgs.data.find((o) => o.id === organismeId);
+      const suivi = suiviDe(org);
+      const moisDispo = [...new Set(reponses.map((r) => r.repondu_le.slice(0, 7)))];
+      const courant = aujourdhui().slice(0, 7);
+      if (!moisDispo.includes(courant)) moisDispo.unshift(courant);
+      const choixMois = champChoix("sat-mois", "Mois", Object.fromEntries(moisDispo.map((m) => [m, moisLisible(m)])), moisDispo[0]);
+      const zone = h("div");
+      function preparer() {
+        const m = choixMois.champ.value;
+        const partagees = reponses.filter((r) => r.partage_client && r.repondu_le.startsWith(m));
+        const privees = reponses.filter((r) => !r.partage_client && r.repondu_le.startsWith(m)).length;
+        if (!partagees.length) {
+          return zone.replaceChildren(message("info", privees
+            ? `${pluriel(privees, "réponse reçue", "réponses reçues")} ce mois-ci, mais aucune n'est débloquée. Débloquez celles à transmettre, puis revenez ici.`
+            : "Aucune réponse ce mois-ci."));
+        }
+        const texte = champTexte("sat-recap", "Récap (modifiable)", texteRecap(org.nom, suivi.contact_nom, moisLisible(m).toLowerCase(), partagees), { multiligne: true });
+        texte.champ.rows = 14;
+        const objet = `Satisfaction de vos apprenants — ${moisLisible(m)}`;
+        const envoyer = h("a", { class: "bouton bouton-petit" }, "📧 Envoyer au client");
+        const majLien = () => {
+          const l = window.FilRougeContact.lienEmail(suivi.contact_email, objet, texte.champ.value);
+          envoyer.hidden = !l;
+          if (l) envoyer.setAttribute("href", l);
+        };
+        texte.champ.addEventListener("input", majLien);
+        majLien();
+        const copie = h("button", { type: "button", class: "bouton-lien" }, "Copier le texte");
+        copie.addEventListener("click", () => copier(texte.champ.value, copie));
+        zone.replaceChildren(h("div", { class: "pile pile-serree" },
+          h("p", { class: "aide" }, `${pluriel(partagees.length, "réponse débloquée incluse", "réponses débloquées incluses")}${privees ? ` · ${pluriel(privees, "réponse privée non incluse", "réponses privées non incluses")}` : ""}.`),
+          h("div", { class: "formulaire" }, texte.bloc),
+          h("div", { class: "actions-ligne" }, envoyer, copie),
+          suivi.contact_email ? null : h("p", { class: "aide" }, "Pas d'email de contact sur la fiche de ce client : copiez le texte, ou ajoutez l'email dans sa fiche.")));
+      }
+      choixMois.champ.addEventListener("change", preparer);
+      preparer();
+      return h("div", { class: "carte carte-large pile pile-serree" }, h("div", { class: "formulaire" }, choixMois.bloc), zone);
+    }
+
+    const nbEnvoyes = lignes.filter((s) => s.envoye_le).length;
+    afficher(
+      h("div", { class: "pile" },
+        h("div", {},
+          h("p", { class: "surtitre" }, "Qualité"),
+          h("h1", {}, "Satisfaction des élèves"),
+          h("p", { class: "chapo" }, "Vous envoyez le questionnaire, les réponses arrivent ici. Le client ne voit que celles que vous débloquez.")),
+        h("div", { class: "formulaire" }, choixOrg.bloc),
+        h("div", { class: "compteurs" },
+          h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, nbEnvoyes), h("span", { class: "compteur-libelle" }, "questionnaires envoyés")),
+          h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, reponses.length), h("span", { class: "compteur-libelle" }, "réponses")),
+          h("div", { class: "compteur compteur-vert" }, h("span", { class: "compteur-valeur" }, note(moyenne(reponses.map((r) => r.note_globale)), 5)), h("span", { class: "compteur-libelle" }, "note globale moyenne")),
+          h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, note(moyenne(reponses.map((r) => r.recommandation)), 10)), h("span", { class: "compteur-libelle" }, "recommandation"))),
+        h("section", {},
+          h("div", { class: "section-titre" }, h("h2", {}, "Réponses reçues"), nouvelles.size ? h("p", {}, pluriel(nouvelles.size, "nouvelle", "nouvelles")) : null),
+          reponses.length ? h("ul", { class: "liste sat-liste" }, reponses.map(carteReponse)) : message("info", "Aucune réponse pour l'instant.")),
+        h("section", {},
+          h("div", { class: "section-titre" }, h("h2", {}, "Envoyer le questionnaire"), h("p", {}, "Un lien personnel par élève, une seule réponse possible")),
+          champRecherche, zoneEleves),
+        h("section", {},
+          h("div", { class: "section-titre" }, h("h2", {}, "Récap mensuel au client"), h("p", {}, "Seulement les réponses débloquées")),
+          blocRecap())));
+    window.scrollTo(0, 0);
+  }
+
+  // Espace client : les avis débloqués par Émilie (rien d'autre).
+  async function blocAvisClient() {
+    const { data, error } = await sb.rpc("satisfaction_resultats");
+    if (error || !data || !data.length) return null;
+    return h("section", {},
+      h("div", { class: "section-titre" }, h("h2", {}, "Avis de vos apprenants"), h("p", {}, "Sur les appels de suivi")),
+      h("div", { class: "compteurs" },
+        h("div", { class: "compteur compteur-vert" }, h("span", { class: "compteur-valeur" }, note(moyenne(data.map((r) => r.note_globale)), 5)), h("span", { class: "compteur-libelle" }, "note globale moyenne")),
+        h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, note(moyenne(data.map((r) => r.recommandation)), 10)), h("span", { class: "compteur-libelle" }, "recommandation")),
+        h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, data.length), h("span", { class: "compteur-libelle" }, "réponses"))),
+      h("ul", { class: "liste" }, data.map((r) => h("li", { class: "ligne" },
+        h("span", { class: "ligne-titre" }, r.apprenant),
+        h("span", { class: "pastilles" }, pastille("neutre", `${note(r.note_globale, 5)}`)),
+        h("span", { class: "ligne-detail" }, [
+          dateLisible(r.repondu_le.slice(0, 10)),
+          r.point_fort ? `« ${r.point_fort} »` : null,
+          r.amelioration ? `À améliorer : « ${r.amelioration} »` : null,
+        ].filter(Boolean).join(" · "))))));
   }
 
   // ===========================================================================
@@ -2548,10 +2825,11 @@
 
   async function chargerMenu() {
     if (!menuVisible()) return;
-    const [orgs, appr, urgents] = await Promise.all([
+    const [orgs, appr, urgents, avis] = await Promise.all([
       sb.from("organismes").select("id, nom, organismes_suivi_commercial ( etape )").order("nom"),
       sb.from("apprenants").select("organisme_id, statut"),
       sb.from("vue_qui_rappeler").select("id").eq("alerte", "rouge"),
+      sb.from("satisfaction").select("id", { count: "exact", head: true }).not("repondu_le", "is", null).is("lu_le", null),
     ]);
     if (orgs.error || appr.error || urgents.error) return;
     const total = new Map();
@@ -2566,6 +2844,7 @@
       // Un dossier par client, et par organisme qui a déjà des élèves (test gratuit).
       dossiers: orgs.data.filter((o) => etapeDe(o) === "client" || total.has(o.id)).map((o) => ({ id: o.id, nom: o.nom, n: actifs.get(o.id) || 0 })),
       urgents: urgents.data.length,
+      avis: avis.error ? 0 : avis.count || 0,
     };
     const signature = JSON.stringify(donnees);
     if (signature !== signatureMenu) {
@@ -2594,7 +2873,8 @@
       h("div", { class: "menu-haut" },
         lien("", "Tableau de bord"),
         lien("rappels", "À rappeler", d.urgents ? nombre(d.urgents, true) : null),
-        lien("examens", "Relances d'examen")),
+        lien("examens", "Relances d'examen"),
+        lien("satisfaction", "Satisfaction", d.avis ? nombre(d.avis, true) : null)),
       groupe("prospects", "Prospects", [
         lien("prospection", "Tous les centres à démarcher"),
         lien("nouveau", "Ajouter un centre"),
