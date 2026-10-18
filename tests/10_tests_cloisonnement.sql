@@ -683,5 +683,38 @@ set local role anon;
 select tests.doit_etre_refuse($$select * from public.vue_contacts_apprenant$$, 'visiteur non connecté : aucun compteur de contacts');
 rollback;
 
+\echo '== 17. Situation personnelle : équipe Fil Rouge uniquement'
+begin;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+set local role authenticated;
+insert into public.situation_personnelle (apprenant_id, organisme_id, date_naissance, situation_pro, heures_travail, situation_familiale, nombre_enfants)
+values ('a1000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000002', '1990-05-12', 'salarie', 24, 'marie_pacse', 2),
+       ('a1000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-000000000002', '1985-01-03', 'demandeur_emploi', null, 'celibataire', 0);
+select tests.verifier(
+  (select organisme_id = 'a0000000-0000-4000-8000-000000000001' from public.situation_personnelle where apprenant_id = 'a1000000-0000-4000-8000-000000000001'),
+  'administratrice : la situation est rangée d''office dans le dossier du bon client');
+select tests.doit_etre_refuse(
+  $$update public.situation_personnelle set nombre_enfants = 40 where apprenant_id = 'a1000000-0000-4000-8000-000000000001'$$,
+  'nombre d''enfants invraisemblable : refusé');
+select tests.session('22222222-2222-4222-8222-222222222222');
+select tests.verifier((select count(*) from public.situation_personnelle) = 0, 'client Horizon : ne voit AUCUNE situation personnelle, même de ses apprenants');
+select tests.verifier(
+  tests.lignes_touchees($$update public.situation_personnelle set nombre_enfants = 3$$) = 0,
+  'client : ne peut pas modifier une situation personnelle');
+select tests.session('44444444-4444-4444-8444-444444444444');
+select tests.verifier((select count(*) from public.situation_personnelle) = 1, 'appelante : voit seulement la situation de son apprenante confiée');
+select tests.verifier(
+  tests.lignes_touchees($$update public.situation_personnelle set heures_travail = 30 where apprenant_id = 'a1000000-0000-4000-8000-000000000001'$$) = 1,
+  'appelante : complète la situation de son apprenante confiée');
+select tests.verifier(
+  tests.lignes_touchees($$update public.situation_personnelle set heures_travail = 30 where apprenant_id = 'a1000000-0000-4000-8000-000000000002'$$) = 0,
+  'appelante : ne touche pas à la situation d''un apprenant non confié');
+rollback;
+
+begin;
+set local role anon;
+select tests.doit_etre_refuse($$select * from public.situation_personnelle$$, 'visiteur non connecté : aucune situation personnelle');
+rollback;
+
 \echo
 \echo 'TOUS LES TESTS SONT PASSÉS'

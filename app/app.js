@@ -2185,6 +2185,102 @@
         h("span", { class: "compteur-libelle" }, `personne réellement eue · ${detailAboutis}`)));
   }
 
+  // --- Situation personnelle (équipe Fil Rouge uniquement, jamais visible du client) ---
+  const LIBELLE_SITUATION_PRO = {
+    demandeur_emploi: "Demandeur·se d'emploi",
+    salarie: "Salarié·e",
+    independant: "Indépendant·e",
+    etudiant: "Étudiant·e / alternant·e",
+    sans_activite: "Sans activité (foyer, congé parental…)",
+    autre: "Autre situation",
+  };
+  const LIBELLE_SITUATION_FAMILIALE = {
+    celibataire: "Célibataire",
+    en_couple: "En couple",
+    marie_pacse: "Marié·e / pacsé·e",
+    separe_divorce: "Séparé·e / divorcé·e",
+    veuf: "Veuf·ve",
+  };
+  const EN_EMPLOI = ["salarie", "independant"];
+
+  function ageDepuis(dateNaissance) {
+    if (!dateNaissance) return null;
+    const [ay, am, aj] = aujourdhui().split("-").map(Number);
+    const [ny, nm, nj] = dateNaissance.split("-").map(Number);
+    return ay - ny - (am < nm || (am === nm && aj < nj) ? 1 : 0);
+  }
+
+  function blocSituationPerso(a, sit, apresEnregistrement) {
+    const f = sit || {};
+    const age = ageDepuis(f.date_naissance);
+    const travail = f.situation_pro
+      ? LIBELLE_SITUATION_PRO[f.situation_pro] + (EN_EMPLOI.includes(f.situation_pro) && f.heures_travail !== null && f.heures_travail !== undefined ? ` · ${f.heures_travail} h/semaine` : "")
+      : null;
+    const enfants = f.nombre_enfants === null || f.nombre_enfants === undefined ? null
+      : f.nombre_enfants === 0 ? "Pas d'enfant" : pluriel(f.nombre_enfants, "enfant", "enfants");
+    const caseInfo = (libelle, valeur) => h("div", { class: "perso-case" },
+      h("span", { class: "compteur-libelle" }, libelle),
+      h("span", { class: valeur ? "perso-valeur" : "perso-valeur perso-vide" }, valeur || "à renseigner"));
+
+    // Formulaire de modification
+    const zone = h("div");
+    const naissance = h("input", { type: "date", value: f.date_naissance || "", min: "1920-01-01", max: "2015-12-31" });
+    const pro = champChoix("perso-pro", "Situation professionnelle", { "": "— Non renseignée —", ...LIBELLE_SITUATION_PRO }, f.situation_pro || "");
+    const heures = h("input", { type: "number", min: "0", max: "70", step: "1", inputmode: "numeric", value: f.heures_travail ?? "" });
+    const blocHeures = h("label", {}, "Heures de travail par semaine", heures);
+    const famille = champChoix("perso-famille", "Situation familiale", { "": "— Non renseignée —", ...LIBELLE_SITUATION_FAMILIALE }, f.situation_familiale || "");
+    const nbEnfants = h("input", { type: "number", min: "0", max: "15", step: "1", inputmode: "numeric", value: f.nombre_enfants ?? "" });
+    const contraintes = champTexte("perso-contraintes", "Contraintes utiles au suivi (facultatif)", f.contraintes || "", { multiligne: true });
+    contraintes.champ.rows = 2;
+    contraintes.champ.maxLength = 500;
+    contraintes.champ.placeholder = "Ex. : garde des enfants le mercredi, travaille en horaires décalés";
+    const majHeures = () => { blocHeures.hidden = !EN_EMPLOI.includes(pro.champ.value); };
+    pro.champ.addEventListener("change", majHeures);
+    majHeures();
+    const bouton = h("button", { type: "submit", class: "bouton bouton-petit" }, "Enregistrer");
+    const formulaire = h("form", { class: "formulaire", novalidate: true },
+      h("div", { class: "deux-colonnes" }, h("label", {}, "Date de naissance", naissance), h("label", {}, "Nombre d'enfants", nbEnfants)),
+      h("div", { class: "deux-colonnes" }, pro.bloc, famille.bloc),
+      blocHeures, contraintes.bloc, zone, bouton);
+    const entier = (champ) => (champ.value === "" ? null : Math.round(Number(champ.value)));
+    formulaire.addEventListener("submit", async (evenement) => {
+      evenement.preventDefault();
+      const h_ = entier(heures), e_ = entier(nbEnfants);
+      if (h_ !== null && (h_ < 0 || h_ > 70)) return signaler(zone, "erreur", "Heures de travail : entre 0 et 70 par semaine.");
+      if (e_ !== null && (e_ < 0 || e_ > 15)) return signaler(zone, "erreur", "Nombre d'enfants : entre 0 et 15.");
+      if (naissance.value && (naissance.value < "1920-01-01" || naissance.value > "2015-12-31")) return signaler(zone, "erreur", "Vérifiez la date de naissance.");
+      occupe(bouton, true, "Enregistrement…");
+      const { error } = await sb.from("situation_personnelle").upsert({
+        apprenant_id: a.id,
+        organisme_id: a.organisme_id,
+        date_naissance: naissance.value || null,
+        situation_pro: pro.champ.value || null,
+        heures_travail: EN_EMPLOI.includes(pro.champ.value) ? h_ : null,
+        situation_familiale: famille.champ.value || null,
+        nombre_enfants: e_,
+        contraintes: contraintes.champ.value.trim() || null,
+      }, { onConflict: "apprenant_id" });
+      occupe(bouton, false);
+      if (error) return signaler(zone, "erreur", texteErreur(error));
+      apresEnregistrement();
+    });
+    const vide = !sit;
+    const editeur = h("details", { class: "formation-modifier", open: vide ? true : null },
+      h("summary", {}, vide ? "Renseigner la situation" : "Modifier"), formulaire);
+
+    return h("section", { class: "carte carte-large perso", "aria-label": "Situation personnelle" },
+      h("div", { class: "perso-entete" },
+        h("p", { class: "surtitre" }, "Situation personnelle"),
+        h("span", { class: "aide" }, "🔒 Visible par l'équipe Fil Rouge uniquement")),
+      h("div", { class: "perso-grille" },
+        caseInfo("Âge", age === null ? null : `${age} ans`),
+        caseInfo("Situation pro", travail),
+        caseInfo("Situation familiale", f.situation_familiale ? LIBELLE_SITUATION_FAMILIALE[f.situation_familiale] : null),
+        caseInfo("Enfants", enfants)),
+      f.contraintes ? h("p", { class: "perso-contraintes" }, f.contraintes) : null,
+      editeur);
+  }
+
   // Bandeau « Action de formation » en haut de la fiche : entrée officielle,
   // sortie, et où en est l'apprenant entre les deux. L'administratrice modifie les dates ici.
   function blocActionFormation(a, estAdmin, apresEnregistrement) {
@@ -2245,7 +2341,7 @@
     const entete = () => (estAdmin ? [navigationAdmin("rappels")] : []);
     afficher(...entete(), h("p", { class: "chargement" }, "Chargement de la fiche…"));
 
-    const [apprenant, appels, coaching] = await Promise.all([
+    const [apprenant, appels, coaching, situation] = await Promise.all([
       sb.from("apprenants")
         .select("id, organisme_id, appelante_id, identifiant_externe, prenom, nom, telephone, email, parcours, date_inscription, date_entree_formation, date_sortie_formation, avancement_pct, derniere_connexion, statut, date_dernier_contact, cree_le, date_examen, presence_examen, resultat_examen, organismes ( nom, seuil_vert_jours, seuil_orange_jours )")
         .eq("id", id).maybeSingle(),
@@ -2255,8 +2351,10 @@
           : "id, date_appel, canal, resultat, note_client, prochaine_action, date_prochaine_action")
         .eq("apprenant_id", id).order("date_appel", { ascending: false }).order("id"),
       sb.from("coaching").select("*").eq("apprenant_id", id).maybeSingle(),
+      // Situation personnelle : équipe Fil Rouge seulement (la base refuse au client).
+      peutNoter ? sb.from("situation_personnelle").select("*").eq("apprenant_id", id).maybeSingle() : Promise.resolve({ data: null, error: null }),
     ]);
-    const erreur = apprenant.error || appels.error || coaching.error;
+    const erreur = apprenant.error || appels.error || coaching.error || situation.error;
     if (erreur) return afficher(...entete(), message("erreur", texteErreur(erreur)));
     const retourParDefaut = estAdmin ? (apprenant.data ? `eleves/${apprenant.data.organisme_id}` : "rappels") : "";
     if (!apprenant.data) {
@@ -2357,6 +2455,8 @@
         suivantId
           ? h("p", { class: "message message-action" }, lienInterne(`apprenant/${suivantId}`, "Apprenant suivant dans la liste →"))
           : null,
+
+        peutNoter ? blocSituationPerso(a, situation.data, () => rafraichir("Situation personnelle enregistrée.")) : null,
 
         blocActionFormation(a, estAdmin, () => rafraichir("Dates de formation enregistrées.")),
 
