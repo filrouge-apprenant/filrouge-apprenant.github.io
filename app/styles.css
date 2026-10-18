@@ -322,6 +322,15 @@ button:focus-visible {
 .compteur-orange .compteur-valeur { color: var(--alerte-orange); }
 .compteur-rouge .compteur-valeur { color: var(--alerte-rouge); }
 
+/* Assiduité : compteurs cliquables pour filtrer la liste */
+.compteur-bouton { border: 0; font: inherit; text-align: left; cursor: pointer; color: inherit; box-shadow: inset 0 -2px 0 transparent; }
+.compteur-bouton:hover { background: var(--fond-doux); }
+.compteur-bouton[aria-pressed="true"] { box-shadow: inset 0 -3px 0 var(--violet); }
+.compteur-bouton:focus-visible { outline: 2px solid var(--violet); outline-offset: -2px; }
+.code-apprenant { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.8rem; color: var(--texte-doux); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.actions .aide { margin: 0; flex: 1 1 18rem; }
+
 /* Liste d'organismes / d'apprenants : lignes séparées par des filets */
 .liste { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--filet); }
 

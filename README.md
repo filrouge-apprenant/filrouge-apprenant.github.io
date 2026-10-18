@@ -19,6 +19,7 @@ Le cahier des charges complet est dans le document « Plateforme Fil Rouge — C
 | 9. Accès clients | Onglet « Accès clients » : période d'accès par compte (début, fin, +1 mois / +3 mois / +1 an), rubriques visibles par client (comptes rendus, examens, coaching, avis, Qualiopi), dernière connexion, alertes d'expiration ; appliqué par la base | Terminée |
 | 10. Comptabilité | Onglet « Comptabilité » de la fiche client : contrat (PDF dans un dossier sécurisé), échéancier mensuel (appels × tarif 20/15/12 € ou tarif du contrat), payé / à payer / en retard ; alertes de relance J+3, J+15, mise en demeure J+30 (aucun envoi automatique : Émilie relance par email ou téléphone et note la relance) ; page « Impayés » | Terminée |
 | 11. Tunnel de vente | Page publique `offre-pilote.html` (forfait pilote 400 € HT : 20 apprenants, 2 mois) ; bouton « Réserver et payer » vers un lien de paiement Stripe (`lienPaiementPilote` dans `config.js`, prélèvement SEPA ou carte) ; tant que le lien est vide, réservation par email prérédigé ; devis sur mesure par email | En place (paiement à activer) |
+| 12. Assiduité et export sans nom | Écran « Qui rappeler » : chaque apprenant classé à risque / à surveiller / assidu·e (dernière connexion, retard sur le rythme attendu, fin de formation dépassée, appels sans réponse ; calcul dans `assiduite.js`, sans IA), filtres par niveau, à risque en tête de liste ; bouton « Export sans nom (pour analyse) » : fichier Excel sans nom, téléphone, email ni date de naissance, chaque apprenant sous un code (A-XXXXXX) affiché aussi dans la plateforme | Terminée |
 | 7. Sécurité et mise en ligne | Plan Pro, nom de domaine, hébergement | À faire |
 
 ## Contenu du dossier
@@ -46,6 +47,7 @@ tests/
   10_tests_cloisonnement.sql      114 vérifications d'accès et de calcul
   lancer_tests.sh                 Lance tout dans une base jetable
   import.test.js                  17 tests de lecture des fichiers CSV (node tests/import.test.js)
+  assiduite.test.js               11 tests du classement d'assiduité et de l'export sans nom (node tests/assiduite.test.js)
 ```
 
 ## Les tables

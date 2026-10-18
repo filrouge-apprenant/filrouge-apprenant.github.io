@@ -1356,9 +1356,19 @@
       if (!organismes.has(l.organisme_id)) organismes.set(l.organisme_id, { id: l.organisme_id, nom: l.organisme_nom, n: 0 });
       organismes.get(l.organisme_id).n++;
     }
-    const visibles = trierParUrgence(data.filter((l) => !organismeId || l.organisme_id === organismeId));
+    // Assiduité de chaque apprenant (calcul dans assiduite.js, aucune IA).
+    // Ordre : les apprenants à risque d'abord, puis les jours sans contact.
+    const ASS = window.FilRougeAssiduite;
+    const jour = aujourdhui();
+    const filtres = data.filter((l) => !organismeId || l.organisme_id === organismeId);
+    for (const a of filtres) a.assiduite = ASS.evaluer(a, jour);
+    const visibles = trierParUrgence(filtres)
+      .sort((a, b) => ASS.ORDRE[a.assiduite.niveau] - ASS.ORDRE[b.assiduite.niveau]); // tri stable
     const total = compterAlertes(visibles);
     memoriserFile(visibles, organismeId ? `rappels/${organismeId}` : "rappels");
+    const totalAssiduite = ASS.compter(visibles.map((a) => a.assiduite));
+    let niveauChoisi = null; // null = tous
+    const zoneListe = h("div", {});
 
     const filtre = (id, texte, n) =>
       h("a", { href: id ? `#/rappels/${id}` : "#/rappels", class: "filtre", "aria-current": (organismeId || null) === id ? "true" : null },
@@ -1376,11 +1386,51 @@
       ].filter(Boolean).join(" · ");
       return h("li", { class: "ligne" },
         h("span", { class: "ligne-titre" }, lienInterne(`apprenant/${a.id}`, nomComplet)),
-        h("span", { class: "pastilles" }, pastille(a.alerte, `${a.jours_sans_contact} j · ${libelleAlerte(a.alerte)}`), pastilleSortie(a)),
+        h("span", { class: "pastilles" },
+          h("span", { class: `pastille pastille-${ASS.COULEUR[a.assiduite.niveau]}`, title: a.assiduite.raisons.join(" ; ") }, a.assiduite.libelle),
+          pastille(a.alerte, `${a.jours_sans_contact} j · ${libelleAlerte(a.alerte)}`), pastilleSortie(a)),
         h("span", { class: "ligne-detail" },
           details,
-          a.telephone ? h("span", { class: "telephone" }, " · ", h("a", { href: `tel:${a.telephone.replace(/[^\d+]/g, "")}` }, a.telephone)) : null));
+          a.telephone ? h("span", { class: "telephone" }, " · ", h("a", { href: `tel:${a.telephone.replace(/[^\d+]/g, "")}` }, a.telephone)) : null),
+        h("span", { class: "ligne-detail" },
+          a.assiduite.raisons.length ? `Assiduité : ${a.assiduite.raisons.join(" ; ")} · ` : "",
+          h("span", { class: "code-apprenant", title: "Code utilisé dans l'export sans nom" }, ASS.code(a))));
     };
+
+    const lignesAffichees = () => niveauChoisi
+      ? visibles.filter((a) => a.assiduite.niveau === niveauChoisi)
+      : visibles;
+    const dessinerListe = () => {
+      const l = lignesAffichees();
+      zoneListe.replaceChildren(l.length
+        ? h("ul", { class: "liste" }, l.map(ligne))
+        : message("info", "Aucun apprenant dans cette catégorie."));
+    };
+    const choixNiveau = (niveau, texte, couleur) => {
+      const b = h("button", { type: "button", class: `compteur compteur-bouton${couleur ? ` compteur-${couleur}` : ""}`, "aria-pressed": niveauChoisi === niveau ? "true" : "false" },
+        h("span", { class: "compteur-valeur" }, niveau ? totalAssiduite[niveau] : visibles.length),
+        h("span", { class: "compteur-libelle" }, texte));
+      b.addEventListener("click", () => {
+        niveauChoisi = niveau;
+        blocAssiduite.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", "false"));
+        b.setAttribute("aria-pressed", "true");
+        dessinerListe();
+      });
+      return b;
+    };
+    const blocAssiduite = h("div", { class: "compteurs", role: "group", "aria-label": "Filtrer par assiduité" },
+      choixNiveau(null, "tous"),
+      choixNiveau("risque", "à risque", "rouge"),
+      choixNiveau("moyen", "à surveiller", "orange"),
+      choixNiveau("assidu", "assidu·es", "vert"),
+      totalAssiduite.inconnu ? choixNiveau("inconnu", "non évalués") : null);
+
+    const exporterSansNom = () => {
+      const org = organismeId ? organismes.get(organismeId) : null;
+      telechargerCsv(`analyse-sans-nom-${org ? nomFichier(org.nom) : "tous-clients"}-${jour}.csv`,
+        ASS.ENTETES_ANONYMES, ASS.anonymiser(lignesAffichees(), jour));
+    };
+    dessinerListe();
 
     afficher(
       navigationAdmin("rappels"),
@@ -1388,15 +1438,22 @@
         h("div", {},
           h("p", { class: "surtitre" }, "À rappeler"),
           h("h1", {}, "Qui rappeler en premier ?"),
-          h("p", { class: "chapo" }, "Apprenants actifs, classés du plus urgent au moins urgent selon le nombre de jours sans contact.")),
+          h("p", { class: "chapo" }, "Apprenants actifs : les apprenants à risque d'abord, puis les autres, et dans chaque groupe le plus long silence en premier. L'assiduité (à risque, à surveiller, assidu·e) est calculée d'après la dernière connexion, l'avancement par rapport au rythme attendu, la date de fin de formation et les appels sans réponse.")),
         organismes.size > 1
           ? h("div", { class: "filtres" },
               filtre(null, "Tous les clients", data.length),
               [...organismes.values()].sort((a, b) => a.nom.localeCompare(b.nom, "fr")).map((o) => filtre(o.id, o.nom, o.n)))
           : null,
         visibles.length ? blocCompteurs(total, visibles.length) : null,
+        visibles.length ? h("h2", {}, "Assiduité") : null,
+        visibles.length ? blocAssiduite : null,
         visibles.length
-          ? h("ul", { class: "liste" }, visibles.map(ligne))
+          ? h("div", { class: "actions" },
+              h("button", { type: "button", class: "bouton bouton-secondaire", onclick: exporterSansNom }, "Export sans nom (pour analyse)"),
+              h("p", { class: "aide" }, "Fichier Excel des apprenants affichés, sans nom, téléphone, email ni date de naissance. Chaque apprenant y figure sous son code (ex. A-3F9C2B), visible ici sous chaque nom."))
+          : null,
+        visibles.length
+          ? zoneListe
           : message("info", "Aucun apprenant actif. Importez le fichier d'un client depuis sa fiche, dans Prospection."))
     );
   }
