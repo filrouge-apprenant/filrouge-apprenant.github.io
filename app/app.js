@@ -3848,8 +3848,35 @@
     return (s && s.etape) || "prospect";
   }
 
+  // Échéances du mois écoulé : calculées à la première ouverture de la
+  // plateforme dans le mois (pas besoin de tâche programmée côté serveur).
+  // Une échéance déjà calculée ou payée n'est pas touchée.
+  let echeancesVerifiees = false;
+  async function calculerEcheancesManquantes() {
+    if (echeancesVerifiees) return 0;
+    echeancesVerifiees = true;
+    const moisCourant = premierDuMois(aujourdhui());
+    const [a, m] = moisCourant.split("-").map(Number);
+    const moisEcoule = m === 1 ? `${a - 1}-12-01` : `${a}-${String(m - 1).padStart(2, "0")}-01`;
+    const [contrats, deja] = await Promise.all([
+      sb.from("contrats").select("organisme_id, date_debut, date_fin"),
+      sb.from("echeances").select("organisme_id").eq("mois", moisEcoule),
+    ]);
+    if (contrats.error || deja.error) return 0;
+    const faits = new Set(deja.data.map((e) => e.organisme_id));
+    const aFaire = contrats.data.filter((c) =>
+      !faits.has(c.organisme_id) && c.date_debut < moisCourant && (!c.date_fin || c.date_fin >= moisEcoule));
+    let n = 0;
+    for (const c of aFaire) {
+      const { error } = await sb.rpc("calculer_echeance", { p_organisme: c.organisme_id, p_mois: moisEcoule });
+      if (!error) n += 1;
+    }
+    return n;
+  }
+
   async function chargerMenu() {
     if (!menuVisible()) return;
+    await calculerEcheancesManquantes();
     const [orgs, appr, urgents, avis, comptes, impayes] = await Promise.all([
       sb.from("organismes").select("id, nom, organismes_suivi_commercial ( etape )").order("nom"),
       sb.from("apprenants").select("organisme_id, statut"),
@@ -4302,7 +4329,7 @@
             return h("li", { class: "ligne" },
               h("span", { class: "ligne-titre" }, `${moisLettres(m)} · en cours`),
               h("span", { class: "pastilles" }, pastille("neutre", `≈ ${euros(aboutis * tarifBase)}`)),
-              h("span", { class: "ligne-detail" }, `${pluriel(aboutis, "appel facturable", "appels facturables")} à ce jour × ${euros(tarifBase)}. Calcul définitif le 1er du mois prochain.`));
+              h("span", { class: "ligne-detail" }, `${pluriel(aboutis, "appel facturable", "appels facturables")} à ce jour × ${euros(tarifBase)}. Calcul définitif à ta première connexion du mois prochain.`));
           }
           if (m > moisCourant) {
             const estimation = (actifs.count || 0) * tarifBase;
@@ -4326,7 +4353,7 @@
         };
         sectionEcheancier = h("section", { class: "pile-serree" },
           h("div", { class: "section-titre" }, h("h2", {}, "Échéancier"), h("p", {}, pluriel(liste.length, "échéance", "échéances"))),
-          h("p", { class: "aide" }, `Chaque 1er du mois, l'échéance du mois écoulé est calculée : ${LIBELLE_BASE_FACTURATION[c.base_facturation].toLowerCase()} × ${c.tarif_fixe ? euros(c.tarif_fixe) + " (tarif du contrat)" : "la grille (20 € sous 20 apprenants, 15 € jusqu'à 150, 12 € au-delà)"}, à régler sous ${c.delai_paiement_jours} jours.`),
+          h("p", { class: "aide" }, `À ta première connexion de chaque mois, l'échéance du mois écoulé est calculée : ${LIBELLE_BASE_FACTURATION[c.base_facturation].toLowerCase()} × ${c.tarif_fixe ? euros(c.tarif_fixe) + " (tarif du contrat)" : "la grille (20 € sous 20 apprenants, 15 € jusqu'à 150, 12 € au-delà)"}, à régler sous ${c.delai_paiement_jours} jours.`),
           h("ul", { class: "liste" }, lignes.map(ligneMois)));
       }
 
