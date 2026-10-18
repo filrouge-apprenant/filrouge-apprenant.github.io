@@ -2549,26 +2549,21 @@
     const suivantId = file ? file.ids[file.ids.indexOf(id) + 1] : null;
     const retour = file ? file.retour : retourParDefaut;
 
-    // --- Statut (administratrice) ---
+    // --- Statut de l'apprenant : petit sélecteur sur la fiche (administratrice) ---
     let blocStatut = null;
     if (estAdmin) {
-      const zone = h("div");
-      const statut = champChoix("fiche-statut", "Statut de l'apprenant", LIBELLE_STATUT, a.statut);
-      const bouton = h("button", { type: "submit", class: "bouton bouton-secondaire bouton-petit" }, "Enregistrer le statut");
-      const formulaire = h("form", { class: "formulaire", novalidate: true }, statut.bloc, zone, bouton);
-      formulaire.addEventListener("submit", async (evenement) => {
-        evenement.preventDefault();
-        occupe(bouton, true, "Enregistrement…");
-        const { error } = await sb.from("apprenants").update({ statut: statut.champ.value }).eq("id", id);
-        occupe(bouton, false);
-        if (error) return signaler(zone, "erreur", texteErreur(error));
-        rafraichir("Statut enregistré.");
+      const choix = h("select", { class: "statut-choix", "aria-label": "Statut de l'apprenant" },
+        Object.entries(LIBELLE_STATUT).map(([v, t]) => h("option", { value: v }, t)));
+      choix.value = a.statut;
+      const zone = h("span");
+      choix.addEventListener("change", async () => {
+        choix.disabled = true;
+        const { error } = await sb.from("apprenants").update({ statut: choix.value }).eq("id", id);
+        choix.disabled = false;
+        if (error) { choix.value = a.statut; return signaler(zone, "erreur", texteErreur(error)); }
+        rafraichir(choix.value === "actif" ? "Statut enregistré : en formation." : `Statut enregistré : ${LIBELLE_STATUT[choix.value].toLowerCase()}. L'apprenant sort de « Qui rappeler ».`);
       });
-      blocStatut = h("section", {},
-        h("div", { class: "section-titre" }, h("h2", {}, "Statut")),
-        h("div", { class: "carte carte-large" },
-          h("p", { class: "aide" }, "« Abandon » et « Terminé » retirent l'apprenant de la liste « Qui rappeler »."),
-          formulaire));
+      blocStatut = h("label", { class: "statut-fiche" }, h("span", { class: "compteur-libelle" }, "Statut"), choix, zone);
     }
 
     // --- Examen ---
@@ -2581,23 +2576,39 @@
       h("p", {}, resumeExamen),
       estAdmin ? editeurExamen(a, () => rafraichir("Examen enregistré.")) : null);
 
-    const blocConfie = estAdmin ? await blocConfieA(a, rafraichir) : null;
 
     const ligneHisto = (ap) => ligneHistorique(ap, { peutSupprimer: estAdmin, apresSuppression: () => rafraichir("Appel supprimé.") });
     const historique = appels.data.length
       ? h("ul", { class: "liste" }, appels.data.map(ligneHisto))
       : message("info", "Aucun appel pour l'instant.");
 
-    // --- Notes internes : la partie privée de chaque appel (jamais visible du client) ---
-    const avecNoteInterne = peutNoter ? appels.data.filter((ap) => ap.notes_internes && ap.notes_internes.contenu) : [];
+    // --- Notes internes : écrites ici ou lors d'un appel ; elles vont aussi dans le fil de commentaires ---
+    const notesInternes = (commentaires.data || []).filter((c) => c.source === "note_interne");
     const panneauInternes = h("section", { class: "pile-serree" },
       h("div", { class: "section-titre" }, h("h2", {}, "Notes internes"), h("p", {}, "🔒 Équipe Fil Rouge uniquement")),
-      avecNoteInterne.length
-        ? h("ul", { class: "liste" }, avecNoteInterne.map((ap) => h("li", { class: "ligne ligne-echange" },
-            h("span", { class: "ligne-titre" }, dateHeureComplete(ap.date_appel)),
-            h("span", { class: "pastilles" }, pastille(COULEUR_RESULTAT_APPEL[ap.resultat] || "neutre", LIBELLE_RESULTAT_APPEL[ap.resultat] || ap.resultat)),
-            h("span", { class: "ligne-detail texte-libre note-interne" }, ap.notes_internes.contenu))))
-        : message("info", "Aucune note interne. Elles s'écrivent dans « Noter un appel », case « Note interne »."));
+      peutNoter ? (() => {
+        const zone = h("div");
+        const champNote = h("textarea", { rows: "4", maxlength: "4000", class: "commentaire-champ", placeholder: "Écrire une note interne… (jamais visible par l'organisme)", "aria-label": "Nouvelle note interne" });
+        const bouton = h("button", { type: "submit", class: "bouton bouton-petit" }, "Ajouter la note");
+        const form = h("form", { class: "carte carte-large pile-serree", novalidate: true }, champNote, zone, h("div", { class: "actions-ligne" }, bouton));
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const texte = champNote.value.trim();
+          if (!texte) return signaler(zone, "erreur", "La note est vide.");
+          occupe(bouton, true, "Enregistrement…");
+          const { error } = await sb.from("commentaires").insert({ apprenant_id: a.id, organisme_id: a.organisme_id, source: "note_interne", contenu: texte });
+          occupe(bouton, false);
+          if (error) return signaler(zone, "erreur", texteErreur(error));
+          rafraichir("Note interne ajoutée, aussi dans les commentaires.");
+        });
+        return form;
+      })() : null,
+      notesInternes.length
+        ? h("ol", { class: "commentaires-liste" }, notesInternes.map((c) => h("li", { class: "commentaire commentaire-note_interne" },
+            h("div", { class: "commentaire-tete" }, h("span", { class: "commentaire-source" }, "🔒 Note interne"), h("span", { class: "commentaire-date" }, dateHeureComplete(c.cree_le))),
+            h("p", { class: "commentaire-texte" }, c.contenu),
+            c.auteur_nom ? h("p", { class: "commentaire-auteur" }, c.auteur_nom) : null)))
+        : message("info", "Aucune note interne pour l'instant."));
 
     // --- Compte rendu pour l'organisme : exactement ce que voit le client ---
     const avecCompteRendu = appels.data.filter((ap) => ap.note_client || ap.prochaine_action);
@@ -2628,15 +2639,14 @@
     // --- Onglets en haut de la fiche ---
     const memo = etat.ongletFiche && etat.ongletFiche.id === id ? etat.ongletFiche : { id, onglet: lireRoute().onglet || "fiche", partie: lireRoute().partie || "stage" };
     etat.ongletFiche = memo;
-    const panneauSuivi = h("div", { class: "pile" },
-      peutNoter ? blocContacter(a, rafraichir) : null,
-      peutNoter
-        ? h("section", {},
-            h("div", { class: "section-titre" }, h("h2", {}, "Noter un appel")),
-            h("div", { class: "carte carte-large" }, formulaireAppel(a, () => rafraichir("Appel enregistré. Le compteur repart à zéro."))))
-        : null,
-      blocConfie,
-      blocStatut);
+    // Contacter et noter l'appel : directement sur la fiche.
+    const blocContacterFiche = peutNoter
+      ? h("div", { class: "pile" },
+          blocContacter(a, rafraichir),
+          h("section", {},
+            h("div", { class: "section-titre" }, h("h2", {}, "Noter l'appel")),
+            h("div", { class: "carte carte-large" }, formulaireAppel(a, () => rafraichir("Appel enregistré. Le compteur repart à zéro.")))))
+      : null;
     const panneauHistorique = h("section", { class: "pile-serree" },
       h("div", { class: "section-titre" }, h("h2", {}, "Historique d'appels"), h("p", {}, pluriel(appels.data.length, "contact", "contacts"))),
       historique);
@@ -2647,9 +2657,8 @@
     const panneauFiche = h("div", { class: "pile" });
     const listeOnglets = peutNoter
       ? [["fiche", "Fiche", panneauFiche],
-         ["suivi", "Noter un appel", panneauSuivi],
          ["historique", `Historique d'appels${nb(appels.data.length)}`, panneauHistorique],
-         ["internes", `Notes internes${nb(avecNoteInterne.length)}`, panneauInternes],
+         ["internes", `Notes internes${nb(notesInternes.length)}`, panneauInternes],
          ["compte-rendu", "Compte rendu organisme", panneauCompteRendu],
          ["coaching", "Coaching", panneauCoaching]]
       : [["fiche", "Fiche", panneauFiche],
@@ -2682,14 +2691,16 @@
             a.statut === "actif"
               ? pastille(couleur, jours === null ? "jamais contacté·e" : `${jours} j sans contact`)
               : pastille("neutre", LIBELLE_STATUT[a.statut]),
-            " ", pastilleSortie(a))),
+            " ", pastilleSortie(a)),
+          blocStatut),
          blocActionFormation(a, estAdmin, () => rafraichir("Dates de formation enregistrées."))),
         h("div", { class: "compteurs" },
           h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, a.avancement_pct === null || a.avancement_pct === undefined ? "—" : `${Math.round(a.avancement_pct)} %`), h("span", { class: "compteur-libelle" }, "avancement")),
           h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.derniere_connexion ? dateLisible(a.derniere_connexion) : "—"), h("span", { class: "compteur-libelle" }, "dernière connexion")),
           h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_dernier_contact ? dateLisible(a.date_dernier_contact) : "—"), h("span", { class: "compteur-libelle" }, "dernier contact")),
           h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_examen ? dateLisible(a.date_examen) : "—"), h("span", { class: "compteur-libelle" }, "examen"))),
-        blocCompteursContact(appels.data));
+        blocCompteursContact(appels.data),
+        blocContacterFiche);
 
     // Trois colonnes sur ordinateur : situation à gauche, fiche au centre, commentaires à droite.
     // Le client ne voit ni la situation ni les commentaires : une seule colonne.

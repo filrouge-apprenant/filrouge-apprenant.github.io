@@ -777,6 +777,12 @@ select tests.doit_etre_refuse(
 select tests.doit_etre_refuse(
   $$insert into public.commentaires (apprenant_id, organisme_id, contenu, source) values ('a1000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001', 'x', 'coaching')$$,
   'appelante : ne peut pas fabriquer un commentaire automatique');
+insert into public.commentaires (apprenant_id, organisme_id, contenu, source, cree_le)
+values ('a1000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001', 'Ne pas évoquer le dossier CAF', 'note_interne', '2020-01-01');
+select tests.verifier(
+  (select auteur_id = '44444444-4444-4444-8444-444444444444' and cree_le > now() - interval '1 minute'
+     from public.commentaires where contenu = 'Ne pas évoquer le dossier CAF'),
+  'appelante : écrit une note interne libre (auteur et heure réels imposés)');
 rollback;
 
 begin;
