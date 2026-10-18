@@ -1136,3 +1136,45 @@ input:focus, select:focus, textarea:focus { border-color: var(--violet); }
 .effacer { display: inline-flex; gap: 0.6rem; align-items: center; }
 .bouton-effacer { font-size: 0.78rem; }
 .commentaire .bouton-effacer:not(:hover) { opacity: 0.7; }
+
+/* =============================================================================
+   Accès clients : groupes par client, droits à cocher
+   ============================================================================= */
+.groupe-acces h3 {
+  font-family: var(--police-titre);
+  font-weight: 400;
+  font-size: 1.15rem;
+  margin: 0 0 0.3rem;
+  color: var(--violet);
+}
+.ligne > .ligne-edition { margin-top: 0.4rem; }
+.droits-masques { color: var(--alerte-orange); }
+
+.droits {
+  border: 1px solid var(--filet);
+  border-radius: var(--rayon);
+  padding: 0.8rem 1rem 1rem;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.droits legend { font-weight: 700; padding: 0 0.3rem; }
+.droits .aide { margin: 0 0 0.2rem; }
+
+label.case {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+label.case input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.15rem;
+  flex: none;
+  accent-color: var(--violet);
+}
+.case-titre { display: block; font-weight: 700; }
+.case-aide { display: block; font-size: 0.85rem; color: var(--texte-doux); }

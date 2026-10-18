@@ -18,7 +18,8 @@ grant usage on schema public to anon, authenticated, service_role;
 
 create table auth.users (
   id    uuid primary key,
-  email text
+  email text,
+  last_sign_in_at timestamptz
 );
 
 -- Même comportement que Supabase : l'identifiant vient du jeton de connexion.

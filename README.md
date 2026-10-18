@@ -16,6 +16,7 @@ Le cahier des charges complet est dans le document « Plateforme Fil Rouge — C
 | 6. Fiche apprenant et appels | Fiche, « Noter un appel », note interne, historique, apprenant suivant | Terminée |
 | 7. Comptes et portail client | Création des comptes clients et appelantes depuis l'onglet Accès, désactivation, apprenants confiés ; espace client en lecture seule avec exports | Terminée |
 | 8. Satisfaction des élèves | Onglet « Satisfaction » : envoi du questionnaire élève par élève, réponses privées, déblocage pour le client, récap mensuel ; page publique questionnaire.html | Terminée |
+| 9. Accès clients | Onglet « Accès clients » : période d'accès par compte (début, fin, +1 mois / +3 mois / +1 an), rubriques visibles par client (comptes rendus, examens, coaching, avis, Qualiopi), dernière connexion, alertes d'expiration ; appliqué par la base | Terminée |
 | 7. Sécurité et mise en ligne | Plan Pro, nom de domaine, hébergement | À faire |
 
 ## Contenu du dossier
@@ -29,6 +30,7 @@ supabase/
     20261015000004_crm_prospection.sql  Historique des échanges, création et suppression sécurisées
     20261017000005_suivi_examen.sql     Examen (date, présence, résultat), relances J-30/J-7/J-1, taux par cohorte
     20261017000007_comptes.sql          je_suis_admin(), protection de son propre compte, apprenants confiés à une appelante active
+    20261018000016_acces_clients.sql    Période d'accès et droits par compte, comptes_acces() (dernière connexion)
     20261017000006_fiche_apprenant.sql  noter_appel() (appel + note interne en une fois), correction du dernier contact si un appel est supprimé
   seed.sql                        Données 100 % fictives (2 clients, 3 prospects, 20 apprenants)
 functions/

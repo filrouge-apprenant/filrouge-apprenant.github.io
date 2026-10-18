@@ -192,7 +192,7 @@
 
     const { data: profil, error } = await sb
       .from("profils")
-      .select("id, email, nom_affiche, role, organisme_id, actif")
+      .select("id, email, nom_affiche, role, organisme_id, actif, acces_debut, acces_fin, voir_comptes_rendus, voir_coaching, voir_avis, voir_examens, voir_preuves")
       .eq("id", session.user.id)
       .maybeSingle();
 
@@ -202,6 +202,14 @@
 
     if (!profil || !profil.actif) {
       return ecranSansAcces(session.user.email);
+    }
+
+    // Période d'accès (clients et appelantes) : la base bloque déjà tout en dehors ;
+    // ici on explique pourquoi.
+    if (profil.role !== "admin") {
+      const auj = aujourdhui();
+      if (profil.acces_fin && profil.acces_fin < auj) return ecranAccesTermine(profil, "fin");
+      if (profil.acces_debut && profil.acces_debut > auj) return ecranAccesTermine(profil, "debut");
     }
 
     zoneCompte.hidden = false;
@@ -498,6 +506,22 @@
     );
   }
 
+  function ecranAccesTermine(profil, cas) {
+    zoneCompte.hidden = false;
+    compteLibelle.textContent = profil.nom_affiche || profil.email || "";
+    afficher(
+      h("div", { class: "pile" },
+        h("div", {},
+          h("p", { class: "surtitre" }, "Accès"),
+          h("h1", {}, cas === "fin" ? "Votre accès a pris fin" : "Votre accès n'est pas encore ouvert"),
+          h("p", { class: "chapo" }, cas === "fin"
+            ? `Votre accès à l'espace de suivi était ouvert jusqu'au ${dateLisible(profil.acces_fin)}. Vos données sont conservées : pour le prolonger, contactez Fil Rouge Apprenants.`
+            : `Votre accès à l'espace de suivi s'ouvrira le ${dateLisible(profil.acces_debut)}.`),
+          cas === "fin"
+            ? h("p", {}, h("a", { class: "bouton", href: `mailto:contact.filrouge.apprenant@gmail.com?subject=${encodeURIComponent("Prolonger mon accès Fil Rouge Apprenants")}` }, "Écrire à Fil Rouge Apprenants"))
+            : null)));
+  }
+
   // ---------------------------------------------------------------------------
   // Accueils selon le rôle
   // ---------------------------------------------------------------------------
@@ -681,7 +705,7 @@
   function routeClient() {
     if (!etat.profil || etat.profil.role !== "client") return aiguiller();
     const route = lireRoute();
-    if (route.nom === "preuves") return ecranPreuves(etat.profil.organisme_id);
+    if (route.nom === "preuves" && clientPeut("voir_preuves")) return ecranPreuves(etat.profil.organisme_id);
     if (route.nom === "apprenant") return ecranApprenant(route.id);
     return accueilClient(etat.profil);
   }
@@ -2745,11 +2769,12 @@
     const panneauHistorique = h("section", { class: "pile-serree" },
       h("div", { class: "section-titre" }, h("h2", {}, "Historique d'appels"), h("p", {}, pluriel(appels.data.length, "contact", "contacts"))),
       historique);
-    const panneauCoaching = blocCoachingFiche(a, coaching.data, peutNoter, rafraichir, blocExamen, memo);
+    const panneauCoaching = blocCoachingFiche(a, coaching.data, peutNoter, rafraichir, clientPeut("voir_examens") ? blocExamen : null, memo);
     const nb = (n) => (n ? ` (${n})` : "");
     // Onglet « Fiche » : identité, action de formation, situation, chiffres.
     // Chaque autre onglet s'ouvre seul, à la place de la fiche.
     const panneauFiche = h("div", { class: "pile" });
+    // Client : seulement les rubriques autorisées dans « Accès clients ».
     const listeOnglets = peutNoter
       ? [["fiche", "Fiche", panneauFiche],
          ["historique", `Historique d'appels${nb(appels.data.length)}`, panneauHistorique],
@@ -2757,9 +2782,9 @@
          ["compte-rendu", "Compte rendu organisme", panneauCompteRendu],
          ["coaching", "Coaching", panneauCoaching]]
       : [["fiche", "Fiche", panneauFiche],
-         ["compte-rendu", `Comptes rendus${nb(comptesRendus.data.length)}`, panneauCompteRendu],
-         ["historique", `Historique d'appels${nb(appels.data.length)}`, panneauHistorique],
-         ["coaching", "Coaching", panneauCoaching]];
+         clientPeut("voir_comptes_rendus") ? ["compte-rendu", `Comptes rendus${nb(comptesRendus.data.length)}`, panneauCompteRendu] : null,
+         clientPeut("voir_comptes_rendus") ? ["historique", `Historique d'appels${nb(appels.data.length)}`, panneauHistorique] : null,
+         clientPeut("voir_coaching") ? ["coaching", "Coaching", panneauCoaching] : null].filter(Boolean);
     const ongletsFiche = barreOnglets("fiche", listeOnglets,
       memo.onglet, (cle) => {
         memo.onglet = cle;
@@ -2794,8 +2819,8 @@
           h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, a.avancement_pct === null || a.avancement_pct === undefined ? "—" : `${Math.round(a.avancement_pct)} %`), h("span", { class: "compteur-libelle" }, "avancement")),
           h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.derniere_connexion ? dateLisible(a.derniere_connexion) : "—"), h("span", { class: "compteur-libelle" }, "dernière connexion")),
           h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_dernier_contact ? dateLisible(a.date_dernier_contact) : "—"), h("span", { class: "compteur-libelle" }, "dernier contact")),
-          h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_examen ? dateLisible(a.date_examen) : "—"), h("span", { class: "compteur-libelle" }, "examen"))),
-        blocCompteursContact(appels.data),
+          clientPeut("voir_examens") ? h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_examen ? dateLisible(a.date_examen) : "—"), h("span", { class: "compteur-libelle" }, "examen")) : null),
+        clientPeut("voir_comptes_rendus") ? blocCompteursContact(appels.data) : null,
         blocContacterFiche);
 
     // Trois colonnes sur ordinateur : situation à gauche, fiche au centre, commentaires à droite.
@@ -2849,125 +2874,292 @@
     }
   }
 
-  async function ecranAcces(info) {
-    afficher(navigationAdmin("acces"), h("p", { class: "chargement" }, "Chargement des accès…"));
+  // --- Droits qu'un client peut voir dans son espace (cases à cocher) ---
+  const DROITS_CLIENT = [
+    ["voir_comptes_rendus", "Comptes rendus d'appel", "Historique des appels et notes écrites pour l'organisme"],
+    ["voir_examens", "Suivi des examens", "Dates, relances J-30 / J-7 / J-1, taux de présence et de réussite"],
+    ["voir_coaching", "Coaching", "Stage, projet métier, organisation"],
+    ["voir_avis", "Avis des apprenants", "Uniquement ceux que vous débloquez dans « Satisfaction »"],
+    ["voir_preuves", "Dossier Qualiopi", "Dossier de preuves et exports"],
+  ];
+  const LIBELLE_DROIT_COURT = { voir_comptes_rendus: "comptes rendus", voir_examens: "examens", voir_coaching: "coaching", voir_avis: "avis", voir_preuves: "Qualiopi" };
+  const ALERTE_EXPIRATION_JOURS = 30;
 
-    const [profils, organismes, confies] = await Promise.all([
-      sb.from("profils").select("id, email, nom_affiche, role, organisme_id, actif, cree_le").order("cree_le"),
-      sb.from("organismes").select("id, nom, organismes_suivi_commercial ( etape )").order("nom"),
+  // Le client connecté a-t-il ce droit ? (Pour les autres rôles : oui.)
+  function clientPeut(cle) {
+    return !etat.profil || etat.profil.role !== "client" || etat.profil[cle] !== false;
+  }
+
+  function joursAvant(dateIso) {
+    return Math.round((new Date(`${dateIso}T12:00:00Z`) - new Date(`${aujourdhui()}T12:00:00Z`)) / 86400000);
+  }
+
+  function ajouterMois(dateIso, n) {
+    const d = new Date(`${dateIso}T12:00:00Z`);
+    const jour = d.getUTCDate();
+    d.setUTCDate(1);
+    d.setUTCMonth(d.getUTCMonth() + n);
+    const dernier = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    d.setUTCDate(Math.min(jour, dernier));
+    return d.toISOString().slice(0, 10);
+  }
+
+  // État d'un compte : code, couleur de pastille, texte.
+  function etatCompte(p) {
+    const auj = aujourdhui();
+    if (!p.actif) return { code: "desactive", couleur: "neutre", texte: "Désactivé" };
+    if (p.acces_debut && p.acces_debut > auj) return { code: "a_venir", couleur: "neutre", texte: `Commence le ${dateLisible(p.acces_debut)}` };
+    if (p.acces_fin && p.acces_fin < auj) return { code: "expire", couleur: "rouge", texte: `Expiré le ${dateLisible(p.acces_fin)}` };
+    if (p.acces_fin) {
+      const n = joursAvant(p.acces_fin);
+      if (n <= ALERTE_EXPIRATION_JOURS) return { code: "bientot", couleur: "orange", texte: n === 0 ? "Dernier jour" : `Expire dans ${n} j` };
+    }
+    return { code: "actif", couleur: "vert", texte: "Actif" };
+  }
+
+  function textePeriode(p) {
+    if (!p.acces_debut && !p.acces_fin) return "Accès sans limite";
+    if (!p.acces_fin) return `Depuis le ${dateLisible(p.acces_debut)}, sans limite`;
+    return p.acces_debut ? `Du ${dateLisible(p.acces_debut)} au ${dateLisible(p.acces_fin)}` : `Jusqu'au ${dateLisible(p.acces_fin)} inclus`;
+  }
+
+  function texteDerniereConnexion(horodatage) {
+    if (!horodatage) return "Jamais connecté·e";
+    const n = -joursAvant(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date(horodatage)));
+    return `Dernière connexion : ${n === 0 ? "aujourd'hui" : n === 1 ? "hier" : `il y a ${n} j`}`;
+  }
+
+  // Cases à cocher des droits d'un client.
+  function casesDroits(prefixe, valeurs) {
+    const cases = {};
+    const bloc = h("fieldset", { class: "droits" },
+      h("legend", {}, "Ce que ce client voit dans son espace"),
+      h("p", { class: "aide" }, "La liste de ses apprenants et leurs alertes restent toujours visibles."),
+      DROITS_CLIENT.map(([cle, titre, aide]) => {
+        const c = h("input", { type: "checkbox", id: `${prefixe}-${cle}`, name: cle });
+        c.checked = valeurs ? valeurs[cle] !== false : true;
+        cases[cle] = c;
+        return h("label", { class: "case", for: `${prefixe}-${cle}` }, c,
+          h("span", {}, h("span", { class: "case-titre" }, titre), h("span", { class: "case-aide" }, aide)));
+      }));
+    return { bloc, valeurs: () => Object.fromEntries(Object.entries(cases).map(([k, c]) => [k, c.checked])) };
+  }
+
+  // Dates d'accès + raccourcis (+1 mois, +3 mois, +1 an, sans limite).
+  function champsPeriode(prefixe, p) {
+    const debut = champTexte(`${prefixe}-debut`, "Début de l'accès", p?.acces_debut || "", { type: "date", aide: "Vide = dès maintenant." });
+    const fin = champTexte(`${prefixe}-fin`, "Fin de l'accès (jour inclus)", p?.acces_fin || "", { type: "date", aide: "Vide = sans limite. Le lendemain, le compte ne voit plus rien (rien n'est effacé)." });
+    const depart = () => {
+      const auj = aujourdhui();
+      return fin.champ.value && fin.champ.value > auj ? fin.champ.value : auj;
+    };
+    const raccourci = (texte, action) => {
+      const b = h("button", { type: "button", class: "puce" }, texte);
+      b.addEventListener("click", () => { fin.champ.value = action(); });
+      return b;
+    };
+    const raccourcis = h("div", { class: "raccourcis" },
+      h("span", { class: "aide" }, "Prolonger :"),
+      raccourci("+1 mois", () => ajouterMois(depart(), 1)),
+      raccourci("+3 mois", () => ajouterMois(depart(), 3)),
+      raccourci("+1 an", () => ajouterMois(depart(), 12)),
+      raccourci("Sans limite", () => ""));
+    return {
+      bloc: h("div", { class: "pile-serree" }, debut.bloc, fin.bloc, raccourcis),
+      valeurs: () => ({ acces_debut: debut.champ.value || null, acces_fin: fin.champ.value || null }),
+      verifier: () => (debut.champ.value && fin.champ.value && fin.champ.value < debut.champ.value ? "La fin de l'accès est avant son début." : null),
+    };
+  }
+
+  async function ecranAcces(info) {
+    afficher(h("p", { class: "chargement" }, "Chargement des accès…"));
+
+    const [comptes, organismes, confies] = await Promise.all([
+      sb.rpc("comptes_acces"),
+      sb.from("organismes").select("id, nom, organismes_suivi_commercial ( etape, date_debut_contrat )").order("nom"),
       sb.from("apprenants").select("appelante_id").not("appelante_id", "is", null),
     ]);
-    const erreur = profils.error || organismes.error || confies.error;
-    if (erreur) return afficher(navigationAdmin("acces"), message("erreur", texteErreur(erreur)));
+    const erreur = comptes.error || organismes.error || confies.error;
+    if (erreur) return afficher(message("erreur", texteErreur(erreur)));
 
     const nomOrganisme = new Map(organismes.data.map((o) => [o.id, o.nom]));
     const nbConfies = new Map();
     for (const a of confies.data) nbConfies.set(a.appelante_id, (nbConfies.get(a.appelante_id) || 0) + 1);
-
-    // Les clients en premier dans la liste des organismes, puis les autres.
     const estClient = (o) => (o.organismes_suivi_commercial?.etape || "prospect") === "client";
+    const autres = comptes.data.filter((p) => p.id !== etat.profil.id);
+
+    // --- Compteurs ---
+    const parEtat = { actif: 0, bientot: 0, expire: 0, desactive: 0, a_venir: 0 };
+    for (const p of autres) parEtat[etatCompte(p).code] += 1;
+    const compteurs = h("div", { class: "compteurs" },
+      h("div", { class: "compteur compteur-vert" }, h("span", { class: "compteur-valeur" }, parEtat.actif + parEtat.bientot), h("span", { class: "compteur-libelle" }, "comptes actifs")),
+      h("div", { class: "compteur compteur-orange" }, h("span", { class: "compteur-valeur" }, parEtat.bientot), h("span", { class: "compteur-libelle" }, `expirent sous ${ALERTE_EXPIRATION_JOURS} j`)),
+      h("div", { class: "compteur compteur-rouge" }, h("span", { class: "compteur-valeur" }, parEtat.expire), h("span", { class: "compteur-libelle" }, "accès expirés")),
+      h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, parEtat.desactive + parEtat.a_venir), h("span", { class: "compteur-libelle" }, "désactivés ou à venir")));
+
+    // --- Une ligne de compte, avec son panneau « Gérer » ---
+    function ligneCompte(p) {
+      const e = etatCompte(p);
+      const zoneLigne = h("div");
+      const panneau = h("div", { class: "ligne-edition carte carte-large pile-serree", hidden: true });
+      const gerer = h("button", { type: "button", class: "bouton-lien", "aria-expanded": "false" }, "Gérer l'accès");
+      gerer.addEventListener("click", () => {
+        panneau.hidden = !panneau.hidden;
+        gerer.setAttribute("aria-expanded", String(!panneau.hidden));
+        gerer.textContent = panneau.hidden ? "Gérer l'accès" : "Fermer";
+      });
+
+      const periode = champsPeriode(`c-${p.id}`, p);
+      const droits = p.role === "client" ? casesDroits(`d-${p.id}`, p) : null;
+      const zone = h("div");
+      const enregistrer = h("button", { type: "submit", class: "bouton bouton-petit" }, "Enregistrer");
+      const form = h("form", { class: "formulaire", novalidate: true }, periode.bloc, droits ? droits.bloc : null, zone, h("div", { class: "actions-ligne" }, enregistrer));
+      form.addEventListener("submit", async (ev) => {
+        ev.preventDefault();
+        const probleme = periode.verifier();
+        if (probleme) return signaler(zone, "erreur", probleme);
+        occupe(enregistrer, true, "Enregistrement…");
+        const { error } = await sb.from("profils").update({ ...periode.valeurs(), ...(droits ? droits.valeurs() : {}) }).eq("id", p.id);
+        occupe(enregistrer, false);
+        if (error) return signaler(zone, "erreur", texteErreur(error));
+        ecranAcces(`Accès de ${p.nom_affiche || p.email} enregistré.`);
+      });
+
+      const basculer = h("button", { type: "button", class: p.actif ? "bouton-lien bouton-lien-danger" : "bouton-lien" }, p.actif ? "Couper l'accès maintenant" : "Réactiver l'accès");
+      basculer.addEventListener("click", async () => {
+        occupe(basculer, true, "…");
+        const { error } = await sb.from("profils").update({ actif: !p.actif }).eq("id", p.id);
+        occupe(basculer, false);
+        if (error) return signaler(zoneLigne, "erreur", texteErreur(error));
+        ecranAcces(p.actif ? `Accès de ${p.nom_affiche || p.email} coupé. Rien n'est effacé.` : `Accès de ${p.nom_affiche || p.email} réactivé.`);
+      });
+      panneau.append(form, h("p", { class: "aide" }, basculer));
+
+      const droitsTexte = p.role === "client"
+        ? (() => {
+            const oui = DROITS_CLIENT.filter(([k]) => p[k] !== false).map(([k]) => LIBELLE_DROIT_COURT[k]);
+            const non = DROITS_CLIENT.filter(([k]) => p[k] === false).map(([k]) => LIBELLE_DROIT_COURT[k]);
+            return h("span", { class: "ligne-detail" },
+              non.length === 0 ? "Voit tout : apprenants, " + oui.join(", ") : `Voit : apprenants${oui.length ? ", " + oui.join(", ") : ""}`,
+              non.length ? h("span", { class: "droits-masques" }, ` · Masqué : ${non.join(", ")}`) : null);
+          })()
+        : h("span", { class: "ligne-detail" }, pluriel(nbConfies.get(p.id) || 0, "apprenant confié", "apprenants confiés"));
+
+      return h("li", { class: "ligne" },
+        h("span", { class: "ligne-titre" }, p.nom_affiche || p.email),
+        h("span", { class: "pastilles" }, pastille(e.couleur, e.texte)),
+        h("span", { class: "ligne-detail" }, [p.nom_affiche ? p.email : null, textePeriode(p), texteDerniereConnexion(p.derniere_connexion)].filter(Boolean).join(" · ")),
+        droitsTexte,
+        h("div", { class: "ligne-detail" }, gerer, zoneLigne),
+        panneau);
+    }
+
+    // --- Comptes regroupés par client ---
+    const clients = autres.filter((p) => p.role === "client");
+    const appelantes = autres.filter((p) => p.role === "appelante");
+    const parOrganisme = new Map();
+    for (const p of clients) {
+      if (!parOrganisme.has(p.organisme_id)) parOrganisme.set(p.organisme_id, []);
+      parOrganisme.get(p.organisme_id).push(p);
+    }
+    const ordre = [...parOrganisme.keys()].sort((x, y) => (nomOrganisme.get(x) || "").localeCompare(nomOrganisme.get(y) || "", "fr"));
+    const clientsSansCompte = organismes.data.filter((o) => estClient(o) && !parOrganisme.has(o.id));
+
+    const sectionClients = h("section", { class: "pile" },
+      h("div", { class: "section-titre" }, h("h2", {}, "Comptes clients"), h("p", {}, pluriel(clients.length, "compte", "comptes"))),
+      clients.length
+        ? ordre.map((orgId) => h("div", { class: "groupe-acces" },
+            h("h3", {}, nomOrganisme.get(orgId) || "Organisme supprimé"),
+            h("ul", { class: "liste" }, parOrganisme.get(orgId).map(ligneCompte))))
+        : message("info", "Aucun compte client pour l'instant. Créez-le avec « Nouveau compte » ci-dessus."),
+      clientsSansCompte.length
+        ? h("p", { class: "message message-action" }, `Client${clientsSansCompte.length > 1 ? "s" : ""} signé${clientsSansCompte.length > 1 ? "s" : ""} sans accès à son espace : `, clientsSansCompte.map((o) => o.nom).join(", "), ".")
+        : null);
+
+    const sectionAppelantes = appelantes.length
+      ? h("section", { class: "pile-serree" },
+          h("div", { class: "section-titre" }, h("h2", {}, "Appelantes"), h("p", {}, pluriel(appelantes.length, "compte", "comptes"))),
+          h("ul", { class: "liste" }, appelantes.map(ligneCompte)))
+      : null;
+
+    // --- Nouveau compte ---
     const choixOrganismes = Object.fromEntries([["", "— Choisir l'organisme —"],
       ...organismes.data.filter(estClient).map((o) => [o.id, o.nom]),
       ...organismes.data.filter((o) => !estClient(o)).map((o) => [o.id, `${o.nom} (pas encore client)`])]);
-
-    // --- Formulaire de création ---
     const zone = h("div");
     const zoneResultat = h("div");
     const email = champTexte("acces-email", "Adresse email", "", { type: "email", inputmode: "email", autocomplete: "off", obligatoire: true });
     const nom = champTexte("acces-nom", "Prénom et nom", "", { placeholder: "Ex. : Sophie Durand" });
     const role = champChoix("acces-role", "Type de compte", { client: "Client (lecture seule)", appelante: "Appelante (renfort d'appels)" }, "client");
     const organisme = champChoix("acces-organisme", "Organisme", choixOrganismes, "");
-    const blocOrganisme = h("div", {}, organisme.bloc);
-    const majRole = () => { blocOrganisme.hidden = role.champ.value !== "client"; };
+    const periode = champsPeriode("nouveau", null);
+    const droits = casesDroits("nouveau-droit", null);
+    const blocClient = h("div", { class: "pile-serree" }, organisme.bloc, droits.bloc);
+    const majRole = () => { blocClient.hidden = role.champ.value !== "client"; };
     role.champ.addEventListener("change", majRole);
     majRole();
     const bouton = h("button", { class: "bouton", type: "submit" }, "Créer le compte");
-    const formulaire = h("form", { class: "formulaire", novalidate: true }, email.bloc, nom.bloc, role.bloc, blocOrganisme, zone, bouton);
+    const formulaire = h("form", { class: "formulaire", novalidate: true }, email.bloc, nom.bloc, role.bloc, blocClient, periode.bloc, zone, bouton);
 
     formulaire.addEventListener("submit", async (evenement) => {
       evenement.preventDefault();
       const adresse = email.champ.value.trim();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(adresse)) return signaler(zone, "erreur", "Indiquez une adresse email valable.");
       if (role.champ.value === "client" && !organisme.champ.value) return signaler(zone, "erreur", "Choisissez l'organisme de ce client.");
+      const probleme = periode.verifier();
+      if (probleme) return signaler(zone, "erreur", probleme);
       signaler(zone);
       occupe(bouton, true, "Création…");
       const { data, error } = await sb.functions.invoke("gerer-comptes", {
         body: { action: "creer", email: adresse, nom_affiche: nom.champ.value.trim(), role: role.champ.value, organisme_id: organisme.champ.value || null },
       });
-      occupe(bouton, false);
       if (error) {
+        occupe(bouton, false);
         let texte = "Le compte n'a pas pu être créé. Réessayez dans un instant.";
         try { const corps = await error.context.json(); if (corps && corps.erreur) texte = corps.erreur; } catch (e) { /* message par défaut */ }
         return signaler(zone, "erreur", texte);
       }
-      // Message prêt à envoyer à la personne.
+      // Période et droits enregistrés juste après la création.
+      const { error: erreurDroits } = await sb.from("profils")
+        .update({ ...periode.valeurs(), ...(role.champ.value === "client" ? droits.valeurs() : {}) })
+        .eq("id", data.id);
+      occupe(bouton, false);
       const texteBienvenue = messageBienvenue(role.champ.value, nom.champ.value.trim());
       const boutonCopier = h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit" }, "Copier le message");
       boutonCopier.addEventListener("click", () => copier(texteBienvenue, boutonCopier));
       zoneResultat.replaceChildren(
         h("div", { class: "carte carte-large pile pile-serree" },
+          erreurDroits ? message("erreur", "Compte créé, mais la durée ou les droits n'ont pas été enregistrés : réglez-les avec « Gérer l'accès ».") : null,
           h("p", { class: "message message-action" }, h("strong", {}, `Compte créé pour ${data.email}. `), "Envoyez-lui ce message :"),
           h("p", { class: "texte-libre message-a-envoyer" }, texteBienvenue),
           h("div", { class: "actions-ligne" },
             boutonCopier,
-            h("a", { class: "bouton bouton-secondaire bouton-petit", href: `mailto:${data.email}?subject=${encodeURIComponent("Votre accès Fil Rouge Apprenants")}&body=${encodeURIComponent(texteBienvenue)}` }, "Ouvrir dans ma messagerie"))));
+            h("a", { class: "bouton bouton-secondaire bouton-petit", href: `mailto:${data.email}?subject=${encodeURIComponent("Votre accès Fil Rouge Apprenants")}&body=${encodeURIComponent(texteBienvenue)}` }, "Ouvrir dans ma messagerie"),
+            h("button", { type: "button", class: "bouton bouton-petit", onclick: () => ecranAcces() }, "Voir le tableau à jour"))));
       formulaire.reset();
       majRole();
-      ecranAccesListe();
+      zoneResultat.scrollIntoView({ behavior: "smooth", block: "start" });
     });
 
-    // --- Liste des comptes ---
-    const zoneListe = h("section", {});
-    async function ecranAccesListe() {
-      const { data, error } = await sb.from("profils").select("id, email, nom_affiche, role, organisme_id, actif, cree_le").order("cree_le");
-      if (error) return zoneListe.replaceChildren(message("erreur", texteErreur(error)));
-      dessinerListe(data);
-    }
-    function dessinerListe(liste) {
-      const autres = liste.filter((p) => p.id !== etat.profil.id);
-      const ligne = (p) => {
-        const zoneLigne = h("div");
-        const basculer = h("button", { type: "button", class: p.actif ? "bouton-lien bouton-lien-danger" : "bouton-lien" }, p.actif ? "Désactiver l'accès" : "Réactiver l'accès");
-        basculer.addEventListener("click", async () => {
-          occupe(basculer, true, "…");
-          const { error } = await sb.from("profils").update({ actif: !p.actif }).eq("id", p.id);
-          occupe(basculer, false);
-          if (error) return signaler(zoneLigne, "erreur", texteErreur(error));
-          ecranAccesListe();
-        });
-        const details = p.role === "client"
-          ? nomOrganisme.get(p.organisme_id) || "Organisme supprimé"
-          : pluriel(nbConfies.get(p.id) || 0, "apprenant confié", "apprenants confiés");
-        return h("li", { class: "ligne" },
-          h("span", { class: "ligne-titre" }, p.nom_affiche || p.email),
-          h("span", { class: "pastilles" },
-            pastille(p.role === "client" ? "neutre" : "orange", p.role === "client" ? "Client" : "Appelante"),
-            p.actif ? pastille("vert", "Actif") : pastille("rouge", "Désactivé")),
-          h("span", { class: "ligne-detail" }, [p.nom_affiche ? p.email : null, details].filter(Boolean).join(" · ")),
-          h("div", { class: "ligne-detail" }, basculer, zoneLigne));
-      };
-      zoneListe.replaceChildren(
-        h("div", { class: "section-titre" }, h("h2", {}, "Comptes existants"), h("p", {}, pluriel(autres.length, "compte", "comptes"))),
-        autres.length ? h("ul", { class: "liste" }, autres.map(ligne)) : message("info", "Aucun compte client ou appelante pour l'instant."),
-        h("p", { class: "aide" }, "Désactiver coupe l'accès immédiatement, sans rien effacer. Pour confier un apprenant à une appelante, ouvrez la fiche de l'apprenant."));
-    }
-    dessinerListe(profils.data);
+    const nouveau = h("details", { class: "carte carte-large depliant" },
+      h("summary", {}, h("strong", {}, "Nouveau compte")),
+      h("div", { class: "pile-serree" },
+        h("p", { class: "aide" }, "Rappel : aucune donnée réelle d'apprenant avant la signature du contrat de sous-traitance et de l'accord RGPD avec le client."),
+        formulaire));
 
     afficher(
-      navigationAdmin("acces"),
       h("div", { class: "pile" },
         h("div", {},
-          h("p", { class: "surtitre" }, "Accès"),
-          h("h1", {}, "Comptes clients et appelantes"),
-          h("p", { class: "chapo" }, "Créez l'accès d'un client ou d'une appelante. Chacun ne voit que ce qui le concerne : le client, ses apprenants ; l'appelante, ceux que vous lui confiez.")),
+          h("p", { class: "surtitre" }, "Accès clients"),
+          h("h1", {}, "Comptes et droits d'accès"),
+          h("p", { class: "chapo" }, "Qui a accès, jusqu'à quand, et à quoi. Chaque client ne voit que ses apprenants ; vous choisissez en plus les rubriques de son espace.")),
         info ? message("info", info) : null,
-        h("section", {},
-          h("div", { class: "section-titre" }, h("h2", {}, "Nouveau compte")),
-          h("div", { class: "carte carte-large" },
-            h("p", { class: "aide" }, "Rappel : aucune donnée réelle d'apprenant avant la signature du contrat de sous-traitance et de l'accord RGPD avec le client."),
-            formulaire)),
+        compteurs,
+        nouveau,
         zoneResultat,
-        zoneListe)
+        sectionClients,
+        sectionAppelantes,
+        h("p", { class: "aide" }, "Couper l'accès ou dépasser la date de fin bloque tout immédiatement, sans rien effacer. Ces règles sont appliquées par la base de données elle-même, pas seulement à l'écran. Pour confier un apprenant à une appelante, ouvrez sa fiche."))
     );
     window.scrollTo(0, 0);
   }
@@ -3009,7 +3201,9 @@
     const erreur = organisme.error || apprenants.error || tauxCohortes.error || examensAVenir.error;
     if (erreur) return afficher(message("erreur", texteErreur(erreur)));
     const totalExamens = totalTaux(tauxCohortes.data);
-    const avis = await blocAvisClient();
+    const avis = clientPeut("voir_avis") ? await blocAvisClient() : null;
+    const voitExamens = clientPeut("voir_examens");
+    const voitPreuves = clientPeut("voir_preuves");
 
     afficher(
       h("div", { class: "pile" },
@@ -3019,17 +3213,20 @@
           h("p", { class: "chapo" }, "Le suivi de vos apprenants, mis à jour après chaque appel.")
         ),
         blocCompteurs(compterAlertes(apprenants.data), apprenants.data.length),
-        h("section", {},
+        voitPreuves && !voitExamens
+          ? h("div", { class: "actions-ligne" }, h("a", { href: "#/preuves", class: "bouton bouton-petit" }, "Dossier de preuves Qualiopi"))
+          : null,
+        voitExamens ? h("section", {},
           h("div", { class: "section-titre" },
             h("h2", {}, "Jusqu'à l'examen")),
-          h("div", { class: "actions-ligne" },
-            h("a", { href: "#/preuves", class: "bouton bouton-petit" }, "Dossier de preuves Qualiopi")),
+          voitPreuves ? h("div", { class: "actions-ligne" },
+            h("a", { href: "#/preuves", class: "bouton bouton-petit" }, "Dossier de preuves Qualiopi")) : null,
           h("div", { class: "compteurs" },
             h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, examensAVenir.count || 0), h("span", { class: "compteur-libelle" }, "examens à venir")),
             h("div", { class: "compteur compteur-vert" }, h("span", { class: "compteur-valeur" }, pourcentage(totalExamens.taux_presence)), h("span", { class: "compteur-libelle" }, "taux de présence")),
             h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, pourcentage(totalExamens.taux_reussite)), h("span", { class: "compteur-libelle" }, "taux de réussite")),
             h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, totalExamens.presents + totalExamens.absents), h("span", { class: "compteur-libelle" }, "examens renseignés"))),
-          tauxCohortes.data.some((l) => Number(l.inscrits_examen)) ? tableauTaux(tauxCohortes.data, organisme.data?.taux_presence_depart) : null),
+          tauxCohortes.data.some((l) => Number(l.inscrits_examen)) ? tableauTaux(tauxCohortes.data, organisme.data?.taux_presence_depart) : null) : null,
         avis,
         h("section", {},
           h("div", { class: "section-titre" },
@@ -3413,11 +3610,12 @@
 
   async function chargerMenu() {
     if (!menuVisible()) return;
-    const [orgs, appr, urgents, avis] = await Promise.all([
+    const [orgs, appr, urgents, avis, comptes] = await Promise.all([
       sb.from("organismes").select("id, nom, organismes_suivi_commercial ( etape )").order("nom"),
       sb.from("apprenants").select("organisme_id, statut"),
       sb.from("vue_qui_rappeler").select("id").eq("alerte", "rouge"),
       sb.from("satisfaction").select("id", { count: "exact", head: true }).not("repondu_le", "is", null).is("lu_le", null),
+      sb.rpc("comptes_acces"),
     ]);
     if (orgs.error || appr.error || urgents.error) return;
     const total = new Map();
@@ -3433,6 +3631,8 @@
       dossiers: orgs.data.filter((o) => etapeDe(o) === "client" || total.has(o.id)).map((o) => ({ id: o.id, nom: o.nom, n: actifs.get(o.id) || 0 })),
       urgents: urgents.data.length,
       avis: avis.error ? 0 : avis.count || 0,
+      // Accès à traiter : expirent bientôt, ou expirés mais encore actifs.
+      acces: comptes.error ? 0 : comptes.data.filter((p) => ["bientot", "expire"].includes(etatCompte(p).code)).length,
     };
     const signature = JSON.stringify(donnees);
     if (signature !== signatureMenu) {
@@ -3462,7 +3662,8 @@
         lien("", "Tableau de bord"),
         lien("rappels", "À rappeler", d.urgents ? nombre(d.urgents, true) : null),
         lien("examens", "Relances d'examen"),
-        lien("satisfaction", "Satisfaction", d.avis ? nombre(d.avis, true) : null)),
+        lien("satisfaction", "Satisfaction", d.avis ? nombre(d.avis, true) : null),
+        lien("acces", "Accès clients", d.acces ? nombre(d.acces, true) : null)),
       groupe("prospects", "Prospects", [
         lien("prospection", "Tous les centres à démarcher"),
         lien("nouveau", "Ajouter un centre"),
@@ -3470,7 +3671,6 @@
       ]),
       groupe("clients", "Clients", [
         d.clients.length ? d.clients.map((o) => lien(`organisme/${o.id}`, o.nom)) : vide("Pas encore de client signé."),
-        lien("acces", "Comptes d'accès"),
       ]),
       groupe("eleves", "Élèves", [
         d.dossiers.length
@@ -3883,7 +4083,7 @@
       ["examen", "Examen", examen],
       ["projet", "Projet", projet],
       ["organisation", "Organisation", organisation],
-    ], memo.partie, (cle) => { memo.partie = cle; majAdresse(); });
+    ].filter(([, , contenu]) => contenu), memo.partie, (cle) => { memo.partie = cle; majAdresse(); });
 
     return sousOnglets;
   }

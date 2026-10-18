@@ -895,5 +895,104 @@ select tests.session('22222222-2222-4222-8222-222222222222');
 select tests.verifier(tests.lignes_touchees($$delete from public.comptes_rendus$$) = 0, 'client : ne peut pas effacer un compte rendu');
 rollback;
 
+\echo '== 22. Accès clients : période d''accès et droits par compte'
+
+-- Référence : avec tous les droits, le client Horizon voit appels, coaching et examens.
+begin;
+insert into public.coaching (apprenant_id, organisme_id, projet_metier)
+select id, organisme_id, 'Projet test' from public.apprenants where identifiant_externe = 'AH-002'
+on conflict (apprenant_id) do nothing;
+select tests.session('22222222-2222-4222-8222-222222222222');
+set local role authenticated;
+select tests.verifier((select count(*) from public.appels) > 0, 'client Horizon, tous droits : voit ses comptes rendus d''appel');
+select tests.verifier((select count(*) from public.coaching) > 0, 'client Horizon, tous droits : voit le coaching');
+select tests.verifier((select count(*) from public.vue_taux_examen) > 0, 'client Horizon, tous droits : voit les taux d''examen');
+rollback;
+
+-- Droits retirés : la base ne renvoie plus rien de ces rubriques, le reste continue.
+begin;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+insert into public.comptes_rendus (apprenant_id, organisme_id, contenu) values ('a1000000-0000-4000-8000-000000000002', 'a0000000-0000-4000-8000-000000000001', 'Compte rendu test');
+select tests.session('22222222-2222-4222-8222-222222222222');
+set local role authenticated;
+select tests.verifier((select count(*) from public.comptes_rendus) > 0, 'client Horizon, tous droits : voit les comptes rendus publiés');
+reset role;
+update public.profils set voir_comptes_rendus = false, voir_coaching = false, voir_examens = false, voir_avis = false
+where id = '22222222-2222-4222-8222-222222222222';
+select tests.session('22222222-2222-4222-8222-222222222222');
+set local role authenticated;
+select tests.verifier((select count(*) from public.appels) = 0, 'client sans droit « comptes rendus » : aucun appel renvoyé');
+select tests.verifier((select count(*) from public.comptes_rendus) = 0, 'client sans droit « comptes rendus » : aucun compte rendu publié renvoyé');
+select tests.verifier((select count(*) from public.coaching) = 0, 'client sans droit « coaching » : aucun coaching renvoyé');
+select tests.verifier((select count(*) from public.vue_taux_examen) = 0 and (select count(*) from public.vue_relances_examen) = 0,
+  'client sans droit « examens » : vues d''examen vides');
+select tests.verifier((select count(*) from public.satisfaction_resultats()) = 0, 'client sans droit « avis » : aucun avis');
+select tests.verifier((select count(*) from public.apprenants) = 12, 'client aux droits réduits : voit toujours la liste de ses 12 apprenants');
+select tests.verifier((select voir_coaching from public.profils where id = auth.uid()) = false, 'client : lit ses propres droits (pour adapter son espace)');
+select tests.verifier(
+  tests.lignes_touchees($$update public.profils set voir_coaching = true where id = '22222222-2222-4222-8222-222222222222'$$) = 0,
+  'client : ne peut pas se redonner un droit');
+rollback;
+
+-- Date de fin dépassée : plus rien, comme un compte désactivé, mais il sait pourquoi.
+begin;
+update public.profils set acces_fin = prive.aujourdhui() - 1 where id = '22222222-2222-4222-8222-222222222222';
+select tests.session('22222222-2222-4222-8222-222222222222');
+set local role authenticated;
+select tests.verifier((select count(*) from public.apprenants) = 0 and (select count(*) from public.organismes) = 0,
+  'client dont l''accès a pris fin hier : ne voit plus rien');
+select tests.verifier((select acces_fin from public.profils where id = auth.uid()) = prive.aujourdhui() - 1,
+  'client expiré : lit encore sa date de fin (pour le message à l''écran)');
+rollback;
+
+begin;
+update public.profils set acces_fin = prive.aujourdhui() where id = '22222222-2222-4222-8222-222222222222';
+select tests.session('22222222-2222-4222-8222-222222222222');
+set local role authenticated;
+select tests.verifier((select count(*) from public.apprenants) = 12, 'client dont l''accès se termine aujourd''hui : encore accès (jour inclus)');
+rollback;
+
+begin;
+update public.profils set acces_debut = prive.aujourdhui() + 3 where id = '22222222-2222-4222-8222-222222222222';
+select tests.session('22222222-2222-4222-8222-222222222222');
+set local role authenticated;
+select tests.verifier((select count(*) from public.apprenants) = 0, 'client dont l''accès commence dans 3 jours : rien avant la date');
+rollback;
+
+begin;
+update public.profils set acces_fin = prive.aujourdhui() - 1 where id = '44444444-4444-4444-8444-444444444444';
+select tests.session('44444444-4444-4444-8444-444444444444');
+set local role authenticated;
+select tests.verifier((select count(*) from public.apprenants) = 0, 'appelante dont l''accès a pris fin : ne voit plus rien');
+rollback;
+
+-- Administratrice : tableau des accès, et pas de date de fin pour elle-même.
+begin;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+set local role authenticated;
+select tests.verifier((select count(*) from public.comptes_acces()) = 5, 'administratrice : tableau des accès avec les 5 comptes');
+select tests.verifier(
+  tests.lignes_touchees($$update public.profils set acces_fin = '2027-06-30', voir_preuves = false where id = '22222222-2222-4222-8222-222222222222'$$) = 1,
+  'administratrice : fixe la date de fin et les droits d''un client');
+select tests.doit_etre_refuse(
+  $$update public.profils set acces_fin = '2027-01-01' where id = '11111111-1111-4111-8111-111111111111'$$,
+  'administratrice : ne peut pas limiter son propre accès');
+select tests.doit_etre_refuse(
+  $$update public.profils set acces_debut = '2027-02-01', acces_fin = '2027-01-01' where id = '22222222-2222-4222-8222-222222222222'$$,
+  'période incohérente (fin avant début) refusée');
+rollback;
+
+begin;
+select tests.session('22222222-2222-4222-8222-222222222222');
+set local role authenticated;
+select tests.doit_etre_refuse($$select * from public.comptes_acces()$$, 'client : pas d''accès au tableau des comptes');
+rollback;
+
+begin;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal1');
+set local role authenticated;
+select tests.doit_etre_refuse($$select * from public.comptes_acces()$$, 'administratrice sans double authentification : pas de tableau des comptes');
+rollback;
+
 \echo
 \echo 'TOUS LES TESTS SONT PASSÉS'
