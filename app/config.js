@@ -16,5 +16,5 @@ window.FIL_ROUGE_CONFIG = {
   // Page « Offre pilote » (offre-pilote.html) : lien de paiement Stripe
   // (« Payment Link », commence par https://buy.stripe.com/). Public lui aussi.
   // Vide = les boutons ouvrent un email de réservation à la place.
-  lienPaiementPilote: "",
+  lienPaiementPilote: "https://buy.stripe.com/test_fZu6oGcvEeGs12SfDegMw02",
 };
