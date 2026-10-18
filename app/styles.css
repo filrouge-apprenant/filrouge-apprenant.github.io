@@ -603,7 +603,11 @@ h3 { font-size: 1.05rem; margin: 0.4rem 0 0; color: var(--texte); }
   @page { size: A4; margin: 14mm 12mm; }
   html.affichage-redresse { filter: none; }
   body { font-size: 10pt; display: block; }
-  .bandeau, .pied, .onglets, .menu-lateral, .voile, .masque-impression, .actions-impression { display: none !important; }
+  .pied, .onglets, .menu-lateral, .voile, .masque-impression, .actions-impression { display: none !important; }
+  /* Le logo reste en tête de chaque document imprimé (dossier Qualiopi, exports) */
+  .bandeau { display: block !important; border-bottom: none !important; margin: 0 0 6mm; }
+  .bandeau .bouton-menu, .bandeau .zone-compte { display: none !important; }
+  .marque-fil path { animation: none !important; stroke-dashoffset: 0 !important; }
   .cadre { display: block !important; }
   .contenu { max-width: none; padding: 0; }
   .dossier { border-top: none; padding-top: 0; gap: 1rem; }
