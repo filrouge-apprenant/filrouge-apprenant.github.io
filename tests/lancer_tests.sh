@@ -38,6 +38,8 @@ PSQL=(psql -h "$DOSSIER" -p "$PORT" -U postgres -d postgres -v ON_ERROR_STOP=1 -
 echo "Chargement : simulation Supabase, schéma, sécurité, données fictives..."
 "${PSQL[@]}" -f "$RACINE/tests/00_simulation_supabase.sql"
 for f in "$RACINE"/supabase/migrations/*.sql; do
+  # Tâches programmées et stockage : services propres à Supabase, absents ici.
+  case "$f" in *_planification.sql) continue ;; esac
   "${PSQL[@]}" -f "$f"
 done
 "${PSQL[@]}" -f "$RACINE/supabase/seed.sql"

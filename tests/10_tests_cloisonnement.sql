@@ -1051,5 +1051,96 @@ select tests.verifier((select count(*) from public.commentaires where contenu li
 select tests.doit_etre_refuse($$select public.enregistrer_appel('a1000000-0000-4000-8000-000000000002', array['joint'])$$, 'appelante : pas d''appel pour un apprenant non confié');
 rollback;
 
+
+\echo '== 25. Comptabilité : contrats, échéances, relances d''impayés'
+
+begin;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+set local role authenticated;
+insert into public.contrats (organisme_id, date_debut, email_facturation)
+values ('a0000000-0000-4000-8000-000000000001', '2026-01-01', 'compta@horizon.example');
+-- Deux appels aboutis et un message laissé, en mars 2026.
+insert into public.appels (apprenant_id, organisme_id, date_appel, canal, resultat)
+select id, organisme_id, '2026-03-10 10:00+01', 'telephone', 'joint' from public.apprenants where identifiant_externe in ('AH-001', 'AH-002');
+insert into public.appels (apprenant_id, organisme_id, date_appel, canal, resultat)
+select id, organisme_id, '2026-03-11 10:00+01', 'telephone', 'messagerie' from public.apprenants where identifiant_externe = 'AH-003';
+select public.calculer_echeance('a0000000-0000-4000-8000-000000000001', '2026-03-15');
+select tests.verifier(
+  (select nb_appels = 2 and tarif_unitaire = 20 and montant = 40 from public.echeances where mois = '2026-03-01'),
+  'échéance de mars : 2 appels aboutis × 20 € (moins de 20 apprenants) = 40 €');
+update public.contrats set base_facturation = 'tous_les_appels', tarif_fixe = 18 where organisme_id = 'a0000000-0000-4000-8000-000000000001';
+select public.calculer_echeance('a0000000-0000-4000-8000-000000000001', '2026-03-01');
+select tests.verifier(
+  (select nb_appels = 3 and montant = 54 from public.echeances where mois = '2026-03-01'),
+  'recalcul : tous les appels × tarif fixé au contrat (3 × 18 € = 54 €)');
+select tests.verifier((select statut = 'a_payer' and date_echeance = prive.aujourdhui() + 30 from public.vue_echeances where mois = '2026-03-01'), 'échéance émise aujourd''hui : à payer sous 30 jours');
+update public.echeances set date_emission = prive.aujourdhui() - 32, date_echeance = prive.aujourdhui() - 2 where mois = '2026-03-01';
+select tests.verifier((select statut = 'en_retard' and jours_retard = 2 from public.vue_echeances where mois = '2026-03-01'), 'échéance non payée, date dépassée : en retard de 2 jours');
+update public.echeances set payee_le = '2026-05-02' where mois = '2026-03-01';
+select tests.verifier((select statut = 'payee' from public.vue_echeances where mois = '2026-03-01'), 'échéance payée : statut payée');
+select tests.doit_etre_refuse(
+  $$select public.calculer_echeance('a0000000-0000-4000-8000-000000000001', '2026-03-01')$$,
+  'échéance payée : jamais recalculée');
+select tests.doit_etre_refuse(
+  $$select public.calculer_echeance('a0000000-0000-4000-8000-000000000001', '2025-12-01')$$,
+  'mois avant le début du contrat : refusé');
+rollback;
+
+-- Relances : niveau selon le retard, une seule fois par niveau, rien si suspendu.
+begin;
+insert into vault.secrets_test values ('brevo_cle', 'cle-de-test');
+insert into public.contrats (organisme_id, date_debut, email_facturation)
+values ('a0000000-0000-4000-8000-000000000001', '2026-01-01', 'compta@horizon.example');
+insert into public.echeances (organisme_id, mois, reference, nb_appels, tarif_unitaire, montant, date_emission, date_echeance) values
+  ('a0000000-0000-4000-8000-000000000001', '2026-06-01', 'T-1', 5, 20, 100, prive.aujourdhui() - 40, prive.aujourdhui() - 5),
+  ('a0000000-0000-4000-8000-000000000001', '2026-07-01', 'T-2', 5, 20, 100, prive.aujourdhui() - 60, prive.aujourdhui() - 20),
+  ('a0000000-0000-4000-8000-000000000001', '2026-08-01', 'T-3', 5, 20, 100, prive.aujourdhui() - 70, prive.aujourdhui() - 31),
+  ('a0000000-0000-4000-8000-000000000001', '2026-09-01', 'T-4', 5, 20, 100, prive.aujourdhui() - 30, prive.aujourdhui() - 1);
+select tests.verifier(prive.envoyer_relances() = 3, 'relances : 3 envoyées (J+5, J+20, J+31) ; rien à J+1');
+select tests.verifier(
+  (select string_agg(e.reference || '=' || r.niveau, ' ' order by e.reference) from public.relances_paiement r join public.echeances e on e.id = r.echeance_id) = 'T-1=1 T-2=1 T-3=1',
+  'première relance toujours au niveau 1, même très en retard (pas de mise en demeure d''emblée)');
+select tests.verifier((select count(*) from net.requetes_test where url like 'https://api.brevo.com/%' and body -> 'to' -> 0 ->> 'email' = 'compta@horizon.example') = 3,
+  'emails partis par Brevo vers l''email de facturation');
+select tests.verifier(prive.envoyer_relances() = 0, 'relances : rien de nouveau moins de 7 jours après la précédente');
+update public.relances_paiement set envoyee_le = now() - interval '8 days';
+select tests.verifier(prive.envoyer_relances() = 2, 'une semaine plus tard : relance de niveau 2 pour J+20 et J+31, rien pour J+5');
+update public.relances_paiement set envoyee_le = now() - interval '8 days';
+select tests.verifier(prive.envoyer_relances() = 1, 'encore une semaine : une seule relance envoyée');
+select tests.verifier(
+  (select string_agg(e.reference || '=' || r.niveau, ' ' order by e.reference, r.niveau) from public.relances_paiement r join public.echeances e on e.id = r.echeance_id)
+  = 'T-1=1 T-2=1 T-2=2 T-3=1 T-3=2 T-3=3',
+  'mise en demeure (niveau 3) seulement pour J+31, après les deux relances précédentes');
+update public.relances_paiement set envoyee_le = now() - interval '8 days';
+select tests.verifier(prive.envoyer_relances() = 0, 'relances : jamais plus de 3 niveaux');
+update public.echeances set relances_suspendues = true where reference = 'T-4';
+update public.echeances set date_echeance = prive.aujourdhui() - 4 where reference = 'T-4';
+select tests.verifier(prive.envoyer_relances() = 0, 'relances suspendues sur une échéance : rien n''est envoyé');
+update public.contrats set relances_auto = false;
+update public.echeances set relances_suspendues = false where reference = 'T-4';
+select tests.verifier(prive.envoyer_relances() = 0, 'relances automatiques coupées sur le contrat : rien n''est envoyé');
+select tests.verifier((select texte like '%L441-10%' from public.relances_paiement where niveau = 3), 'mise en demeure : mentionne pénalités et indemnité de 40 €');
+rollback;
+
+-- Cloisonnement : rien de la comptabilité pour un client ni une appelante.
+begin;
+insert into public.contrats (organisme_id, date_debut) values ('a0000000-0000-4000-8000-000000000001', '2026-01-01');
+insert into public.echeances (organisme_id, mois, reference, tarif_unitaire, montant, date_emission, date_echeance)
+values ('a0000000-0000-4000-8000-000000000001', '2026-06-01', 'T-9', 20, 0, '2026-07-01', '2026-07-31');
+select tests.session('22222222-2222-4222-8222-222222222222');
+set local role authenticated;
+select tests.verifier((select count(*) from public.contrats) = 0 and (select count(*) from public.echeances) = 0, 'client : ne voit ni contrat ni échéances, même les siens');
+select tests.doit_etre_refuse($$select public.calculer_echeance('a0000000-0000-4000-8000-000000000001', '2026-06-01')$$, 'client : ne peut pas calculer une échéance');
+select tests.doit_etre_refuse($$select prive.envoyer_relances()$$, 'client : ne peut pas déclencher de relances');
+reset role;
+select tests.session('44444444-4444-4444-8444-444444444444');
+set local role authenticated;
+select tests.verifier((select count(*) from public.echeances) = 0, 'appelante : ne voit aucune échéance');
+reset role;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal1');
+set local role authenticated;
+select tests.verifier((select count(*) from public.echeances) = 0, 'administratrice sans double authentification : rien');
+rollback;
+
 \echo
 \echo 'TOUS LES TESTS SONT PASSÉS'
