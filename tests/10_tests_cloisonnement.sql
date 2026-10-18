@@ -994,5 +994,18 @@ set local role authenticated;
 select tests.doit_etre_refuse($$select * from public.comptes_acces()$$, 'administratrice sans double authentification : pas de tableau des comptes');
 rollback;
 
+\echo '== 22. Fiche organisme : comptes et dates de connexion (administratrice seulement)'
+begin;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+set local role authenticated;
+select tests.verifier(
+  (select count(*) from public.acces_organisme('a0000000-0000-4000-8000-000000000001') where email = 'client.horizon@test.example') = 1,
+  'administratrice : voit les comptes d''accès d''un client');
+select tests.session('22222222-2222-4222-8222-222222222222');
+select tests.doit_etre_refuse($$select * from public.acces_organisme('a0000000-0000-4000-8000-000000000001')$$, 'client : pas d''accès à la liste des comptes');
+select tests.session('44444444-4444-4444-8444-444444444444');
+select tests.doit_etre_refuse($$select * from public.acces_organisme('a0000000-0000-4000-8000-000000000001')$$, 'appelante : pas d''accès à la liste des comptes');
+rollback;
+
 \echo
 \echo 'TOUS LES TESTS SONT PASSÉS'

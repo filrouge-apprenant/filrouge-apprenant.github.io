@@ -653,7 +653,7 @@
     const morceaux = brut.split("/").filter(Boolean);
     if (morceaux[0] === "prospection") return { nom: "prospection", etape: ETAPES.includes(morceaux[1]) ? morceaux[1] : null };
     if (morceaux[0] === "nouveau") return { nom: "nouveau" };
-    if (morceaux[0] === "organisme" && UUID.test(morceaux[1] || "")) return { nom: "organisme", id: morceaux[1] };
+    if (morceaux[0] === "organisme" && UUID.test(morceaux[1] || "")) return { nom: "organisme", id: morceaux[1], onglet: morceaux[2] || null };
     if (morceaux[0] === "rappels") return { nom: "rappels", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "import") return { nom: "import", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "examens") return { nom: "examens", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
@@ -972,13 +972,15 @@
   async function ecranOrganisme(id) {
     afficher(navigationAdmin("prospection"), h("p", { class: "chargement" }, "Chargement de la fiche…"));
 
-    const [org, echanges, nbApprenants] = await Promise.all([
+    const [org, echanges, nbApprenants, apprenantsOrg, acces] = await Promise.all([
       sb.from("organismes").select("id, nom, organismes_suivi_commercial ( * )").eq("id", id).maybeSingle(),
-      sb.from("echanges_commerciaux").select("id, date_echange, canal, resume").eq("organisme_id", id)
+      sb.from("echanges_commerciaux").select("id, date_echange, canal, resume, cree_le").eq("organisme_id", id)
         .order("date_echange", { ascending: false }).order("cree_le", { ascending: false }),
       sb.from("apprenants").select("id", { count: "exact", head: true }).eq("organisme_id", id),
+      sb.from("apprenants").select("statut").eq("organisme_id", id),
+      sb.rpc("acces_organisme", { p_organisme: id }),
     ]);
-    const erreur = org.error || echanges.error || nbApprenants.error;
+    const erreur = org.error || echanges.error || nbApprenants.error || apprenantsOrg.error || acces.error;
     if (erreur) return afficher(navigationAdmin("prospection"), message("erreur", texteErreur(erreur)));
     if (!org.data) return afficher(navigationAdmin("prospection"), message("info", "Cet organisme n'existe plus."), lienInterne("prospection", "← Retour à la prospection"));
 
@@ -1104,37 +1106,160 @@
     }
 
     const titre = h("h1", {}, org.data.nom);
+    const etapeCle = s.etape || "prospect";
+    const estClient = etapeCle === "client";
+    const retour = estClient ? lienInterne(`eleves/${id}`, "← Dossier élèves") : lienInterne("prospection", "← Prospection");
+    const nbActifs = (apprenantsOrg.data || []).filter((x) => x.statut === "actif").length;
+    const dernierEchange = echanges.data[0];
+    const comptes = acces.data || [];
+    const derniereConnexion = comptes.map((c) => c.derniere_connexion).filter(Boolean).sort().pop();
+
+    // --- Encadré « Contrat » en face du nom (comme l'action de formation d'un élève) ---
+    const encadreContrat = h("section", { class: "formation formation-compacte", "aria-label": estClient ? "Contrat" : "Relance" },
+      h("p", { class: "surtitre" }, estClient ? "Contrat" : "Prochaine relance"),
+      estClient
+        ? h("div", { class: "formation-dates" },
+            h("div", { class: "formation-date" }, h("span", { class: "compteur-libelle" }, "Formule"), h("span", { class: "formation-valeur" }, FORMULES[s.formule || ""] && s.formule ? FORMULES[s.formule] : "à renseigner")),
+            h("div", { class: "formation-date formation-duree-bloc" }, h("span", { class: "compteur-libelle" }, "Début"), h("span", { class: "formation-valeur" }, s.date_debut_contrat ? dateLisible(s.date_debut_contrat) : "à renseigner")))
+        : null,
+      h("p", { class: "aide" }, s.prochaine_relance ? `Relance ${ecartJours(s.prochaine_relance)} · ${dateLisible(s.prochaine_relance)}` : "Aucune relance prévue"));
+
+    // --- Contacter l'organisme ---
+    const boite = (window.FIL_ROUGE_CONFIG || {}).emailFilRouge || "";
+    const lienGmail = s.contact_email ? window.FilRougeContact.lienGmail(s.contact_email, `Fil Rouge Apprenants — ${org.data.nom}`, `Bonjour${s.contact_nom ? " " + s.contact_nom.split(" ")[0] : ""},\n\n\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants`, boite) : null;
+    const blocContacterOrg = h("section", {},
+      h("div", { class: "section-titre" }, h("h2", {}, "Contacter")),
+      h("div", { class: "carte carte-large pile-serree" },
+        h("div", { class: "actions-ligne" },
+          s.contact_telephone ? h("a", { class: "bouton", href: `tel:${s.contact_telephone.replace(/[^\d+]/g, "")}` }, `📞 Appeler · ${s.contact_telephone}`) : null,
+          lienGmail ? h("a", { class: "bouton bouton-secondaire", href: lienGmail, target: "_blank", rel: "noopener" }, "📧 Email (Gmail Fil Rouge)") : null),
+        !s.contact_telephone && !s.contact_email ? h("p", { class: "aide" }, "Pas de téléphone ni d'email : complète le contact dans l'onglet Suivi commercial.") : null,
+        h("p", { class: "aide" }, "Après l'échange, note-le dans le bandeau « Échanges » à droite.")));
+
+    // --- Onglet Fiche ---
+    const panneauFiche = h("div", { class: "pile" },
+      h("div", { class: "fiche-entete" },
+        h("div", { class: "fiche-identite" },
+          titre,
+          h("p", { class: "fiche-ecole" }, s.contact_nom ? [s.contact_nom, s.contact_fonction].filter(Boolean).join(" · ") : "Contact non renseigné"),
+          h("p", { class: "chapo" }, pastille(COULEUR_ETAPE[etapeCle], LIBELLE_ETAPE_UNE[etapeCle]))),
+        encadreContrat),
+      h("div", { class: "compteurs" },
+        h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, String(apprenantsCount)), h("span", { class: "compteur-libelle" }, `élèves suivis (${nbActifs} en formation)`)),
+        h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, String(echanges.data.length)), h("span", { class: "compteur-libelle" }, "échanges")),
+        h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, dernierEchange ? dateLisible(dernierEchange.date_echange) : "—"), h("span", { class: "compteur-libelle" }, "dernier échange")),
+        h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, derniereConnexion ? dateLisible(derniereConnexion.slice(0, 10)) : "—"), h("span", { class: "compteur-libelle" }, "dernière connexion client"))),
+      blocContacterOrg);
+
+    // --- Onglet Élèves ---
+    const panneauEleves = h("section", { class: "pile-serree" },
+      h("div", { class: "section-titre" }, h("h2", {}, "Élèves"), h("p", {}, pluriel(apprenantsCount, "élève", "élèves"))),
+      h("div", { class: "actions-ligne" },
+        apprenantsCount ? h("a", { href: `#/eleves/${id}`, class: "bouton bouton-petit" }, "Dossier élèves") : null,
+        h("a", { href: `#/import/${id}`, class: "bouton bouton-secondaire bouton-petit" }, "Importer un fichier"),
+        apprenantsCount ? h("a", { href: `#/rappels/${id}`, class: "bouton bouton-secondaire bouton-petit" }, "Qui rappeler en premier") : null,
+        apprenantsCount ? h("a", { href: `#/examens/${id}`, class: "bouton bouton-secondaire bouton-petit" }, "Examens") : null,
+        apprenantsCount ? h("a", { href: `#/preuves/${id}`, class: "bouton bouton-secondaire bouton-petit" }, "Dossier de preuves Qualiopi") : null),
+      apprenantsCount ? null : message("info", "Aucun élève pour l'instant : importe le fichier envoyé par ce client."));
+
+    // --- Onglet Historique des échanges ---
+    const panneauEchanges = h("section", { class: "pile-serree" },
+      h("div", { class: "section-titre" }, h("h2", {}, "Historique des échanges"), h("p", {}, pluriel(echanges.data.length, "échange", "échanges"))),
+      h("div", { class: "carte carte-large" }, formulaireEchange),
+      historique);
+
+    // --- Onglet Suivi commercial ---
+    const panneauSuivi = h("section", { class: "pile-serree" },
+      h("div", { class: "section-titre" }, h("h2", {}, "Suivi commercial")),
+      h("div", { class: "carte carte-large" }, formulaire),
+      blocSuppression);
+
+    // --- Onglet Accès plateforme ---
+    const panneauAcces = h("section", { class: "pile-serree" },
+      h("div", { class: "section-titre" }, h("h2", {}, "Accès à la plateforme"), h("p", {}, pluriel(comptes.length, "compte", "comptes"))),
+      comptes.length
+        ? h("ul", { class: "liste" }, comptes.map((c) => h("li", { class: "ligne" },
+            h("span", { class: "ligne-titre" }, c.nom_affiche || c.email),
+            h("span", { class: "pastilles" }, c.actif ? pastille("vert", "Actif") : pastille("neutre", "Désactivé")),
+            h("span", { class: "ligne-detail" }, [c.email,
+              `créé le ${dateLisible(c.cree_le.slice(0, 10))}`,
+              c.derniere_connexion ? `dernière connexion le ${dateHeureComplete(c.derniere_connexion)}` : "jamais connecté·e"].join(" · ")))))
+        : message("info", "Aucun compte pour cet organisme."),
+      h("div", { class: "actions-ligne" }, h("a", { href: "#/acces", class: "bouton bouton-secondaire bouton-petit" }, "Créer ou gérer les comptes")));
+
+    // --- Colonne de gauche : contact ---
+    const ligneContact = (libelle, valeur, lien) => h("div", { class: "perso-case" },
+      h("span", { class: "compteur-libelle" }, libelle),
+      valeur ? (lien ? h("a", { class: "perso-valeur", href: lien }, valeur) : h("span", { class: "perso-valeur" }, valeur)) : h("span", { class: "perso-valeur perso-vide" }, "à renseigner"));
+    const blocContact = h("section", { class: "carte carte-large perso", "aria-label": "Contact" },
+      h("div", { class: "perso-entete" }, h("p", { class: "surtitre" }, "Contact")),
+      h("div", { class: "perso-liste" },
+        ligneContact("Nom", s.contact_nom),
+        ligneContact("Fonction", s.contact_fonction),
+        ligneContact("Email", s.contact_email, s.contact_email ? `mailto:${s.contact_email}` : null),
+        ligneContact("Téléphone", s.contact_telephone, s.contact_telephone ? `tel:${s.contact_telephone.replace(/[^\d+]/g, "")}` : null)),
+      s.notes ? h("p", { class: "perso-contraintes" }, s.notes) : null,
+      h("p", { class: "aide" }, "À modifier dans l'onglet Suivi commercial."));
+
+    // --- Colonne de droite : fil des échanges, saisie rapide ---
+    const zoneRapide = h("div");
+    const canalRapide = h("select", { class: "statut-choix", "aria-label": "Canal" }, Object.entries(CANAUX).map(([v, t]) => h("option", { value: v }, t)));
+    const texteRapide = h("textarea", { class: "commentaire-champ", rows: "3", placeholder: "Noter un échange… (Ctrl + Entrée)", "aria-label": "Nouvel échange" });
+    const publierRapide = h("button", { type: "submit", class: "bouton bouton-petit" }, "Publier");
+    const formRapide = h("form", { class: "commentaire-formulaire", novalidate: true }, texteRapide,
+      h("div", { class: "commentaire-actions" }, canalRapide, publierRapide), zoneRapide);
+    const envoyerRapide = async () => {
+      const t = texteRapide.value.trim();
+      if (!t) return;
+      occupe(publierRapide, true, "…");
+      const { error } = await sb.from("echanges_commerciaux").insert({ organisme_id: id, date_echange: aujourdhui(), canal: canalRapide.value, resume: t, auteur_id: etat.profil.id });
+      occupe(publierRapide, false);
+      if (error) return signaler(zoneRapide, "erreur", texteErreur(error));
+      ecranOrganisme(id);
+    };
+    formRapide.addEventListener("submit", (e) => { e.preventDefault(); envoyerRapide(); });
+    texteRapide.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); envoyerRapide(); } });
+    const filEchanges = h("section", { class: "commentaires" },
+      h("div", { class: "commentaires-titre" }, h("h2", {}, "Échanges"), h("span", { class: "aide" }, pluriel(echanges.data.length, "échange", "échanges"))),
+      formRapide,
+      echanges.data.length
+        ? h("ol", { class: "commentaires-liste" }, echanges.data.map((e) => h("li", { class: "commentaire commentaire-manuel" },
+            h("div", { class: "commentaire-tete" }, h("span", { class: "commentaire-source" }, CANAUX[e.canal] || e.canal), h("span", { class: "commentaire-date" }, dateLisible(e.date_echange))),
+            h("p", { class: "commentaire-texte" }, e.resume),
+            h("div", { class: "commentaire-pied" }, h("span"), boutonEffacer(async () => {
+              const r = await sb.from("echanges_commerciaux").delete().eq("id", e.id);
+              if (!r.error) ecranOrganisme(id);
+              return r;
+            })))))
+        : h("p", { class: "aide" }, "Aucun échange pour l'instant."));
+
+    // --- Onglets en haut ---
+    const memoOrg = etat.ongletOrganisme && etat.ongletOrganisme.id === id ? etat.ongletOrganisme : { id, onglet: lireRoute().onglet || "fiche" };
+    etat.ongletOrganisme = memoOrg;
+    const nb = (n) => (n ? ` (${n})` : "");
+    const ongletsOrg = barreOnglets("organisme", [
+      ["fiche", "Fiche", panneauFiche],
+      ["echanges", `Historique des échanges${nb(echanges.data.length)}`, panneauEchanges],
+      ["suivi", "Suivi commercial", panneauSuivi],
+      ["eleves", `Élèves${nb(apprenantsCount)}`, panneauEleves],
+      ["acces", `Accès plateforme${nb(comptes.length)}`, panneauAcces],
+    ], memoOrg.onglet, (cle) => {
+      memoOrg.onglet = cle;
+      const cible = `#/organisme/${id}/${cle}`;
+      if (window.location.hash !== cible) history.replaceState(null, "", cible);
+      hautOrg.classList.toggle("fiche-haut-onglet", cle !== "fiche");
+      window.scrollTo(0, 0);
+    }, { separe: true });
+    const hautOrg = h("div", { class: `fiche-haut${memoOrg.onglet !== "fiche" ? " fiche-haut-onglet" : ""}` },
+      h("p", { class: "surtitre" }, retour),
+      h("p", { class: "fiche-rappel" }, h("strong", {}, org.data.nom), " · ", LIBELLE_ETAPE_UNE[etapeCle]),
+      h("div", { class: "onglets-fiche onglets-haut" }, ongletsOrg.barre));
 
     afficher(
-      navigationAdmin("prospection"),
-      h("div", { class: "pile" },
-        h("div", {},
-          h("p", { class: "surtitre" }, lienInterne("prospection", "← Prospection")),
-          titre,
-          h("p", { class: "chapo" },
-            pastille(COULEUR_ETAPE[s.etape || "prospect"], LIBELLE_ETAPE_UNE[s.etape || "prospect"]),
-            apprenantsCount ? ` · ${pluriel(apprenantsCount, "apprenant suivi", "apprenants suivis")}` : "",
-            s.prochaine_relance ? ` · Relance ${ecartJours(s.prochaine_relance)} (${dateLisible(s.prochaine_relance)})` : "")),
-
-        h("section", {},
-          h("div", { class: "section-titre" }, h("h2", {}, "Apprenants"), h("p", {}, pluriel(apprenantsCount, "apprenant", "apprenants"))),
-          h("div", { class: "actions-ligne" },
-            h("a", { href: `#/import/${id}`, class: "bouton bouton-secondaire bouton-petit" }, "Importer un fichier"),
-            apprenantsCount ? h("a", { href: `#/rappels/${id}`, class: "bouton bouton-secondaire bouton-petit" }, "Qui rappeler en premier") : null,
-            apprenantsCount ? h("a", { href: `#/examens/${id}`, class: "bouton bouton-secondaire bouton-petit" }, "Examens") : null,
-            apprenantsCount ? h("a", { href: `#/preuves/${id}`, class: "bouton bouton-secondaire bouton-petit" }, "Dossier de preuves Qualiopi") : null)),
-
-        h("section", {},
-          h("div", { class: "section-titre" }, h("h2", {}, "Historique des échanges"), h("p", {}, pluriel(echanges.data.length, "échange", "échanges"))),
-          h("div", { class: "carte carte-large" }, formulaireEchange),
-          historique),
-
-        h("section", {},
-          h("div", { class: "section-titre" }, h("h2", {}, "Suivi commercial")),
-          h("div", { class: "carte carte-large" }, formulaire)),
-
-        blocSuppression
-      )
+      h("div", { class: "fiche-page" },
+        h("aside", { class: "fiche-gauche", "aria-label": "Contact" }, blocContact),
+        h("div", { class: "fiche-centre pile" }, hautOrg, ongletsOrg),
+        h("aside", { class: "fiche-droite", "aria-label": "Échanges" }, filEchanges))
     );
     // Pas de focus automatique sur la fiche : la page s'ouvre en haut.
     window.scrollTo(0, 0);
@@ -3603,7 +3728,7 @@
 
   function menuVisible() {
     // Sur la fiche élève, on ne voit que la fiche : pas de menu latéral.
-    return Boolean(etat.profil && etat.profil.role === "admin" && !zoneCompte.hidden && lireRoute().nom !== "apprenant");
+    return Boolean(etat.profil && etat.profil.role === "admin" && !zoneCompte.hidden && !["apprenant", "organisme"].includes(lireRoute().nom));
   }
 
   function etapeDe(o) {

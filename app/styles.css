@@ -1178,3 +1178,7 @@ label.case input {
 }
 .case-titre { display: block; font-weight: 700; }
 .case-aide { display: block; font-size: 0.85rem; color: var(--texte-doux); }
+
+/* Fiche organisme : contact en liste */
+.perso-liste { display: flex; flex-direction: column; gap: 0.5rem; }
+.perso-liste a.perso-valeur { color: var(--violet); }
