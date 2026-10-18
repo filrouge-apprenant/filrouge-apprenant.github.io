@@ -652,5 +652,36 @@ set local role anon;
 select tests.doit_etre_refuse($$select * from public.coaching$$, 'visiteur non connecté : aucune fiche de coaching');
 rollback;
 
+\echo '== 16. Action de formation et compteurs de contacts'
+begin;
+select tests.session('22222222-2222-4222-8222-222222222222');
+set local role authenticated;
+select tests.verifier(
+  (select count(*) from public.vue_contacts_apprenant c
+    where not exists (select 1 from public.apprenants a where a.id = c.apprenant_id)) = 0,
+  'client Horizon : compteurs de contacts limités à SES apprenants');
+select tests.verifier(
+  (select bool_and(aboutis <= tentatives) from public.vue_qui_rappeler),
+  'compteurs : contacts aboutis jamais supérieurs aux tentatives');
+rollback;
+
+begin;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+set local role authenticated;
+update public.apprenants set date_entree_formation = '2026-09-01', date_sortie_formation = '2027-03-01'
+  where id = 'a1000000-0000-4000-8000-000000000001';
+select tests.verifier(
+  (select date_sortie_formation = '2027-03-01' from public.vue_qui_rappeler where id = 'a1000000-0000-4000-8000-000000000001'),
+  'administratrice : dates d''entrée et de sortie de formation enregistrées');
+select tests.doit_etre_refuse(
+  $$update public.apprenants set date_sortie_formation = '2026-08-01' where id = 'a1000000-0000-4000-8000-000000000001'$$,
+  'sortie de formation avant l''entrée : refusé');
+rollback;
+
+begin;
+set local role anon;
+select tests.doit_etre_refuse($$select * from public.vue_contacts_apprenant$$, 'visiteur non connecté : aucun compteur de contacts');
+rollback;
+
 \echo
 \echo 'TOUS LES TESTS SONT PASSÉS'

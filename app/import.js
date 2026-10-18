@@ -19,8 +19,10 @@
     { cle: "nom", libelle: "Nom", motsCles: ["nom", "nom de famille", "last name", "lastname", "name"] },
     { cle: "telephone", libelle: "Téléphone", motsCles: ["telephone", "téléphone", "tel", "tél", "portable", "mobile", "phone", "gsm"] },
     { cle: "email", libelle: "Email", motsCles: ["email", "e-mail", "mail", "courriel", "adresse mail", "adresse email"] },
+    { cle: "date_entree_formation", libelle: "Entrée en formation", motsCles: ["entree en formation", "date d'entree", "date entree", "entree", "date de debut", "date debut", "debut de formation", "debut", "start", "date de demarrage"] },
+    { cle: "date_sortie_formation", libelle: "Sortie de formation", motsCles: ["sortie de formation", "date de sortie", "date sortie", "sortie", "date de fin", "date fin", "fin de formation", "end"] },
     { cle: "parcours", libelle: "Parcours / formation", motsCles: ["parcours", "formation", "cursus", "programme", "titre", "diplome", "diplôme", "intitule", "intitulé"] },
-    { cle: "date_inscription", libelle: "Date d'inscription", motsCles: ["inscription", "date inscription", "date d'inscription", "entree", "entrée", "date de debut", "date de début", "debut", "début", "start"] },
+    { cle: "date_inscription", libelle: "Date d'inscription", motsCles: ["inscription", "date inscription", "date d'inscription", "inscrit le"] },
     { cle: "avancement_pct", libelle: "Avancement (%)", motsCles: ["avancement", "progression", "progress", "% realise", "% réalisé", "taux", "completion", "complétion"] },
     { cle: "derniere_connexion", libelle: "Dernière connexion", motsCles: ["derniere connexion", "dernière connexion", "last login", "derniere activite", "dernière activité", "last activity", "connexion"] },
     { cle: "date_dernier_contact", libelle: "Date du dernier contact", motsCles: ["dernier contact", "date du dernier contact", "date dernier contact", "contact"] },
@@ -30,7 +32,7 @@
     { cle: "resultat_examen", libelle: "Résultat de l'examen", motsCles: ["resultat", "résultat", "resultat examen", "résultat examen", "admis", "decision", "décision", "obtention"] },
   ];
 
-  const CHAMPS_DATE = ["date_inscription", "derniere_connexion", "date_dernier_contact", "date_examen"];
+  const CHAMPS_DATE = ["date_inscription", "date_entree_formation", "date_sortie_formation", "derniere_connexion", "date_dernier_contact", "date_examen"];
 
   // ---------------------------------------------------------------------------
   // Texte : enlever accents, minuscules — pour comparer des en-têtes.

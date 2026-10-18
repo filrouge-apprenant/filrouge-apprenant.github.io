@@ -956,3 +956,16 @@ input:focus, select:focus, textarea:focus { border-color: var(--violet); }
 .sat-reponse p { margin: 0; }
 .sat-note { line-height: 1.5; }
 .sat-citation { border-left: 2px solid var(--rose-fort); padding-left: 0.7rem; line-height: 1.5; }
+
+/* ---------- Fiche apprenant : action de formation ---------- */
+.formation { display: flex; flex-direction: column; gap: 0.6rem; border-left: 3px solid var(--violet); }
+.formation .surtitre { margin: 0; }
+.formation-dates { display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
+.formation-date { display: flex; flex-direction: column; gap: 0.1rem; }
+.formation-valeur { font-size: 1.35rem; font-weight: 600; }
+.formation-fleche { font-size: 1.3rem; color: var(--texte-doux); padding-bottom: 0.15rem; }
+.formation-barre { height: 6px; background: var(--filet); border-radius: 3px; overflow: hidden; }
+.formation-barre > span { display: block; height: 100%; background: var(--violet); }
+.formation .aide { margin: 0; }
+.formation-modifier summary { cursor: pointer; color: var(--texte-doux); font-size: 0.9rem; }
+.formation-modifier[open] summary { margin-bottom: 0.5rem; }

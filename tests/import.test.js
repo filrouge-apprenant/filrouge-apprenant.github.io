@@ -41,7 +41,7 @@ test("correspondance devinée sur des en-têtes réalistes", () => {
   assert.equal(c.telephone, 3);
   assert.equal(c.email, 4);
   assert.equal(c.parcours, 5);
-  assert.equal(c.date_inscription, 6);
+  assert.equal(c.date_entree_formation, 6);
   assert.equal(c.avancement_pct, 7);
   assert.equal(c.derniere_connexion, 8);
   assert.equal(c.statut, 9);
@@ -151,6 +151,14 @@ test("examen : cohérence des lignes importées", () => {
   assert.deepEqual(r.erreurs.map((e) => e.ligne), [3, 4], "absent avec résultat, et présence sans date : refusés");
   assert.equal("presence_examen" in r.valides.find((v) => v.identifiant_externe === "E4"), false,
     "cellule vide : la présence déjà saisie dans la plateforme n'est pas effacée");
+});
+
+test("action de formation : entrée et sortie devinées", () => {
+  const c = I.devinerCorrespondance(["Identifiant", "Intitulé de la formation", "Date d'inscription", "Date d'entrée en formation", "Date de fin de formation"]);
+  assert.equal(c.parcours, 1);
+  assert.equal(c.date_inscription, 2);
+  assert.equal(c.date_entree_formation, 3);
+  assert.equal(c.date_sortie_formation, 4);
 });
 
 console.log(`\n${n} tests de lecture de fichier réussis`);

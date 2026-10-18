@@ -528,6 +528,28 @@
     return h("span", { class: `pastille pastille-${couleur}` }, texte);
   }
 
+  // --- Action de formation (entrée officielle / sortie) ---
+  function texteFormation(a) {
+    const e = a.date_entree_formation, s = a.date_sortie_formation;
+    if (e && s) return `formation du ${dateLisible(e)} au ${dateLisible(s)}`;
+    if (e) return `en formation depuis le ${dateLisible(e)}`;
+    if (s) return `sortie de formation le ${dateLisible(s)}`;
+    return null;
+  }
+  // Pastille d'alerte : sortie dépassée ou toute proche (apprenant encore « En formation »).
+  function pastilleSortie(a) {
+    if (!a.date_sortie_formation || (a.statut && a.statut !== "actif")) return null;
+    const reste = -joursDepuis(a.date_sortie_formation);
+    if (reste < 0) return pastille("rouge", `sortie dépassée de ${-reste} j`);
+    if (reste <= 15) return pastille("orange", reste === 0 ? "sort aujourd'hui" : `sort dans ${reste} j`);
+    return null;
+  }
+  // --- Compteurs de contacts ---
+  function texteContacts(c) {
+    const t = Number(c?.tentatives || 0), ab = Number(c?.aboutis || 0);
+    return `${pluriel(t, "tentative", "tentatives")} · ${pluriel(ab, "contact abouti", "contacts aboutis")}`;
+  }
+
   function libelleAlerte(alerte) {
     return { vert: "à jour", orange: "à surveiller", rouge: "en alerte" }[alerte] || alerte;
   }
@@ -541,8 +563,9 @@
         h("li", { class: "ligne" },
           h("span", { class: "ligne-titre" }, lienApprenant(a)),
           h("span", { class: "pastilles" },
-            pastille(a.alerte, `${a.jours_sans_contact} j · ${libelleAlerte(a.alerte)}`)),
-          h("span", { class: "ligne-detail" }, a.parcours || "", lienTelephone(a.telephone))
+            pastille(a.alerte, `${a.jours_sans_contact} j · ${libelleAlerte(a.alerte)}`), pastilleSortie(a)),
+          h("span", { class: "ligne-detail" },
+            [a.parcours, texteFormation(a), texteContacts(a)].filter(Boolean).join(" · "), lienTelephone(a.telephone))
         )
       )
     );
@@ -1101,7 +1124,7 @@
 
     const { data, error } = await sb
       .from("vue_qui_rappeler")
-      .select("id, organisme_id, organisme_nom, identifiant_externe, prenom, nom, telephone, parcours, avancement_pct, derniere_connexion, jours_sans_contact, alerte");
+      .select("id, organisme_id, organisme_nom, identifiant_externe, prenom, nom, telephone, parcours, avancement_pct, derniere_connexion, jours_sans_contact, alerte, date_entree_formation, date_sortie_formation, tentatives, aboutis");
     if (error) return afficher(navigationAdmin("rappels"), message("erreur", texteErreur(error)));
 
     const organismes = new Map();
@@ -1122,12 +1145,14 @@
       const details = [
         organismeId ? null : a.organisme_nom,
         a.parcours,
+        texteFormation(a),
         a.avancement_pct !== null && a.avancement_pct !== undefined ? `${Math.round(a.avancement_pct)}\u00a0% réalisé` : null,
         a.derniere_connexion ? `connecté·e le ${dateLisible(a.derniere_connexion)}` : null,
+        texteContacts(a),
       ].filter(Boolean).join(" · ");
       return h("li", { class: "ligne" },
         h("span", { class: "ligne-titre" }, lienInterne(`apprenant/${a.id}`, nomComplet)),
-        h("span", { class: "pastilles" }, pastille(a.alerte, `${a.jours_sans_contact} j · ${libelleAlerte(a.alerte)}`)),
+        h("span", { class: "pastilles" }, pastille(a.alerte, `${a.jours_sans_contact} j · ${libelleAlerte(a.alerte)}`), pastilleSortie(a)),
         h("span", { class: "ligne-detail" },
           details,
           a.telephone ? h("span", { class: "telephone" }, " · ", h("a", { href: `tel:${a.telephone.replace(/[^\d+]/g, "")}` }, a.telephone)) : null));
@@ -1722,7 +1747,7 @@
     const [organisme, apprenants, appels, tauxCohortes] = await Promise.all([
       sb.from("organismes").select("id, nom, seuil_vert_jours, seuil_orange_jours, taux_presence_depart").eq("id", organismeId).maybeSingle(),
       toutLire(() => sb.from("apprenants")
-        .select("id, identifiant_externe, prenom, nom, parcours, statut, avancement_pct, derniere_connexion, date_dernier_contact, date_inscription, date_examen, presence_examen, resultat_examen")
+        .select("id, identifiant_externe, prenom, nom, parcours, statut, avancement_pct, derniere_connexion, date_dernier_contact, date_inscription, date_entree_formation, date_sortie_formation, date_examen, presence_examen, resultat_examen")
         .eq("organisme_id", organismeId).order("nom").order("id")),
       toutLire(() => sb.from("appels")
         .select("id, apprenant_id, date_appel, canal, resultat, note_client, prochaine_action, date_prochaine_action")
@@ -1785,9 +1810,11 @@
           c.note_client || "", c.prochaine_action || "", c.date_prochaine_action ? dateLisible(c.date_prochaine_action) : ""];
       }));
     const exporterExamens = () => telechargerCsv(`examens-${nomFichier(org.nom)}-${au}.csv`,
-      ["Apprenant", "Identifiant", "Parcours", "Inscription", "Statut", "Date d'examen", "Présence", "Résultat"],
+      ["Apprenant", "Identifiant", "Parcours", "Inscription", "Entrée en formation", "Sortie de formation", "Statut", "Date d'examen", "Présence", "Résultat"],
       apprenants.data.map((a) => [nomApprenant(a), a.identifiant_externe || "", a.parcours || "",
-        a.date_inscription ? dateLisible(a.date_inscription) : "", LIBELLE_STATUT[a.statut] || a.statut,
+        a.date_inscription ? dateLisible(a.date_inscription) : "",
+        a.date_entree_formation ? dateLisible(a.date_entree_formation) : "", a.date_sortie_formation ? dateLisible(a.date_sortie_formation) : "",
+        LIBELLE_STATUT[a.statut] || a.statut,
         a.date_examen ? dateLisible(a.date_examen) : "", LIBELLE_PRESENCE[a.presence_examen] || "", LIBELLE_RESULTAT[a.resultat_examen] || ""]));
 
     const tableau = (entetes, lignes) => h("div", { class: "tableau-defilant" },
@@ -1807,8 +1834,8 @@
         h("h2", {}, "Synthèse de la période"),
         h("div", { class: "compteurs" },
           h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, apprenants.data.length), h("span", { class: "compteur-libelle" }, "apprenants suivis")),
-          h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, contacts.length), h("span", { class: "compteur-libelle" }, "contacts tracés")),
-          h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, contactesIds.size), h("span", { class: "compteur-libelle" }, "apprenants contactés")),
+          h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, contacts.length), h("span", { class: "compteur-libelle" }, `tentatives de contact (${contactesIds.size} apprenants)`)),
+          h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, contacts.filter((c) => c.resultat === "joint").length), h("span", { class: "compteur-libelle" }, `contacts aboutis (${pourcentage(taux(contacts.filter((c) => c.resultat === "joint").length, contacts.length))} des tentatives)`)),
           h("div", { class: "compteur compteur-vert" }, h("span", { class: "compteur-valeur" }, pourcentage(taux(jointsIds.size, contactesIds.size))), h("span", { class: "compteur-libelle" }, "joints au moins une fois"))),
         h("div", { class: "compteurs" },
           h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, examensPeriode.length), h("span", { class: "compteur-libelle" }, "examens sur la période")),
@@ -2158,6 +2185,59 @@
         h("span", { class: "compteur-libelle" }, `personne réellement eue · ${detailAboutis}`)));
   }
 
+  // Bandeau « Action de formation » en haut de la fiche : entrée officielle,
+  // sortie, et où en est l'apprenant entre les deux. L'administratrice modifie les dates ici.
+  function blocActionFormation(a, estAdmin, apresEnregistrement) {
+    const e = a.date_entree_formation, s = a.date_sortie_formation;
+    const ajd = aujourdhui();
+    let avancement = null, ou = null;
+    if (e && s) {
+      const total = Math.max(1, joursDepuis(e) - joursDepuis(s));
+      const fait = Math.min(Math.max(joursDepuis(e), 0), total);
+      avancement = Math.round((100 * fait) / total);
+      ou = ajd < e ? `démarre ${ecartJours(e)}`
+        : ajd > s ? `formation terminée depuis ${joursDepuis(s)} j`
+        : `jour ${fait + 1} sur ${total + 1} · fin ${ecartJours(s)}`;
+    } else if (e) {
+      ou = ajd < e ? `démarre ${ecartJours(e)}` : `en formation depuis ${joursDepuis(e)} j`;
+    }
+    const case_ = (libelle, date) => h("div", { class: "formation-date" },
+      h("span", { class: "compteur-libelle" }, libelle),
+      h("span", { class: "formation-valeur" }, date ? dateLisible(date) : "à renseigner"));
+
+    let editeur = null;
+    if (estAdmin) {
+      const zone = h("div");
+      const champE = h("input", { type: "date", value: e || "", "aria-label": "Entrée en formation" });
+      const champS = h("input", { type: "date", value: s || "", "aria-label": "Sortie de formation" });
+      const bouton = h("button", { type: "submit", class: "bouton bouton-petit" }, "Enregistrer");
+      const formulaire = h("form", { class: "editeur-examen", novalidate: true },
+        h("label", {}, "Entrée officielle", champE), h("label", {}, "Sortie de formation", champS), bouton, zone);
+      formulaire.addEventListener("submit", async (evenement) => {
+        evenement.preventDefault();
+        if (champE.value && champS.value && champS.value < champE.value) return signaler(zone, "erreur", "La sortie doit être après l'entrée en formation.");
+        occupe(bouton, true, "Enregistrement…");
+        const { error } = await sb.from("apprenants")
+          .update({ date_entree_formation: champE.value || null, date_sortie_formation: champS.value || null }).eq("id", a.id);
+        occupe(bouton, false);
+        if (error) return signaler(zone, "erreur", texteErreur(error));
+        apresEnregistrement();
+      });
+      editeur = h("details", { class: "formation-modifier", open: !e && !s ? true : null },
+        h("summary", {}, e || s ? "Modifier les dates" : "Renseigner les dates"), formulaire);
+    }
+
+    return h("section", { class: "carte carte-large formation", "aria-label": "Action de formation" },
+      h("p", { class: "surtitre" }, "Action de formation"),
+      h("div", { class: "formation-dates" }, case_("Entrée officielle", e), h("span", { class: "formation-fleche", "aria-hidden": "true" }, "→"), case_("Sortie de formation", s)),
+      avancement !== null
+        ? h("div", { class: "formation-barre", role: "progressbar", "aria-valuenow": String(avancement), "aria-valuemin": "0", "aria-valuemax": "100", "aria-label": "Avancée dans la période de formation" },
+            (() => { const remplissage = h("span"); remplissage.style.width = `${avancement}%`; return remplissage; })())
+        : null,
+      ou ? h("p", { class: "aide" }, ou) : null,
+      editeur);
+  }
+
   async function ecranApprenant(id, info) {
     const role = etat.profil?.role;
     const estAdmin = role === "admin";
@@ -2167,7 +2247,7 @@
 
     const [apprenant, appels, coaching] = await Promise.all([
       sb.from("apprenants")
-        .select("id, organisme_id, appelante_id, identifiant_externe, prenom, nom, telephone, email, parcours, date_inscription, avancement_pct, derniere_connexion, statut, date_dernier_contact, cree_le, date_examen, presence_examen, resultat_examen, organismes ( nom, seuil_vert_jours, seuil_orange_jours )")
+        .select("id, organisme_id, appelante_id, identifiant_externe, prenom, nom, telephone, email, parcours, date_inscription, date_entree_formation, date_sortie_formation, avancement_pct, derniere_connexion, statut, date_dernier_contact, cree_le, date_examen, presence_examen, resultat_examen, organismes ( nom, seuil_vert_jours, seuil_orange_jours )")
         .eq("id", id).maybeSingle(),
       sb.from("appels")
         .select(peutNoter
@@ -2270,12 +2350,15 @@
             [org.nom, a.parcours, a.identifiant_externe].filter(Boolean).join(" · "), " ",
             a.statut === "actif"
               ? pastille(couleur, jours === null ? "jamais contacté·e" : `${jours} j sans contact`)
-              : pastille("neutre", LIBELLE_STATUT[a.statut]))),
+              : pastille("neutre", LIBELLE_STATUT[a.statut]),
+            " ", pastilleSortie(a))),
 
         info ? message("info", info) : null,
         suivantId
           ? h("p", { class: "message message-action" }, lienInterne(`apprenant/${suivantId}`, "Apprenant suivant dans la liste →"))
           : null,
+
+        blocActionFormation(a, estAdmin, () => rafraichir("Dates de formation enregistrées.")),
 
         blocCompteursContact(appels.data),
 
@@ -2472,7 +2555,7 @@
 
     const [organisme, apprenants, tauxCohortes, examensAVenir] = await Promise.all([
       sb.from("organismes").select("nom, taux_presence_depart").eq("id", profil.organisme_id).maybeSingle(),
-      sb.from("vue_qui_rappeler").select("id, identifiant_externe, prenom, nom, parcours, jours_sans_contact, alerte"),
+      sb.from("vue_qui_rappeler").select("id, identifiant_externe, prenom, nom, parcours, jours_sans_contact, alerte, date_entree_formation, date_sortie_formation, tentatives, aboutis"),
       sb.from("vue_taux_examen").select("*"),
       sb.from("vue_relances_examen").select("id", { count: "exact", head: true }),
     ]);
@@ -2514,7 +2597,7 @@
     afficher(h("p", { class: "chargement" }, "Chargement de vos apprenants…"));
     const { data, error } = await sb
       .from("vue_qui_rappeler")
-      .select("id, identifiant_externe, prenom, nom, parcours, telephone, jours_sans_contact, alerte");
+      .select("id, identifiant_externe, prenom, nom, parcours, telephone, jours_sans_contact, alerte, date_entree_formation, date_sortie_formation, tentatives, aboutis");
     if (error) return afficher(message("erreur", texteErreur(error)));
     memoriserFile(trierParUrgence(data), "");
 
@@ -2560,21 +2643,35 @@
     };
   }
 
-  function texteRecap(organisme, contactNom, mois, reponses) {
+  function texteRecap(organisme, contactNom, mois, reponses, activite) {
     const bonjour = contactNom ? `Bonjour ${contactNom.split(" ")[0]},` : "Bonjour,";
     const nps = reponses.filter((r) => r.recommandation !== null);
     const promoteurs = nps.filter((r) => r.recommandation >= 9).length;
     const detracteurs = nps.filter((r) => r.recommandation <= 6).length;
     const lignes = [
       bonjour, "",
-      `Voici le récapitulatif de satisfaction de vos apprenants accompagnés par Fil Rouge Apprenants pour ${mois}.`, "",
+      `Voici le récapitulatif du suivi de vos apprenants par Fil Rouge Apprenants pour ${mois}.`, "",
+    ];
+    if (activite && activite.tentatives) {
+      lignes.push("Suivi téléphonique du mois :",
+        `• ${pluriel(activite.tentatives, "tentative de contact", "tentatives de contact")} (appels, messages)`,
+        `• ${pluriel(activite.aboutis, "contact abouti", "contacts aboutis")}, c'est-à-dire d'échange réel avec l'apprenant`,
+        `• ${pluriel(activite.apprenantsJoints, "apprenant joint", "apprenants joints")} sur ${pluriel(activite.apprenantsContactes, "apprenant contacté", "apprenants contactés")}`, "");
+    }
+    if (!reponses.length) {
+      lignes.push("Le détail de chaque contact est disponible dans votre espace Fil Rouge :", adresseSite(),
+        "", "Belle journée,", "Émilie Rachas", "Fil Rouge Apprenants");
+      return lignes.join("\n");
+    }
+    lignes.push(...[
+      "Satisfaction de vos apprenants :",
       `• ${pluriel(reponses.length, "réponse", "réponses")}`,
       `• Note globale des appels : ${note(moyenne(reponses.map((r) => r.note_globale)), 5)}`,
       `• Écoute : ${note(moyenne(reponses.map((r) => r.note_ecoute)), 5)}`,
       `• Clarté des informations : ${note(moyenne(reponses.map((r) => r.note_clarte)), 5)}`,
       `• Aide pour avancer : ${note(moyenne(reponses.map((r) => r.note_utilite)), 5)}`,
       nps.length ? `• Recommandation : ${note(moyenne(nps.map((r) => r.recommandation)), 10)} (${promoteurs} très favorables, ${detracteurs} réservés)` : null,
-    ].filter((l) => l !== null);
+    ].filter((l) => l !== null));
     const commentaires = reponses.filter((r) => r.point_fort || r.amelioration);
     if (commentaires.length) {
       lignes.push("", "Ce que disent vos apprenants :");
@@ -2725,18 +2822,33 @@
       if (!moisDispo.includes(courant)) moisDispo.unshift(courant);
       const choixMois = champChoix("sat-mois", "Mois", Object.fromEntries(moisDispo.map((m) => [m, moisLisible(m)])), moisDispo[0]);
       const zone = h("div");
-      function preparer() {
+      async function preparer() {
         const m = choixMois.champ.value;
         const partagees = reponses.filter((r) => r.partage_client && r.repondu_le.startsWith(m));
         const privees = reponses.filter((r) => !r.partage_client && r.repondu_le.startsWith(m)).length;
-        if (!partagees.length) {
+        // Activité du mois : tentatives de contact et contacts aboutis.
+        zone.replaceChildren(h("p", { class: "chargement" }, "Calcul du mois…"));
+        const debut = `${m}-01`;
+        const moisSuivant = ajouterJours(`${m}-28`, 7).slice(0, 7) + "-01";
+        const res = await toutLire(() => sb.from("appels").select("id, apprenant_id, resultat")
+          .eq("organisme_id", organismeId).gte("date_appel", debutJourParis(debut)).lt("date_appel", debutJourParis(moisSuivant)).order("id"));
+        if (choixMois.champ.value !== m) return; // un autre mois a été choisi entre-temps
+        if (res.error) return zone.replaceChildren(message("erreur", texteErreur(res.error)));
+        const ap = res.data;
+        const activite = {
+          tentatives: ap.length,
+          aboutis: ap.filter((c) => c.resultat === "joint").length,
+          apprenantsContactes: new Set(ap.map((c) => c.apprenant_id)).size,
+          apprenantsJoints: new Set(ap.filter((c) => c.resultat === "joint").map((c) => c.apprenant_id)).size,
+        };
+        if (!partagees.length && !activite.tentatives) {
           return zone.replaceChildren(message("info", privees
-            ? `${pluriel(privees, "réponse reçue", "réponses reçues")} ce mois-ci, mais aucune n'est débloquée. Débloquez celles à transmettre, puis revenez ici.`
-            : "Aucune réponse ce mois-ci."));
+            ? `${pluriel(privees, "réponse reçue", "réponses reçues")} ce mois-ci, mais aucune n'est débloquée et aucun appel n'est noté. Débloquez celles à transmettre, puis revenez ici.`
+            : "Aucun appel noté ni aucune réponse ce mois-ci."));
         }
-        const texte = champTexte("sat-recap", "Récap (modifiable)", texteRecap(org.nom, suivi.contact_nom, moisLisible(m).toLowerCase(), partagees), { multiligne: true });
+        const texte = champTexte("sat-recap", "Récap (modifiable)", texteRecap(org.nom, suivi.contact_nom, moisLisible(m).toLowerCase(), partagees, activite), { multiligne: true });
         texte.champ.rows = 14;
-        const objet = `Satisfaction de vos apprenants — ${moisLisible(m)}`;
+        const objet = `Suivi de vos apprenants — ${moisLisible(m)}`;
         const envoyer = h("a", { class: "bouton bouton-petit" }, "📧 Envoyer au client");
         const majLien = () => {
           const l = window.FilRougeContact.lienEmail(suivi.contact_email, objet, texte.champ.value);
@@ -2748,7 +2860,7 @@
         const copie = h("button", { type: "button", class: "bouton-lien" }, "Copier le texte");
         copie.addEventListener("click", () => copier(texte.champ.value, copie));
         zone.replaceChildren(h("div", { class: "pile pile-serree" },
-          h("p", { class: "aide" }, `${pluriel(partagees.length, "réponse débloquée incluse", "réponses débloquées incluses")}${privees ? ` · ${pluriel(privees, "réponse privée non incluse", "réponses privées non incluses")}` : ""}.`),
+          h("p", { class: "aide" }, `${pluriel(activite.tentatives, "tentative", "tentatives")} et ${pluriel(activite.aboutis, "contact abouti", "contacts aboutis")} ce mois-ci · ${pluriel(partagees.length, "réponse débloquée incluse", "réponses débloquées incluses")}${privees ? ` · ${pluriel(privees, "réponse privée non incluse", "réponses privées non incluses")}` : ""}.`),
           h("div", { class: "formulaire" }, texte.bloc),
           h("div", { class: "actions-ligne" }, envoyer, copie),
           suivi.contact_email ? null : h("p", { class: "aide" }, "Pas d'email de contact sur la fiche de ce client : copiez le texte, ou ajoutez l'email dans sa fiche.")));
@@ -2778,7 +2890,7 @@
           h("div", { class: "section-titre" }, h("h2", {}, "Envoyer le questionnaire"), h("p", {}, "Un lien personnel par élève, une seule réponse possible")),
           champRecherche, zoneEleves),
         h("section", {},
-          h("div", { class: "section-titre" }, h("h2", {}, "Récap mensuel au client"), h("p", {}, "Seulement les réponses débloquées")),
+          h("div", { class: "section-titre" }, h("h2", {}, "Récap mensuel au client"), h("p", {}, "Appels du mois + réponses débloquées")),
           blocRecap())));
     window.scrollTo(0, 0);
   }
@@ -2950,13 +3062,15 @@
 
   async function ecranDossierEleves(organismeId) {
     afficher(h("p", { class: "chargement" }, "Ouverture du dossier…"));
-    const [org, appr] = await Promise.all([
+    const [org, appr, compteurs] = await Promise.all([
       sb.from("organismes").select("id, nom, seuil_vert_jours, seuil_orange_jours").eq("id", organismeId).maybeSingle(),
       sb.from("apprenants")
-        .select("id, identifiant_externe, prenom, nom, parcours, avancement_pct, statut, date_dernier_contact, date_inscription, cree_le, date_examen")
+        .select("id, identifiant_externe, prenom, nom, parcours, avancement_pct, statut, date_dernier_contact, date_inscription, cree_le, date_examen, date_entree_formation, date_sortie_formation")
         .eq("organisme_id", organismeId).order("nom").order("prenom"),
+      toutLire(() => sb.from("vue_contacts_apprenant").select("apprenant_id, tentatives, aboutis").eq("organisme_id", organismeId).order("apprenant_id")),
     ]);
-    const erreur = org.error || appr.error;
+    const erreur = org.error || appr.error || compteurs.error;
+    const contactsDe = new Map((compteurs.data || []).map((c) => [c.apprenant_id, c]));
     if (erreur) return afficher(message("erreur", texteErreur(erreur)));
     if (!org.data) return afficher(message("info", "Ce dossier n'existe pas ou n'est plus accessible."));
 
@@ -2977,10 +3091,13 @@
       return h("li", { class: "ligne" },
         h("span", { class: "ligne-titre" }, lienInterne(`apprenant/${a.id}`, nomApprenant(a))),
         h("span", { class: "pastilles" },
-          a.statut === "actif" ? pastille(couleurPour(jours), jours === null ? "jamais contacté·e" : `${jours} j sans contact`) : pastille("neutre", LIBELLE_STATUT[a.statut])),
+          a.statut === "actif" ? pastille(couleurPour(jours), jours === null ? "jamais contacté·e" : `${jours} j sans contact`) : pastille("neutre", LIBELLE_STATUT[a.statut]),
+          pastilleSortie(a)),
         h("span", { class: "ligne-detail" }, [
           a.parcours,
           a.identifiant_externe,
+          texteFormation(a),
+          texteContacts(contactsDe.get(a.id)),
           a.avancement_pct === null || a.avancement_pct === undefined ? null : `${Math.round(a.avancement_pct)} % du parcours`,
           a.date_examen ? `examen le ${dateLisible(a.date_examen)}` : null,
         ].filter(Boolean).join(" · ")));
