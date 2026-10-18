@@ -1997,7 +1997,9 @@
   }
 
   // Formulaire « Noter un appel ».
-  function formulaireAppel(apprenant, apresEnregistrement) {
+  // options.sansNotes : sans « Compte rendu pour l'organisme » ni « Note interne »
+  // (ils ont leurs propres onglets sur la fiche).
+  function formulaireAppel(apprenant, apresEnregistrement, options = {}) {
     const zone = h("div");
     const choixResultat = h("div", { class: "choix-boutons", role: "radiogroup", "aria-label": "Résultat de l'appel" },
       Object.entries(LIBELLE_RESULTAT_APPEL).map(([valeur, texte]) =>
@@ -2031,14 +2033,14 @@
       if (!toucheParUtilisateur.has(suite.champ)) suite.champ.value = texteSuite;
       if (!toucheParUtilisateur.has(dateSuite.champ)) dateSuite.champ.value = jours ? ajouterJours(aujourdhui(), jours) : "";
       signaler(conseil, resultat === "refuse_suivi" ? "info" : null,
-        resultat === "refuse_suivi" ? "Si l'apprenant arrête sa formation, passez aussi son statut en « Abandon » (en bas de la fiche)." : null);
+        resultat === "refuse_suivi" ? "Si l'apprenant arrête sa formation, passez aussi son statut en « Abandon » (sous son nom, onglet Fiche)." : null);
     });
 
     const formulaire = h("form", { novalidate: true, class: "formulaire" },
       h("fieldset", { class: "groupe" }, h("legend", {}, "Résultat"), choixResultat),
       conseil,
-      noteClient.bloc,
-      noteInterne.bloc,
+      options.sansNotes ? null : noteClient.bloc,
+      options.sansNotes ? null : noteInterne.bloc,
       h("div", { class: "deux-colonnes" }, suite.bloc, dateSuite.bloc),
       raccourcis,
       h("details", { class: "depliant" },
@@ -2060,8 +2062,8 @@
         p_resultat: resultat,
         p_canal: canal.champ.value,
         p_date_appel: date.toISOString(),
-        p_note_client: noteClient.champ.value,
-        p_note_interne: noteInterne.champ.value,
+        p_note_client: options.sansNotes ? "" : noteClient.champ.value,
+        p_note_interne: options.sansNotes ? "" : noteInterne.champ.value,
         p_prochaine_action: suite.champ.value,
         p_date_prochaine_action: dateSuite.champ.value || null,
       });
@@ -2758,13 +2760,13 @@
     // --- Onglets en haut de la fiche ---
     const memo = etat.ongletFiche && etat.ongletFiche.id === id ? etat.ongletFiche : { id, onglet: lireRoute().onglet || "fiche", partie: lireRoute().partie || "stage" };
     etat.ongletFiche = memo;
-    // Contacter et noter l'appel : directement sur la fiche.
-    const blocContacterFiche = peutNoter
-      ? h("div", { class: "pile" },
-          blocContacter(a, rafraichir),
-          h("section", {},
-            h("div", { class: "section-titre" }, h("h2", {}, "Noter l'appel")),
-            h("div", { class: "carte carte-large" }, formulaireAppel(a, () => rafraichir("Appel enregistré. Le compteur repart à zéro.")))))
+    // Contacter : sur la fiche. Noter l'appel (résultat, suite prévue, date) : onglet Statut.
+    const blocContacterFiche = peutNoter ? blocContacter(a, rafraichir) : null;
+    const panneauStatut = peutNoter
+      ? h("section", { class: "pile-serree" },
+          h("div", { class: "section-titre" }, h("h2", {}, "Statut de l'appel"), h("p", {}, "Résultat, suite prévue et date de la suite")),
+          h("p", { class: "aide" }, "Le compte rendu pour l'organisme et les notes internes s'écrivent dans leurs onglets."),
+          h("div", { class: "carte carte-large" }, formulaireAppel(a, () => rafraichir("Appel enregistré. Le compteur repart à zéro."), { sansNotes: true })))
       : null;
     const panneauHistorique = h("section", { class: "pile-serree" },
       h("div", { class: "section-titre" }, h("h2", {}, "Historique d'appels"), h("p", {}, pluriel(appels.data.length, "contact", "contacts"))),
@@ -2780,7 +2782,8 @@
          ["historique", `Historique d'appels${nb(appels.data.length)}`, panneauHistorique],
          ["internes", `Notes internes${nb(notesInternes.length)}`, panneauInternes],
          ["compte-rendu", "Compte rendu organisme", panneauCompteRendu],
-         ["coaching", "Coaching", panneauCoaching]]
+         ["coaching", "Coaching", panneauCoaching],
+         ["statut", "Statut", panneauStatut]]
       : [["fiche", "Fiche", panneauFiche],
          clientPeut("voir_comptes_rendus") ? ["compte-rendu", `Comptes rendus${nb(comptesRendus.data.length)}`, panneauCompteRendu] : null,
          clientPeut("voir_comptes_rendus") ? ["historique", `Historique d'appels${nb(appels.data.length)}`, panneauHistorique] : null,
