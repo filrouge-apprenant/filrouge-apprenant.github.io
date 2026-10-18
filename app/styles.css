@@ -1182,3 +1182,17 @@ label.case input {
 /* Fiche organisme : contact en liste */
 .perso-liste { display: flex; flex-direction: column; gap: 0.5rem; }
 .perso-liste a.perso-valeur { color: var(--violet); }
+
+/* Statut de l'appel : menu déroulant à choix multiples */
+.etiquette { margin: 0 0 0.3rem; font-weight: 600; }
+.menu-statuts { position: relative; }
+.menu-statuts > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-height: 2.6rem; padding: 0.4rem 0.7rem; border: 1px solid var(--violet); border-radius: var(--rayon); background: var(--fond); cursor: pointer; }
+.menu-statuts > summary::-webkit-details-marker { display: none; }
+.menu-statuts-resume { display: flex; flex-wrap: wrap; gap: 0.3rem; color: var(--texte-doux); }
+.menu-statuts-fleche { color: var(--violet); }
+.menu-statuts[open] .menu-statuts-fleche { transform: rotate(180deg); }
+.menu-statuts-liste { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px); max-height: 20rem; overflow-y: auto; background: var(--fond); border: 1px solid var(--violet); border-radius: var(--rayon); box-shadow: 0 8px 24px rgba(59, 31, 92, 0.15); padding: 0.3rem; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.1rem; }
+@media (max-width: 30rem) { .menu-statuts-liste { grid-template-columns: minmax(0, 1fr); } }
+.menu-statuts-option { display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.5rem; border-radius: var(--rayon); cursor: pointer; }
+.menu-statuts-option:hover { background: var(--rose); }
+.menu-statuts-option input { width: 1.1rem; height: 1.1rem; accent-color: var(--violet); }

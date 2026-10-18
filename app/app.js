@@ -2124,12 +2124,66 @@
   // Formulaire « Noter un appel ».
   // options.sansNotes : sans « Compte rendu pour l'organisme » ni « Note interne »
   // (ils ont leurs propres onglets sur la fiche).
+  // Statuts d'un appel : plusieurs possibles (ex. Répondeur + Email envoyé).
+  const LIBELLE_STATUT_APPEL = {
+    joint: "Joint·e",
+    repondeur: "Répondeur",
+    messagerie_impossible: "Message vocal impossible",
+    faux_numero: "Faux numéro",
+    injoignable: "Pas de réponse",
+    rendez_vous: "Rendez-vous",
+    a_relancer: "À relancer",
+    suivi_15: "Suivi 15 jours",
+    suivi_30: "Suivi 30 jours",
+    email_envoye: "Email envoyé",
+    sms_envoye: "SMS envoyé",
+    refuse_suivi: "Refuse le suivi",
+  };
+  const COULEUR_STATUT_APPEL = {
+    joint: "vert", rendez_vous: "vert", suivi_15: "vert", suivi_30: "vert",
+    repondeur: "orange", messagerie_impossible: "orange", a_relancer: "orange", email_envoye: "orange", sms_envoye: "orange",
+    faux_numero: "rouge", injoignable: "rouge", refuse_suivi: "neutre",
+  };
+  // Suite proposée selon les statuts cochés (le premier qui correspond).
+  const SUITE_STATUT = [
+    ["suivi_15", "Suivi 15 jours", 15],
+    ["suivi_30", "Suivi 30 jours", 30],
+    ["rendez_vous", "Rendez-vous", null],
+    ["a_relancer", "Relancer", 2],
+    ["faux_numero", "Demander le bon numéro à l'organisme", 1],
+    ["repondeur", "Rappeler", 2],
+    ["messagerie_impossible", "Rappeler", 2],
+    ["injoignable", "Rappeler", 2],
+    ["joint", "Point d'étape", 7],
+  ];
+
+  // Menu déroulant à choix multiples.
+  function menuStatuts(nom, libelles) {
+    const cases = Object.entries(libelles).map(([valeur, texte]) =>
+      h("label", { class: "menu-statuts-option" }, h("input", { type: "checkbox", name: nom, value: valeur }), h("span", {}, texte)));
+    const resume = h("span", { class: "menu-statuts-resume" }, "Choisir un ou plusieurs statuts");
+    const menu = h("details", { class: "menu-statuts" },
+      h("summary", {}, resume, h("span", { class: "menu-statuts-fleche", "aria-hidden": "true" }, "▾")),
+      h("div", { class: "menu-statuts-liste", role: "group", "aria-label": "Statuts de l'appel" }, cases));
+    const valeurs = () => cases.map((c) => c.querySelector("input")).filter((i) => i.checked).map((i) => i.value);
+    const majResume = () => {
+      const v = valeurs();
+      resume.replaceChildren(...(v.length ? v.map((x) => pastille(COULEUR_STATUT_APPEL[x] || "neutre", libelles[x])) : ["Choisir un ou plusieurs statuts"]));
+    };
+    menu.addEventListener("change", majResume);
+    // Clic en dehors : le menu se referme.
+    const fermer = (e) => {
+      if (!document.body.contains(menu)) return document.removeEventListener("click", fermer);
+      if (menu.open && !menu.contains(e.target)) menu.open = false;
+    };
+    document.addEventListener("click", fermer);
+    return { menu, valeurs };
+  }
+
   function formulaireAppel(apprenant, apresEnregistrement, options = {}) {
     const zone = h("div");
-    const choixResultat = h("div", { class: "choix-boutons", role: "radiogroup", "aria-label": "Résultat de l'appel" },
-      Object.entries(LIBELLE_RESULTAT_APPEL).map(([valeur, texte]) =>
-        h("label", { class: "choix-bouton" },
-          h("input", { type: "radio", name: "resultat", value: valeur }), h("span", {}, texte))));
+    const statuts = menuStatuts("statut-appel", LIBELLE_STATUT_APPEL);
+    const choixResultat = statuts.menu;
     const canal = champChoix("appel-canal", "Canal", LIBELLE_CANAL_APPEL, "telephone");
     const quand = champTexte("appel-date", "Date et heure", maintenantLocal(), { type: "datetime-local" });
     const noteClient = champTexte("appel-note-client", "Compte rendu pour l'organisme", "", {
@@ -2152,17 +2206,18 @@
     const toucheParUtilisateur = new Set();
     for (const c of [noteClient.champ, suite.champ, dateSuite.champ]) c.addEventListener("input", () => toucheParUtilisateur.add(c));
     choixResultat.addEventListener("change", () => {
-      const resultat = choixResultat.querySelector("input:checked")?.value;
-      const [texteSuite, jours] = SUITE_PROPOSEE[resultat] || ["", null];
-      if (!toucheParUtilisateur.has(noteClient.champ)) noteClient.champ.value = NOTE_PROPOSEE[resultat] || "";
+      const choisis = statuts.valeurs();
+      const regle = SUITE_STATUT.find(([cle]) => choisis.includes(cle));
+      const [, texteSuite, jours] = regle || [null, "", null];
       if (!toucheParUtilisateur.has(suite.champ)) suite.champ.value = texteSuite;
       if (!toucheParUtilisateur.has(dateSuite.champ)) dateSuite.champ.value = jours ? ajouterJours(aujourdhui(), jours) : "";
-      signaler(conseil, resultat === "refuse_suivi" ? "info" : null,
-        resultat === "refuse_suivi" ? "Si l'apprenant arrête sa formation, passez aussi son statut en « Abandon » (sous son nom, onglet Fiche)." : null);
+      const refus = choisis.includes("refuse_suivi");
+      signaler(conseil, refus ? "info" : null,
+        refus ? "Si l'apprenant arrête sa formation, passez aussi son statut en « Abandon » (sous son nom, onglet Fiche)." : null);
     });
 
     const formulaire = h("form", { novalidate: true, class: "formulaire" },
-      h("fieldset", { class: "groupe" }, h("legend", {}, "Résultat"), choixResultat),
+      h("div", { class: "groupe" }, h("p", { class: "etiquette" }, "Statut de l'appel"), choixResultat),
       conseil,
       options.sansNotes ? null : noteClient.bloc,
       options.sansNotes ? null : noteInterne.bloc,
@@ -2175,16 +2230,16 @@
 
     formulaire.addEventListener("submit", async (evenement) => {
       evenement.preventDefault();
-      const resultat = choixResultat.querySelector("input:checked")?.value;
-      if (!resultat) return signaler(zone, "erreur", "Choisissez le résultat de l'appel.");
+      const choisis = statuts.valeurs();
+      if (!choisis.length) return signaler(zone, "erreur", "Choisissez au moins un statut.");
       const date = quand.champ.value ? new Date(quand.champ.value) : new Date();
       if (Number.isNaN(date.getTime())) return signaler(zone, "erreur", "La date et l'heure ne sont pas valables.");
       if (date.getTime() > Date.now() + 10 * 60000) return signaler(zone, "erreur", "La date de l'appel ne peut pas être dans le futur.");
       signaler(zone);
       occupe(bouton, true, "Enregistrement…");
-      const { error } = await sb.rpc("noter_appel", {
+      const { error } = await sb.rpc("noter_appel_statuts", {
         p_apprenant: apprenant.id,
-        p_resultat: resultat,
+        p_statuts: choisis,
         p_canal: canal.champ.value,
         p_date_appel: date.toISOString(),
         p_note_client: options.sansNotes ? "" : noteClient.champ.value,
@@ -2223,9 +2278,11 @@
       h("span", { class: "ligne-titre" }, dateHeureComplete(appel.date_appel)),
       h("span", { class: "pastilles" },
         pastille("neutre", LIBELLE_CANAL_APPEL[appel.canal] || appel.canal),
-        appel.resultat === "messagerie" && NOTE_MESSAGE_ENVOYE[appel.canal]
-          ? pastille("vert", "Message envoyé")
-          : pastille(COULEUR_RESULTAT_APPEL[appel.resultat] || "neutre", LIBELLE_RESULTAT_APPEL[appel.resultat] || appel.resultat)),
+        appel.statuts && appel.statuts.length
+          ? appel.statuts.map((x) => pastille(COULEUR_STATUT_APPEL[x] || "neutre", LIBELLE_STATUT_APPEL[x] || x))
+          : appel.resultat === "messagerie" && NOTE_MESSAGE_ENVOYE[appel.canal]
+            ? pastille("vert", "Message envoyé")
+            : pastille(COULEUR_RESULTAT_APPEL[appel.resultat] || "neutre", LIBELLE_RESULTAT_APPEL[appel.resultat] || appel.resultat)),
       appel.note_client ? h("span", { class: "ligne-detail texte-libre" }, appel.note_client) : null,
       appel.prochaine_action || appel.date_prochaine_action
         ? h("span", { class: "ligne-detail" }, "Suite : ", [appel.prochaine_action, appel.date_prochaine_action ? `le ${dateLisible(appel.date_prochaine_action)}` : null].filter(Boolean).join(" "))
@@ -2699,8 +2756,8 @@
         .eq("id", id).maybeSingle(),
       sb.from("appels")
         .select(peutNoter
-          ? "id, date_appel, canal, resultat, note_client, prochaine_action, date_prochaine_action, auteur_id, notes_internes ( contenu )"
-          : "id, date_appel, canal, resultat, note_client, prochaine_action, date_prochaine_action")
+          ? "id, date_appel, canal, resultat, statuts, note_client, prochaine_action, date_prochaine_action, auteur_id, notes_internes ( contenu )"
+          : "id, date_appel, canal, resultat, statuts, note_client, prochaine_action, date_prochaine_action")
         .eq("apprenant_id", id).order("date_appel", { ascending: false }).order("id"),
       sb.from("coaching").select("*").eq("apprenant_id", id).maybeSingle(),
       // Situation personnelle : équipe Fil Rouge seulement (la base refuse au client).

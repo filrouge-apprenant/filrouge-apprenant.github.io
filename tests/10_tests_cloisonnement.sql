@@ -1007,5 +1007,23 @@ select tests.session('44444444-4444-4444-8444-444444444444');
 select tests.doit_etre_refuse($$select * from public.acces_organisme('a0000000-0000-4000-8000-000000000001')$$, 'appelante : pas d''accès à la liste des comptes');
 rollback;
 
+\echo '== 23. Statuts multiples d''un appel'
+begin;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+set local role authenticated;
+select public.noter_appel_statuts(p_apprenant => 'a1000000-0000-4000-8000-000000000004', p_date_appel => now() - interval '5 minutes',
+  p_statuts => array['repondeur', 'email_envoye', 'suivi_15'], p_prochaine_action => 'Suivi 15 jours', p_date_prochaine_action => current_date + 15) as id_a \gset
+select tests.verifier(
+  (select resultat = 'messagerie' and statuts = array['repondeur', 'email_envoye', 'suivi_15'] from public.appels where id = :'id_a'),
+  'répondeur + email envoyé : plusieurs statuts, résultat « message laissé »');
+select tests.verifier(
+  (select count(*) from public.commentaires where contenu like 'Appel · Répondeur · Email envoyé · Suivi 15 jours%') = 1,
+  'commentaire automatique avec tous les statuts');
+select public.noter_appel_statuts(p_apprenant => 'a1000000-0000-4000-8000-000000000004', p_statuts => array['joint', 'email_envoye']) as id_b \gset
+select tests.verifier((select resultat = 'joint' from public.appels where id = :'id_b'), 'joint + email envoyé : compte comme contact abouti');
+select tests.doit_etre_refuse($$select public.noter_appel_statuts(p_apprenant => 'a1000000-0000-4000-8000-000000000004', p_statuts => array['inconnu'])$$, 'statut inconnu : refusé');
+select tests.doit_etre_refuse($$select public.noter_appel_statuts(p_apprenant => 'a1000000-0000-4000-8000-000000000004', p_statuts => array[]::text[])$$, 'aucun statut : refusé');
+rollback;
+
 \echo
 \echo 'TOUS LES TESTS SONT PASSÉS'
