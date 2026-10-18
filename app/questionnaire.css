@@ -1,0 +1,113 @@
+/* Questionnaire de satisfaction apprenant — complète styles.css (mêmes couleurs). */
+
+.q-page {
+  max-width: 38rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.q-message { text-align: center; padding-top: 2rem; }
+.q-intro { color: var(--texte-doux); line-height: 1.5; margin-bottom: 1.5rem; }
+
+.q-question {
+  border: 0;
+  border-top: 1px solid var(--filet);
+  margin: 0;
+  padding: 1.25rem 0;
+}
+.q-question legend, .q-libelle {
+  display: block;
+  font-weight: 700;
+  line-height: 1.4;
+  margin-bottom: 0.75rem;
+  padding: 0;
+}
+.q-obligatoire {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--violet-moyen);
+  margin-left: 0.35rem;
+}
+
+/* Échelles de notes : boutons ronds 1–5 ou 0–10 */
+.q-notes { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.q-echelle-11 .q-notes { gap: 0.25rem; }
+.q-notes label, .q-choix label { cursor: pointer; }
+.q-notes input, .q-choix input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.q-notes span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--violet-moyen);
+  border-radius: 50%;
+  font-weight: 700;
+  color: var(--violet);
+  background: var(--fond);
+}
+.q-echelle-11 .q-notes span { width: 2.3rem; height: 2.3rem; font-size: 0.9rem; }
+.q-notes label:hover span, .q-choix label:hover span { background: var(--rose); }
+.q-notes input:checked + span, .q-choix input:checked + span {
+  background: var(--rose-fort);
+  border-color: var(--violet);
+  border-width: 2px;
+}
+.q-notes input:focus-visible + span, .q-choix input:focus-visible + span {
+  outline: 2px solid var(--violet);
+  outline-offset: 2px;
+}
+.q-reperes {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--texte-doux);
+  margin-top: 0.4rem;
+}
+
+/* Choix simples (fréquence) */
+.q-choix { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.q-choix span {
+  display: inline-block;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--violet-moyen);
+  border-radius: 999px;
+  color: var(--violet);
+  background: var(--fond);
+}
+
+.q-question textarea {
+  width: 100%;
+  font: inherit;
+  padding: 0.65rem;
+  border: 1px solid var(--filet);
+  border-radius: var(--rayon);
+  resize: vertical;
+}
+.q-question textarea:focus { outline: 2px solid var(--violet-moyen); border-color: transparent; }
+
+.q-anonyme {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  border-top: 1px solid var(--filet);
+  padding: 1.25rem 0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.q-anonyme input { margin-top: 0.2rem; width: 1.1rem; height: 1.1rem; accent-color: var(--violet); }
+
+.q-alerte {
+  color: var(--alerte-rouge);
+  background: var(--alerte-rouge-fond);
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--rayon);
+}
+.q-envoyer { width: 100%; padding: 0.85rem; font-size: 1.05rem; margin-top: 0.5rem; }
+.q-mention { font-size: 0.8rem; color: var(--texte-doux); line-height: 1.4; margin-top: 1rem; }

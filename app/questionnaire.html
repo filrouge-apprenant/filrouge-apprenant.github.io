@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="only light">
+  <!-- Même politique de sécurité que la plateforme : aucun script extérieur,
+       la page ne parle qu'au projet Supabase de Fil Rouge Apprenants. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://cafcevtehuywovvsllvp.supabase.co; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
+  <title>Votre avis sur votre suivi — Fil Rouge Apprenants</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Instrument+Serif&display=swap">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="questionnaire.css">
+</head>
+<body>
+  <header class="bandeau">
+    <div class="bandeau-interieur">
+      <p class="marque">
+        <span class="marque-texte">Fil Rouge <span class="marque-sous">Apprenants</span></span>
+        <svg class="marque-fil" viewBox="0 0 320 64" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path d="M4 50 C 22 52, 30 44, 44 40 C 70 10, 170 2, 262 8 C 300 11, 316 24, 312 36 C 306 52, 250 60, 160 60 C 92 60, 30 57, 16 46 C 4 36, 10 16, 34 7"
+                fill="none" stroke="#c1121f" stroke-width="1.4" stroke-linecap="round" vector-effect="non-scaling-stroke" pathLength="1"/>
+        </svg>
+      </p>
+    </div>
+  </header>
+
+  <main class="q-page">
+    <p id="q-chargement" class="q-message">Chargement…</p>
+
+    <section id="q-erreur" class="q-message" hidden>
+      <h1>Lien introuvable</h1>
+      <p>Ce lien de questionnaire n'est pas valide. Vérifiez qu'il a été copié en entier depuis l'email, ou répondez directement à l'email reçu.</p>
+    </section>
+
+    <section id="q-deja" class="q-message" hidden>
+      <h1>Merci, c'est déjà fait</h1>
+      <p>Vous avez déjà répondu à ce questionnaire. Votre avis a bien été pris en compte.</p>
+    </section>
+
+    <section id="q-merci" class="q-message" hidden>
+      <h1>Merci <span class="q-prenom"></span> !</h1>
+      <p>Votre avis est bien enregistré. Il nous aide à mieux vous accompagner jusqu'à votre examen.</p>
+      <p>Bon courage pour la suite de votre formation.</p>
+    </section>
+
+    <form id="q-formulaire" novalidate hidden>
+      <h1>Votre avis sur votre suivi</h1>
+      <p class="q-intro">Bonjour <span class="q-prenom"></span>, pendant votre formation avec <strong class="q-organisme"></strong>, vous avez reçu des appels de suivi de Fil Rouge Apprenants. Deux minutes suffisent pour nous dire ce que vous en avez pensé.</p>
+
+      <fieldset class="q-question">
+        <legend>1. Dans l'ensemble, comment notez-vous ces appels de suivi ? <span class="q-obligatoire">obligatoire</span></legend>
+        <div class="q-echelle" data-nom="note_globale" data-min="1" data-max="5" data-bas="Pas du tout satisfait" data-haut="Très satisfait"></div>
+      </fieldset>
+
+      <fieldset class="q-question">
+        <legend>2. Vous êtes-vous senti(e) écouté(e) ?</legend>
+        <div class="q-echelle" data-nom="note_ecoute" data-min="1" data-max="5" data-bas="Pas du tout" data-haut="Tout à fait"></div>
+      </fieldset>
+
+      <fieldset class="q-question">
+        <legend>3. Les informations données étaient-elles claires et utiles (étapes, examen, démarches) ?</legend>
+        <div class="q-echelle" data-nom="note_clarte" data-min="1" data-max="5" data-bas="Pas du tout" data-haut="Tout à fait"></div>
+      </fieldset>
+
+      <fieldset class="q-question">
+        <legend>4. Ces appels vous ont-ils aidé(e) à avancer et à rester motivé(e) ?</legend>
+        <div class="q-echelle" data-nom="note_utilite" data-min="1" data-max="5" data-bas="Pas du tout" data-haut="Beaucoup"></div>
+      </fieldset>
+
+      <fieldset class="q-question">
+        <legend>5. Le nombre d'appels vous a semblé…</legend>
+        <div class="q-choix">
+          <label><input type="radio" name="frequence" value="pas_assez"><span>Pas assez</span></label>
+          <label><input type="radio" name="frequence" value="juste"><span>Juste bien</span></label>
+          <label><input type="radio" name="frequence" value="trop"><span>Trop</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="q-question">
+        <legend>6. Recommanderiez-vous cet accompagnement à une autre personne en formation ?</legend>
+        <div class="q-echelle q-echelle-11" data-nom="recommandation" data-min="0" data-max="10" data-bas="Pas du tout" data-haut="Sans hésiter"></div>
+      </fieldset>
+
+      <div class="q-question">
+        <label for="point_fort" class="q-libelle">7. Qu'est-ce qui vous a le plus aidé(e) ?</label>
+        <textarea id="point_fort" name="point_fort" rows="3" maxlength="1000"></textarea>
+      </div>
+
+      <div class="q-question">
+        <label for="amelioration" class="q-libelle">8. Qu'est-ce qu'on pourrait améliorer ?</label>
+        <textarea id="amelioration" name="amelioration" rows="3" maxlength="1000"></textarea>
+      </div>
+
+      <label class="q-anonyme">
+        <input type="checkbox" name="anonyme">
+        <span>Je préfère que mon nom n'apparaisse pas dans les résultats transmis à mon organisme de formation.</span>
+      </label>
+
+      <p id="q-alerte" class="q-alerte" role="alert" hidden></p>
+
+      <button type="submit" class="bouton q-envoyer">Envoyer mon avis</button>
+      <p class="q-mention">Vos réponses sont utilisées uniquement pour améliorer le suivi des apprenants. Elles sont partagées avec votre organisme de formation dans le cadre de sa démarche qualité.</p>
+    </form>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="questionnaire.js"></script>
+</body>
+</html>
