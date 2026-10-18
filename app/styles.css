@@ -307,6 +307,10 @@ button:focus-visible {
 
 .compteur-libelle { font-size: 0.85rem; color: var(--texte-doux); }
 
+/* Fiche apprenant : « Tentatives de contact » / « Contacts aboutis » côte à côte */
+.compteurs.compteurs-deux { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.compteur-titre { font-weight: 600; font-size: 0.95rem; }
+
 .compteur-vert .compteur-valeur { color: var(--alerte-vert); }
 .compteur-orange .compteur-valeur { color: var(--alerte-orange); }
 .compteur-rouge .compteur-valeur { color: var(--alerte-rouge); }

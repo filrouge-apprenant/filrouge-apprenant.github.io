@@ -2132,6 +2132,32 @@
         zoneConfirmation));
   }
 
+  // Deux compteurs bien séparés en haut de la fiche :
+  //  - « Tentatives de contact » : tout ce qui a été noté, quel que soit le résultat
+  //    (joint·e, message laissé, injoignable, refus) et le canal (appel, SMS, email) ;
+  //  - « Contacts aboutis » : uniquement les fois où la personne a été réellement eue (résultat « Joint·e »).
+  function blocCompteursContact(listeAppels) {
+    const tentatives = listeAppels.length;
+    const aboutis = listeAppels.filter((c) => c.resultat === "joint").length;
+    const appelsTel = listeAppels.filter((c) => c.canal === "telephone").length;
+    const messages = tentatives - appelsTel;
+    const detailTentatives = messages
+      ? `${pluriel(appelsTel, "appel", "appels")} + ${pluriel(messages, "message", "messages")} (SMS, email)`
+      : "tous résultats confondus";
+    const detailAboutis = tentatives
+      ? `${Math.round((100 * aboutis) / tentatives)} % des tentatives`
+      : "aucune tentative pour l'instant";
+    return h("div", { class: "compteurs compteurs-deux", role: "group", "aria-label": "Bilan des contacts" },
+      h("div", { class: "compteur" },
+        h("span", { class: "compteur-valeur" }, String(tentatives)),
+        h("span", { class: "compteur-titre" }, tentatives > 1 ? "tentatives de contact" : "tentative de contact"),
+        h("span", { class: "compteur-libelle" }, detailTentatives)),
+      h("div", { class: `compteur ${aboutis ? "compteur-vert" : ""}` },
+        h("span", { class: "compteur-valeur" }, String(aboutis)),
+        h("span", { class: "compteur-titre" }, aboutis > 1 ? "contacts aboutis" : "contact abouti"),
+        h("span", { class: "compteur-libelle" }, `personne réellement eue · ${detailAboutis}`)));
+  }
+
   async function ecranApprenant(id, info) {
     const role = etat.profil?.role;
     const estAdmin = role === "admin";
@@ -2250,6 +2276,8 @@
         suivantId
           ? h("p", { class: "message message-action" }, lienInterne(`apprenant/${suivantId}`, "Apprenant suivant dans la liste →"))
           : null,
+
+        blocCompteursContact(appels.data),
 
         h("div", { class: "compteurs" },
           h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, a.avancement_pct === null || a.avancement_pct === undefined ? "—" : `${Math.round(a.avancement_pct)} %`), h("span", { class: "compteur-libelle" }, "avancement")),
