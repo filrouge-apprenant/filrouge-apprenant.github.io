@@ -738,16 +738,23 @@ insert into public.coaching (apprenant_id, organisme_id, stage_statut, projet_me
 values ('a1000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000002', 'non_concerne', 'Auxiliaire de puériculture')
 on conflict (apprenant_id) do update set projet_metier = excluded.projet_metier;
 select tests.verifier(
-  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000003' and source = 'coaching' and contenu like '%Métier visé : Auxiliaire de puériculture%') = 1,
-  'coaching rempli : commentaire automatique avec le champ et sa valeur');
+  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000003' and source = 'coaching' and contenu like '%PROJET%Métier visé : Auxiliaire de puériculture%') = 1,
+  'coaching rempli : commentaire de synthèse automatique');
 update public.coaching set stage_statut = 'convention_signee' where apprenant_id = 'a1000000-0000-4000-8000-000000000003';
 select tests.verifier(
-  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000003' and contenu like '%Stage : Convention signée%') = 1,
-  'coaching modifié : seul le champ changé est commenté');
+  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000003' and source = 'coaching') = 1
+  and (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000003' and contenu like '%STAGE%Convention signée%PROJET%Métier visé%') = 1,
+  'coaching modifié : le même commentaire est mis à jour (stage + projet ensemble)');
 update public.apprenants set date_examen = '2026-12-04' where id = 'a1000000-0000-4000-8000-000000000003';
 select tests.verifier(
-  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000003' and contenu like '%Date d''examen : 04/12/2026%') = 1,
-  'examen modifié : commentaire automatique');
+  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000003' and source = 'coaching') = 1
+  and (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000003' and contenu like '%STAGE%EXAMEN%Le 04/12/2026%PROJET%') = 1,
+  'examen modifié : ajouté au même commentaire de coaching');
+update public.coaching set orga_note = 'Révise le soir après le travail', examen_note = 'Stressée par l''oral' where apprenant_id = 'a1000000-0000-4000-8000-000000000003';
+select tests.verifier(
+  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000003' and source = 'coaching'
+     and contenu like '%Stressée par l''oral%ORGANISATION%Révise le soir%') = 1,
+  'champs libres examen et organisation : dans le même commentaire');
 insert into public.commentaires (apprenant_id, organisme_id, contenu, auteur_id)
 values ('a1000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000002', 'Rappel mardi 14 h', '44444444-4444-4444-8444-444444444444');
 select tests.verifier(

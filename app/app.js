@@ -3688,6 +3688,12 @@
       });
       return h("div", { class: "carte carte-large" }, form);
     }
+    const champLibre = (id, valeur, exemple) => {
+      const c = champTexte(id, "Notes libres (visibles par l'organisme)", vide(valeur), { multiligne: true, placeholder: exemple });
+      c.champ.rows = 4;
+      c.champ.maxLength = 2000;
+      return c;
+    };
     const lecture = (lignes) => {
       const utiles = lignes.filter(([, v]) => v);
       return utiles.length
@@ -3699,15 +3705,16 @@
     let stage;
     if (peutModifier) {
       const statut = champChoix("co-stage-statut", "Situation", LIBELLE_STAGE, f.stage_statut || "non_concerne");
-      const structure = champTexte("co-stage-structure", "Structure d'accueil", vide(f.stage_structure), { placeholder: "Ex. : Crèche Les Petits Pas" });
       const debut = champTexte("co-stage-debut", "Début du stage", vide(f.stage_debut), { type: "date" });
       const fin = champTexte("co-stage-fin", "Fin du stage", vide(f.stage_fin), { type: "date" });
-      stage = formulairePartie([statut.bloc, structure.bloc, h("div", { class: "deux-colonnes" }, debut.bloc, fin.bloc)],
-        () => ({ stage_statut: statut.champ.value, stage_structure: texte(structure), stage_debut: debut.champ.value || null, stage_fin: fin.champ.value || null }),
+      const noteStage = champLibre("co-stage-note", f.stage_note, "Ex. : crèche Les Petits Pas à Lormont, tutrice Mme Martin, convention envoyée le 12/10…");
+      stage = formulairePartie([statut.bloc, h("div", { class: "deux-colonnes" }, debut.bloc, fin.bloc), noteStage.bloc],
+        () => ({ stage_statut: statut.champ.value, stage_debut: debut.champ.value || null, stage_fin: fin.champ.value || null, stage_note: texte(noteStage) }),
         () => (debut.champ.value && fin.champ.value && fin.champ.value < debut.champ.value ? "La fin du stage est avant son début." : null));
     } else {
-      stage = lecture([["Situation", LIBELLE_STAGE[f.stage_statut || "non_concerne"]], ["Structure", f.stage_structure],
-        ["Dates", [f.stage_debut ? `du ${dateLisible(f.stage_debut)}` : null, f.stage_fin ? `au ${dateLisible(f.stage_fin)}` : null].filter(Boolean).join(" ")]]);
+      stage = lecture([["Situation", LIBELLE_STAGE[f.stage_statut || "non_concerne"]],
+        ["Dates", [f.stage_debut ? `du ${dateLisible(f.stage_debut)}` : null, f.stage_fin ? `au ${dateLisible(f.stage_fin)}` : null].filter(Boolean).join(" ")],
+        ["Notes", f.stage_note]]);
     }
 
     // --- Projet ---
@@ -3731,8 +3738,9 @@
       const finVisee = champTexte("co-orga-fin", "Fin de parcours visée", vide(f.orga_date_fin_visee), { type: "date" });
       const creneaux = champTexte("co-orga-creneaux", "Créneaux disponibles", vide(f.orga_creneaux), { placeholder: "Ex. : mardi et jeudi soir" });
       const objectif = champTexte("co-orga-objectif", "Objectif du mois", vide(f.orga_objectif), { placeholder: "Ex. : terminer les modules 4 et 5" });
-      organisation = formulairePartie([h("div", { class: "deux-colonnes" }, heures.bloc, finVisee.bloc), creneaux.bloc, objectif.bloc],
-        () => ({ orga_heures_semaine: heures.champ.value === "" ? null : Number(heures.champ.value), orga_date_fin_visee: finVisee.champ.value || null, orga_creneaux: texte(creneaux), orga_objectif: texte(objectif) }),
+      const noteOrga = champLibre("co-orga-note", f.orga_note, "Ex. : révise le soir après le travail, garde des enfants le mercredi…");
+      organisation = formulairePartie([h("div", { class: "deux-colonnes" }, heures.bloc, finVisee.bloc), creneaux.bloc, objectif.bloc, noteOrga.bloc],
+        () => ({ orga_heures_semaine: heures.champ.value === "" ? null : Number(heures.champ.value), orga_date_fin_visee: finVisee.champ.value || null, orga_creneaux: texte(creneaux), orga_objectif: texte(objectif), orga_note: texte(noteOrga) }),
         () => {
           const n = heures.champ.value === "" ? null : Number(heures.champ.value);
           return n !== null && (!Number.isInteger(n) || n < 0 || n > 60) ? "Heures par semaine : un nombre entier entre 0 et 60." : null;
@@ -3740,12 +3748,21 @@
     } else {
       organisation = lecture([["Objectif du mois", f.orga_objectif],
         ["Temps disponible", f.orga_heures_semaine !== null && f.orga_heures_semaine !== undefined ? `${f.orga_heures_semaine} h par semaine` : null],
-        ["Créneaux", f.orga_creneaux], ["Fin visée", f.orga_date_fin_visee ? dateLisible(f.orga_date_fin_visee) : null]]);
+        ["Créneaux", f.orga_creneaux], ["Fin visée", f.orga_date_fin_visee ? dateLisible(f.orga_date_fin_visee) : null], ["Notes", f.orga_note]]);
+    }
+
+    // --- Examen : date, présence, résultat (fiche) + notes libres ---
+    let examen;
+    if (peutModifier) {
+      const noteExamen = champLibre("co-examen-note", f.examen_note, "Ex. : convocation reçue, centre d'examen à Mérignac, stressée par l'oral…");
+      examen = h("div", { class: "pile" }, contenuExamen, formulairePartie([noteExamen.bloc], () => ({ examen_note: texte(noteExamen) })));
+    } else {
+      examen = h("div", { class: "pile" }, contenuExamen, f.examen_note ? lecture([["Notes", f.examen_note]]) : null);
     }
 
     const sousOnglets = barreOnglets("coaching", [
       ["stage", "Stage", stage],
-      ["examen", "Examen", contenuExamen],
+      ["examen", "Examen", examen],
       ["projet", "Projet", projet],
       ["organisation", "Organisation", organisation],
     ], memo.partie, (cle) => { memo.partie = cle; majAdresse(); });
