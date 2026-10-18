@@ -109,7 +109,7 @@
     boutonMenu.hidden = !avecMenu;
     if (!avecMenu) ouvrirMenu(false);
     contenu.replaceChildren(...elements.filter((e) => e !== null && e !== undefined && e !== false));
-    document.body.classList.toggle("page-large", !!contenu.querySelector(".fiche-grille"));
+    document.body.classList.toggle("page-large", !!contenu.querySelector(".fiche-grille, .fiche-grille-page"));
     // Onglets trop larges pour un téléphone : on fait défiler jusqu'à l'onglet actif.
     const ongletActif = contenu.querySelector(".onglet[aria-current='page']");
     if (ongletActif && ongletActif.parentElement) {
@@ -2557,7 +2557,7 @@
         : message("info", "Aucun compte rendu pour l'instant."));
 
     // --- Onglets en haut de la fiche ---
-    const memo = etat.ongletFiche && etat.ongletFiche.id === id ? etat.ongletFiche : { id, onglet: lireRoute().onglet || (peutNoter ? "suivi" : "historique"), partie: lireRoute().partie || "stage" };
+    const memo = etat.ongletFiche && etat.ongletFiche.id === id ? etat.ongletFiche : { id, onglet: lireRoute().onglet || "fiche", partie: lireRoute().partie || "stage" };
     etat.ongletFiche = memo;
     const panneauSuivi = h("div", { class: "pile" },
       peutNoter ? blocContacter(a, rafraichir) : null,
@@ -2573,30 +2573,35 @@
       historique);
     const panneauCoaching = blocCoachingFiche(a, coaching.data, peutNoter, rafraichir, blocExamen, memo);
     const nb = (n) => (n ? ` (${n})` : "");
+    // Onglet « Fiche » : identité, action de formation, situation, chiffres.
+    // Chaque autre onglet s'ouvre seul, à la place de la fiche.
+    const panneauFiche = h("div", { class: "pile" });
     const listeOnglets = peutNoter
-      ? [["suivi", "Noter un appel", panneauSuivi],
+      ? [["fiche", "Fiche", panneauFiche],
+         ["suivi", "Noter un appel", panneauSuivi],
          ["historique", `Historique d'appels${nb(appels.data.length)}`, panneauHistorique],
          ["internes", `Notes internes${nb(avecNoteInterne.length)}`, panneauInternes],
          ["compte-rendu", "Compte rendu organisme", panneauCompteRendu],
          ["coaching", "Coaching", panneauCoaching]]
-      : [["historique", `Historique d'appels${nb(appels.data.length)}`, panneauHistorique],
+      : [["fiche", "Fiche", panneauFiche],
+         ["historique", `Historique d'appels${nb(appels.data.length)}`, panneauHistorique],
          ["coaching", "Coaching", panneauCoaching]];
     const ongletsFiche = barreOnglets("fiche", listeOnglets,
       memo.onglet, (cle) => {
         memo.onglet = cle;
         const cible = `#/apprenant/${a.id}/${cle}${cle === "coaching" ? `/${memo.partie}` : ""}`;
         if (window.location.hash !== cible) history.replaceState(null, "", cible);
-        // L'onglet est en haut de la fiche : on amène le contenu à l'écran.
-        const panneau = ongletsFiche && ongletsFiche.querySelector(".panneau-onglet:not([hidden])");
-        if (panneau && panneau.getBoundingClientRect().top > window.innerHeight * 0.6) panneau.scrollIntoView({ behavior: "smooth", block: "start" });
+        hautFiche.classList.toggle("fiche-haut-onglet", cle !== "fiche");
+        window.scrollTo(0, 0);
       }, { separe: true });
 
-    afficher(
-      ...entete(),
-      h("div", { class: "pile" },
-        h("div", { class: "fiche-haut" },
-          h("p", { class: "surtitre" }, lienInterne(retour, "← Retour à la liste")),
-          h("div", { class: "onglets-fiche onglets-haut" }, ongletsFiche.barre)),
+    // Rappel du nom quand un autre onglet que « Fiche » est ouvert.
+    const hautFiche = h("div", { class: `fiche-haut${memo.onglet !== "fiche" ? " fiche-haut-onglet" : ""}` },
+      h("p", { class: "surtitre" }, lienInterne(retour, "← Retour à la liste")),
+      h("p", { class: "fiche-rappel" }, h("strong", {}, nomApprenant(a)), " · ", [org.nom, a.parcours].filter(Boolean).join(" · ")),
+      h("div", { class: "onglets-fiche onglets-haut" }, ongletsFiche.barre));
+
+    panneauFiche.append(
         h("div", { class: "fiche-entete" },
          h("div", { class: "fiche-identite" },
           h("h1", {}, nomApprenant(a)),
@@ -2610,30 +2615,29 @@
             " ", pastilleSortie(a))),
          blocActionFormation(a, estAdmin, () => rafraichir("Dates de formation enregistrées."))),
 
-        info ? message("info", info) : null,
-        suivantId
-          ? h("p", { class: "message message-action" }, lienInterne(`apprenant/${suivantId}`, "Apprenant suivant dans la liste →"))
-          : null,
-
-        // Deux colonnes sur ordinateur : à droite la formation et la situation,
-        // à gauche les chiffres puis Suivi des appels / Coaching.
-        // Sur téléphone, la colonne de droite passe en premier.
+        // Deux colonnes sur ordinateur : les chiffres à gauche, la situation à droite.
         h("div", { class: `fiche-grille${peutNoter ? "" : " fiche-grille-seule"}` },
           peutNoter
             ? h("aside", { class: "fiche-cote", "aria-label": "Situation personnelle et professionnelle" },
                 blocSituationPerso(a, situation.data, () => rafraichir("Situation personnelle enregistrée.")))
             : null,
           h("div", { class: "fiche-principale pile" },
+            h("div", { class: "compteurs" },
+              h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, a.avancement_pct === null || a.avancement_pct === undefined ? "—" : `${Math.round(a.avancement_pct)} %`), h("span", { class: "compteur-libelle" }, "avancement")),
+              h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.derniere_connexion ? dateLisible(a.derniere_connexion) : "—"), h("span", { class: "compteur-libelle" }, "dernière connexion")),
+              h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_dernier_contact ? dateLisible(a.date_dernier_contact) : "—"), h("span", { class: "compteur-libelle" }, "dernier contact")),
+              h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_examen ? dateLisible(a.date_examen) : "—"), h("span", { class: "compteur-libelle" }, "examen"))),
+            blocCompteursContact(appels.data))));
 
-        h("div", { class: "compteurs" },
-          h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, a.avancement_pct === null || a.avancement_pct === undefined ? "—" : `${Math.round(a.avancement_pct)} %`), h("span", { class: "compteur-libelle" }, "avancement")),
-          h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.derniere_connexion ? dateLisible(a.derniere_connexion) : "—"), h("span", { class: "compteur-libelle" }, "dernière connexion")),
-          h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_dernier_contact ? dateLisible(a.date_dernier_contact) : "—"), h("span", { class: "compteur-libelle" }, "dernier contact")),
-          h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_examen ? dateLisible(a.date_examen) : "—"), h("span", { class: "compteur-libelle" }, "examen"))),
-
-        blocCompteursContact(appels.data),
-
-        ongletsFiche)))
+    afficher(
+      ...entete(),
+      h("div", { class: "pile fiche-grille-page" },
+        hautFiche,
+        info ? message("info", info) : null,
+        suivantId
+          ? h("p", { class: "message message-action" }, lienInterne(`apprenant/${suivantId}`, "Apprenant suivant dans la liste →"))
+          : null,
+        ongletsFiche)
     );
     window.scrollTo(0, 0);
   }

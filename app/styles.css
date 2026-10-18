@@ -1042,3 +1042,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--violet); }
 .onglets-haut .barre-onglets { gap: 1.25rem; }
 .onglets-haut .onglet-fiche { font-size: 1.1rem; padding-bottom: 0.4rem; }
 @media (max-width: 40rem) { .onglets-haut .onglet-fiche { font-size: 1rem; } .onglets-haut .barre-onglets { gap: 1rem; } }
+
+.fiche-rappel { display: none; margin: 0.15rem 0 0.25rem; font-size: 1.05rem; }
+.fiche-haut-onglet .fiche-rappel { display: block; }
+.onglets-fiche > .panneau-onglet { padding-top: 1.25rem; }
