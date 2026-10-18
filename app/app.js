@@ -2514,13 +2514,50 @@
 
     const blocConfie = estAdmin ? await blocConfieA(a, rafraichir) : null;
 
+    const ligneHisto = (ap) => ligneHistorique(ap, { peutSupprimer: estAdmin, apresSuppression: () => rafraichir("Appel supprimé.") });
     const historique = appels.data.length
-      ? h("ul", { class: "liste" }, appels.data.map((ap) =>
-          ligneHistorique(ap, { peutSupprimer: estAdmin, apresSuppression: () => rafraichir("Appel supprimé.") })))
+      ? h("ul", { class: "liste" }, appels.data.map(ligneHisto))
       : message("info", "Aucun appel pour l'instant.");
 
-    // --- Deux onglets : Suivi (appels) et Coaching (stage, examen, projet, organisation) ---
-    const memo = etat.ongletFiche && etat.ongletFiche.id === id ? etat.ongletFiche : { id, onglet: lireRoute().onglet || "suivi", partie: lireRoute().partie || "stage" };
+    // --- Notes internes : la partie privée de chaque appel (jamais visible du client) ---
+    const avecNoteInterne = peutNoter ? appels.data.filter((ap) => ap.notes_internes && ap.notes_internes.contenu) : [];
+    const panneauInternes = h("section", { class: "pile-serree" },
+      h("div", { class: "section-titre" }, h("h2", {}, "Notes internes"), h("p", {}, "🔒 Équipe Fil Rouge uniquement")),
+      avecNoteInterne.length
+        ? h("ul", { class: "liste" }, avecNoteInterne.map((ap) => h("li", { class: "ligne ligne-echange" },
+            h("span", { class: "ligne-titre" }, dateHeureComplete(ap.date_appel)),
+            h("span", { class: "pastilles" }, pastille(COULEUR_RESULTAT_APPEL[ap.resultat] || "neutre", LIBELLE_RESULTAT_APPEL[ap.resultat] || ap.resultat)),
+            h("span", { class: "ligne-detail texte-libre note-interne" }, ap.notes_internes.contenu))))
+        : message("info", "Aucune note interne. Elles s'écrivent dans « Noter un appel », case « Note interne »."));
+
+    // --- Compte rendu pour l'organisme : exactement ce que voit le client ---
+    const avecCompteRendu = appels.data.filter((ap) => ap.note_client || ap.prochaine_action);
+    const texteCompteRendu = () => [
+      `Compte rendu de suivi — ${nomApprenant(a)}${a.parcours ? ` (${a.parcours})` : ""}`, "",
+      ...avecCompteRendu.slice().reverse().map((ap) => [
+        `${dateLisible(ap.date_appel.slice(0, 10))} · ${LIBELLE_CANAL_APPEL[ap.canal] || ap.canal} · ${LIBELLE_RESULTAT_APPEL[ap.resultat] || ap.resultat}`,
+        ap.note_client || "",
+        ap.prochaine_action || ap.date_prochaine_action ? `Suite : ${[ap.prochaine_action, ap.date_prochaine_action ? `le ${dateLisible(ap.date_prochaine_action)}` : null].filter(Boolean).join(" ")}` : "",
+      ].filter(Boolean).join("\n")),
+    ].join("\n\n");
+    const copierCompteRendu = h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit" }, "Copier le compte rendu");
+    copierCompteRendu.addEventListener("click", () => copier(texteCompteRendu(), copierCompteRendu));
+    const panneauCompteRendu = h("section", { class: "pile-serree" },
+      h("div", { class: "section-titre" }, h("h2", {}, "Compte rendu pour l'organisme"), h("p", {}, pluriel(avecCompteRendu.length, "compte rendu", "comptes rendus"))),
+      h("p", { class: "aide" }, peutNoter ? `C'est exactement ce que ${org.nom || "l'organisme"} voit dans son espace. Les notes internes n'y figurent jamais.` : "Les comptes rendus des appels de suivi, du plus récent au plus ancien."),
+      avecCompteRendu.length && peutNoter ? h("div", { class: "actions-ligne" }, copierCompteRendu) : null,
+      avecCompteRendu.length
+        ? h("ul", { class: "liste" }, avecCompteRendu.map((ap) => h("li", { class: "ligne ligne-echange" },
+            h("span", { class: "ligne-titre" }, dateHeureComplete(ap.date_appel)),
+            h("span", { class: "pastilles" }, pastille(COULEUR_RESULTAT_APPEL[ap.resultat] || "neutre", LIBELLE_RESULTAT_APPEL[ap.resultat] || ap.resultat)),
+            ap.note_client ? h("span", { class: "ligne-detail texte-libre" }, ap.note_client) : null,
+            ap.prochaine_action || ap.date_prochaine_action
+              ? h("span", { class: "ligne-detail" }, "Suite : ", [ap.prochaine_action, ap.date_prochaine_action ? `le ${dateLisible(ap.date_prochaine_action)}` : null].filter(Boolean).join(" "))
+              : null)))
+        : message("info", "Aucun compte rendu pour l'instant."));
+
+    // --- Onglets en haut de la fiche ---
+    const memo = etat.ongletFiche && etat.ongletFiche.id === id ? etat.ongletFiche : { id, onglet: lireRoute().onglet || (peutNoter ? "suivi" : "historique"), partie: lireRoute().partie || "stage" };
     etat.ongletFiche = memo;
     const panneauSuivi = h("div", { class: "pile" },
       peutNoter ? blocContacter(a, rafraichir) : null,
@@ -2529,25 +2566,39 @@
             h("div", { class: "section-titre" }, h("h2", {}, "Noter un appel")),
             h("div", { class: "carte carte-large" }, formulaireAppel(a, () => rafraichir("Appel enregistré. Le compteur repart à zéro."))))
         : null,
-      h("section", {},
-        h("div", { class: "section-titre" }, h("h2", {}, "Historique des appels"), h("p", {}, pluriel(appels.data.length, "appel", "appels"))),
-        historique),
       blocConfie,
       blocStatut);
+    const panneauHistorique = h("section", { class: "pile-serree" },
+      h("div", { class: "section-titre" }, h("h2", {}, "Historique d'appels"), h("p", {}, pluriel(appels.data.length, "contact", "contacts"))),
+      historique);
     const panneauCoaching = blocCoachingFiche(a, coaching.data, peutNoter, rafraichir, blocExamen, memo);
-    const ongletsFiche = barreOnglets("fiche", [["suivi", "Suivi des appels", panneauSuivi], ["coaching", "Coaching", panneauCoaching]],
+    const nb = (n) => (n ? ` (${n})` : "");
+    const listeOnglets = peutNoter
+      ? [["suivi", "Noter un appel", panneauSuivi],
+         ["historique", `Historique d'appels${nb(appels.data.length)}`, panneauHistorique],
+         ["internes", `Notes internes${nb(avecNoteInterne.length)}`, panneauInternes],
+         ["compte-rendu", "Compte rendu organisme", panneauCompteRendu],
+         ["coaching", "Coaching", panneauCoaching]]
+      : [["historique", `Historique d'appels${nb(appels.data.length)}`, panneauHistorique],
+         ["coaching", "Coaching", panneauCoaching]];
+    const ongletsFiche = barreOnglets("fiche", listeOnglets,
       memo.onglet, (cle) => {
         memo.onglet = cle;
         const cible = `#/apprenant/${a.id}/${cle}${cle === "coaching" ? `/${memo.partie}` : ""}`;
         if (window.location.hash !== cible) history.replaceState(null, "", cible);
-      });
+        // L'onglet est en haut de la fiche : on amène le contenu à l'écran.
+        const panneau = ongletsFiche && ongletsFiche.querySelector(".panneau-onglet:not([hidden])");
+        if (panneau && panneau.getBoundingClientRect().top > window.innerHeight * 0.6) panneau.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, { separe: true });
 
     afficher(
       ...entete(),
       h("div", { class: "pile" },
+        h("div", { class: "fiche-haut" },
+          h("p", { class: "surtitre" }, lienInterne(retour, "← Retour à la liste")),
+          h("div", { class: "onglets-fiche onglets-haut" }, ongletsFiche.barre)),
         h("div", { class: "fiche-entete" },
          h("div", { class: "fiche-identite" },
-          h("p", { class: "surtitre" }, lienInterne(retour, "← Retour à la liste")),
           h("h1", {}, nomApprenant(a)),
           h("p", { class: "fiche-ecole" }, org.nom || "École non renseignée",
             a.identifiant_externe ? h("span", { class: "aide" }, ` · ${a.identifiant_externe}`) : null),
@@ -3484,7 +3535,7 @@
   // Onglets (fiche apprenant). Changer d'onglet ne recharge rien : l'adresse
   // est mise à jour pour pouvoir y revenir (#/apprenant/<id>/coaching/stage).
   // ---------------------------------------------------------------------------
-  function barreOnglets(nom, onglets, actif, surChangement) {
+  function barreOnglets(nom, onglets, actif, surChangement, options = {}) {
     const boutons = [];
     const panneaux = [];
     const choisir = (cle, focus) => {
@@ -3508,9 +3559,11 @@
       boutons.push(b);
       panneaux.push(h("div", { role: "tabpanel", id: `panneau-${nom}-${cle}`, "aria-labelledby": `onglet-${nom}-${cle}`, class: "panneau-onglet" }, contenuPanneau));
     });
-    const bloc = h("div", { class: `onglets-fiche onglets-${nom}` },
-      h("div", { role: "tablist", class: "barre-onglets", "aria-label": nom === "fiche" ? "Parties de la fiche" : "Coaching" }, boutons),
-      panneaux);
+    const barre = h("div", { role: "tablist", class: "barre-onglets", "aria-label": nom === "fiche" ? "Parties de la fiche" : "Coaching" }, boutons);
+    const bloc = options.separe
+      ? h("div", { class: `onglets-fiche onglets-${nom}` }, panneaux)
+      : h("div", { class: `onglets-fiche onglets-${nom}` }, barre, panneaux);
+    bloc.barre = barre;
     const depart = onglets.some(([c]) => c === actif) ? actif : onglets[0][0];
     onglets.forEach(([c], i) => {
       boutons[i].setAttribute("aria-selected", String(c === depart));

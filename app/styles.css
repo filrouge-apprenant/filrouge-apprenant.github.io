@@ -1032,3 +1032,13 @@ input:focus, select:focus, textarea:focus { border-color: var(--violet); }
 }
 .formation-compacte .editeur-examen { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 0.5rem; }
 .formation-compacte .editeur-examen button { grid-column: 1 / -1; justify-self: start; }
+
+/* ---------- Fiche apprenant : onglets tout en haut ---------- */
+.fiche-haut { display: flex; flex-direction: column; gap: 0.35rem; }
+.fiche-haut .surtitre { margin: 0; }
+.onglets-haut .barre-onglets { margin-bottom: 0; }
+.onglets-haut .onglet-fiche { white-space: nowrap; }
+.note-interne.texte-libre { display: block; }
+.onglets-haut .barre-onglets { gap: 1.25rem; }
+.onglets-haut .onglet-fiche { font-size: 1.1rem; padding-bottom: 0.4rem; }
+@media (max-width: 40rem) { .onglets-haut .onglet-fiche { font-size: 1rem; } .onglets-haut .barre-onglets { gap: 1rem; } }
