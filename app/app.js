@@ -553,6 +553,32 @@
     return h("span", { class: `pastille pastille-${couleur}` }, texte);
   }
 
+  // --- Impayés : montant en retard de paiement, par organisme ---
+  // Map organisme_id → total en retard. Vide (sans erreur) si la comptabilité
+  // n'est pas encore activée dans la base.
+  async function chargerImpayes(organismeId) {
+    let requete = sb.from("vue_echeances").select("organisme_id, montant").eq("statut", "en_retard");
+    if (organismeId) requete = requete.eq("organisme_id", organismeId);
+    const { data, error } = await requete;
+    const parOrganisme = new Map();
+    if (error || !data) return parOrganisme;
+    for (const e of data) parOrganisme.set(e.organisme_id, (parOrganisme.get(e.organisme_id) || 0) + Number(e.montant));
+    return parOrganisme;
+  }
+
+  // Étiquette rouge « IMPAYÉ » avec la somme en dessous, à côté d'un nom.
+  function badgeImpaye(montant, taille) {
+    if (!montant) return null;
+    return h("span", { class: `badge-impaye${taille === "grand" ? " badge-impaye-grand" : ""}`, title: "Échéance en retard de paiement" },
+      h("span", { class: "badge-impaye-mot" }, "Impayé"),
+      h("span", { class: "badge-impaye-montant" }, euros(montant)));
+  }
+
+  // Un nom suivi de son étiquette d'impayé (s'il y en a un).
+  function nomAvecImpaye(nom, montant, taille) {
+    return montant ? h("span", { class: "nom-impaye" }, nom, badgeImpaye(montant, taille)) : nom;
+  }
+
   // --- Action de formation (entrée officielle / sortie) ---
   function texteFormation(a) {
     const e = a.date_entree_formation, s = a.date_sortie_formation;
@@ -744,11 +770,13 @@
   async function accueilAdmin(profil) {
     afficher(navigationAdmin("accueil"), h("p", { class: "chargement" }, "Chargement du tableau de bord…"));
 
-    const [apprenants, suivi, relancesExamen] = await Promise.all([
+    const [apprenants, suivi, relancesExamen, impayes] = await Promise.all([
       sb.from("vue_qui_rappeler").select("organisme_id, organisme_nom, alerte"),
       sb.from("organismes_suivi_commercial").select("organisme_id, etape, prochaine_relance"),
       sb.from("vue_relances_examen").select("id").not("etape_relance", "is", null).eq("relance_faite", false),
+      chargerImpayes(),
     ]);
+    const totalImpayes = [...impayes.values()].reduce((t, m) => t + m, 0);
     if (apprenants.error || suivi.error || relancesExamen.error) {
       return afficher(navigationAdmin("accueil"), message("erreur", texteErreur(apprenants.error || suivi.error || relancesExamen.error)));
     }
@@ -777,6 +805,13 @@
         ),
         h("p", { class: "bandeau-demo" }, "Construction en cours : les apprenants affichés sont fictifs."),
 
+        totalImpayes
+          ? h("p", { class: "message message-impaye" },
+              h("strong", {}, `Impayés : ${euros(totalImpayes)}`),
+              ` chez ${pluriel(impayes.size, "client", "clients")}. `,
+              lienInterne("impayes", "Voir les impayés"))
+          : null,
+
         aRelancer
           ? h("p", { class: "message message-action" },
               h("strong", {}, pluriel(aRelancer, "organisme à relancer", "organismes à relancer")),
@@ -803,7 +838,7 @@
                 [...parOrganisme.values()].map((o) => {
                   const t = compterAlertes(o.lignes);
                   return h("li", { class: "ligne" },
-                    h("span", { class: "ligne-titre" }, lienInterne(`organisme/${o.id}`, o.nom)),
+                    h("span", { class: "ligne-titre" }, nomAvecImpaye(lienInterne(impayes.get(o.id) ? `organisme/${o.id}/compta` : `organisme/${o.id}`, o.nom), impayes.get(o.id))),
                     h("span", { class: "pastilles" },
                       t.rouge ? pastille("rouge", `${t.rouge} en alerte`) : null,
                       t.orange ? pastille("orange", `${t.orange} à surveiller`) : null,
@@ -838,6 +873,7 @@
       .from("organismes")
       .select("id, nom, organismes_suivi_commercial ( etape, contact_nom, contact_fonction, prochaine_relance )")
       .order("nom");
+    const impayes = await chargerImpayes();
     if (error) return afficher(navigationAdmin("prospection"), message("erreur", texteErreur(error)));
 
     const lignes = data.map((o) => ({ id: o.id, nom: o.nom, ...(o.organismes_suivi_commercial || { etape: "prospect" }) }));
@@ -860,7 +896,7 @@
     const ligneOrganisme = (l) => {
       const enRetard = l.prochaine_relance && l.prochaine_relance <= ajd && l.etape !== "perdu";
       return h("li", { class: "ligne" },
-        h("span", { class: "ligne-titre" }, lienInterne(`organisme/${l.id}`, l.nom)),
+        h("span", { class: "ligne-titre" }, nomAvecImpaye(lienInterne(`organisme/${l.id}`, l.nom), impayes.get(l.id))),
         h("span", { class: "pastilles" }, pastille(COULEUR_ETAPE[l.etape], LIBELLE_ETAPE_UNE[l.etape])),
         h("span", { class: "ligne-detail" },
           [l.contact_nom, l.contact_fonction].filter(Boolean).join(" · ") || "Contact à identifier",
@@ -985,14 +1021,16 @@
   async function ecranOrganisme(id) {
     afficher(navigationAdmin("prospection"), h("p", { class: "chargement" }, "Chargement de la fiche…"));
 
-    const [org, echanges, nbApprenants, apprenantsOrg, acces] = await Promise.all([
+    const [org, echanges, nbApprenants, apprenantsOrg, acces, impayesOrg] = await Promise.all([
       sb.from("organismes").select("id, nom, organismes_suivi_commercial ( * )").eq("id", id).maybeSingle(),
       sb.from("echanges_commerciaux").select("id, date_echange, canal, resume, cree_le").eq("organisme_id", id)
         .order("date_echange", { ascending: false }).order("cree_le", { ascending: false }),
       sb.from("apprenants").select("id", { count: "exact", head: true }).eq("organisme_id", id),
       sb.from("apprenants").select("statut").eq("organisme_id", id),
       sb.rpc("acces_organisme", { p_organisme: id }),
+      chargerImpayes(id),
     ]);
+    const montantImpaye = impayesOrg.get(id) || 0;
     const erreur = org.error || echanges.error || nbApprenants.error || apprenantsOrg.error || acces.error;
     if (erreur) return afficher(navigationAdmin("prospection"), message("erreur", texteErreur(erreur)));
     if (!org.data) return afficher(navigationAdmin("prospection"), message("info", "Cet organisme n'existe plus."), lienInterne("prospection", "← Retour à la prospection"));
@@ -1119,6 +1157,7 @@
     }
 
     const titre = h("h1", {}, org.data.nom);
+    const titreFiche = montantImpaye ? h("div", { class: "nom-impaye" }, titre, badgeImpaye(montantImpaye, "grand")) : titre;
     const etapeCle = s.etape || "prospect";
     const estClient = etapeCle === "client";
     const retour = estClient ? lienInterne(`eleves/${id}`, "← Dossier élèves") : lienInterne("prospection", "← Prospection");
@@ -1153,7 +1192,7 @@
     const panneauFiche = h("div", { class: "pile" },
       h("div", { class: "fiche-entete" },
         h("div", { class: "fiche-identite" },
-          titre,
+          titreFiche,
           h("p", { class: "fiche-ecole" }, s.contact_nom ? [s.contact_nom, s.contact_fonction].filter(Boolean).join(" · ") : "Contact non renseigné"),
           h("p", { class: "chapo" }, pastille(COULEUR_ETAPE[etapeCle], LIBELLE_ETAPE_UNE[etapeCle]))),
         encadreContrat),
@@ -1214,6 +1253,7 @@
       h("div", { class: "perso-entete" }, h("p", { class: "surtitre" }, "Contact")),
       h("div", { class: "perso-liste" },
         ligneContact("Nom", s.contact_nom),
+        montantImpaye ? h("div", { class: "perso-case" }, badgeImpaye(montantImpaye)) : null,
         ligneContact("Fonction", s.contact_fonction),
         ligneContact("Email", s.contact_email, s.contact_email ? `mailto:${s.contact_email}` : null),
         ligneContact("Téléphone", s.contact_telephone, s.contact_telephone ? `tel:${s.contact_telephone.replace(/[^\d+]/g, "")}` : null)),
@@ -1262,7 +1302,7 @@
       ["suivi", "Suivi commercial", panneauSuivi],
       ["eleves", `Élèves${nb(apprenantsCount)}`, panneauEleves],
       ["acces", `Accès plateforme${nb(comptes.length)}`, panneauAcces],
-      ["compta", "Comptabilité", blocComptabilite(org.data, s)],
+      ["compta", montantImpaye ? h("span", { class: "onglet-impaye" }, "Comptabilité", h("span", { class: "onglet-impaye-point", "aria-label": "impayé" })) : "Comptabilité", blocComptabilite(org.data, s)],
     ], memoOrg.onglet, (cle) => {
       memoOrg.onglet = cle;
       const cible = `#/organisme/${id}/${cle}`;
@@ -1272,7 +1312,7 @@
     }, { separe: true });
     const hautOrg = h("div", { class: `fiche-haut${memoOrg.onglet !== "fiche" ? " fiche-haut-onglet" : ""}` },
       h("p", { class: "surtitre" }, retour),
-      h("p", { class: "fiche-rappel" }, h("strong", {}, org.data.nom), " · ", LIBELLE_ETAPE_UNE[etapeCle]),
+      h("p", { class: "fiche-rappel" }, nomAvecImpaye(h("strong", {}, org.data.nom), montantImpaye), " · ", LIBELLE_ETAPE_UNE[etapeCle]),
       h("div", { class: "onglets-fiche onglets-haut" }, ongletsOrg.barre));
 
     afficher(
@@ -4374,7 +4414,16 @@
             }))
           : h("p", { class: "aide" }, "Aucune relance faite pour l'instant.")) : null;
 
+      const totalRetard = enRetard.reduce((t, e) => t + Number(e.montant), 0);
+      const bandeauImpaye = enRetard.length
+        ? h("div", { class: "bandeau-impaye", role: "alert" },
+            h("span", { class: "bandeau-impaye-mot" }, "Impayé"),
+            h("span", { class: "bandeau-impaye-montant" }, euros(totalRetard)),
+            h("span", { class: "bandeau-impaye-detail" }, `${pluriel(enRetard.length, "échéance en retard", "échéances en retard")} · la plus ancienne depuis ${pluriel(Math.max(...enRetard.map((e) => e.jours_retard)), "jour", "jours")}`))
+        : null;
+
       zone.replaceChildren(...[
+        bandeauImpaye,
         info ? message("info", info) : null,
         c ? compteurs : null,
         blocContrat,

@@ -1232,3 +1232,29 @@ label.case input {
 .groupe-client { margin: 0 0 0.2rem; font-weight: 700; }
 .compteurs.compteurs-trois { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 34rem) { .compteurs.compteurs-trois { grid-template-columns: repeat(2, minmax(0, 1fr)); } .compteurs-trois .compteur:last-child { grid-column: 1 / -1; } }
+
+/* --- Impayés : étiquette rouge à côté du nom, bandeau dans la comptabilité --- */
+.nom-impaye { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0.6rem; }
+.badge-impaye {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 0.2rem 0.6rem; border: 1.5px solid var(--alerte-rouge); border-radius: 6px;
+  background: var(--alerte-rouge-fond); color: var(--alerte-rouge);
+  line-height: 1.15; font-weight: 800; white-space: nowrap; vertical-align: middle;
+}
+.badge-impaye-mot { font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.badge-impaye-montant { font-size: 0.95rem; }
+.badge-impaye-grand { padding: 0.35rem 0.85rem; }
+.badge-impaye-grand .badge-impaye-mot { font-size: 0.85rem; }
+.badge-impaye-grand .badge-impaye-montant { font-size: 1.35rem; }
+.message-impaye { background: var(--alerte-rouge-fond); color: var(--alerte-rouge); border: 1.5px solid var(--alerte-rouge); }
+.message-impaye a { color: var(--alerte-rouge); font-weight: 700; }
+.onglet-impaye { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--alerte-rouge); font-weight: 700; }
+.onglet-impaye-point { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--alerte-rouge); }
+.bandeau-impaye {
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem; text-align: center;
+  padding: 1rem 1.25rem; border: 2px solid var(--alerte-rouge); border-radius: 10px;
+  background: var(--alerte-rouge-fond); color: var(--alerte-rouge);
+}
+.bandeau-impaye-mot { font-size: 1rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.bandeau-impaye-montant { font-size: 2.2rem; font-weight: 800; line-height: 1.1; }
+.bandeau-impaye-detail { font-size: 0.9rem; }
