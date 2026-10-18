@@ -716,5 +716,73 @@ set local role anon;
 select tests.doit_etre_refuse($$select * from public.situation_personnelle$$, 'visiteur non connecté : aucune situation personnelle');
 rollback;
 
+\echo '== 18. Fil de commentaires : équipe Fil Rouge uniquement, commentaires automatiques'
+begin;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+set local role authenticated;
+select tests.verifier(
+  (select count(*) from public.commentaires where source = 'appel') = (select count(*) from public.appels),
+  'reprise : un commentaire par appel déjà saisi');
+select tests.verifier(
+  (select count(*) from public.commentaires
+    where apprenant_id not in ('a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000003', 'a1000000-0000-4000-8000-000000000004')) > 0,
+  'jeu d''essai : des commentaires existent sur des apprenants non confiés à l''appelante');
+select public.noter_appel('a1000000-0000-4000-8000-000000000001', 'joint', 'telephone', now(), 'Point fait, module 4 en cours', 'Fatiguée, garde alternée', 'Rappeler', current_date + 7);
+select tests.verifier(
+  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000001' and source = 'appel' and contenu like 'Appel · Joint·e%module 4%') = 1,
+  'appel noté : commentaire automatique avec le compte rendu');
+select tests.verifier(
+  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000001' and source = 'note_interne' and contenu = 'Fatiguée, garde alternée') = 1,
+  'note interne : commentaire automatique');
+insert into public.coaching (apprenant_id, organisme_id, stage_statut, projet_metier)
+values ('a1000000-0000-4000-8000-000000000003', 'b0000000-0000-4000-8000-000000000002', 'non_concerne', 'Auxiliaire de puériculture')
+on conflict (apprenant_id) do update set projet_metier = excluded.projet_metier;
+select tests.verifier(
+  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000003' and source = 'coaching' and contenu like '%Métier visé : Auxiliaire de puériculture%') = 1,
+  'coaching rempli : commentaire automatique avec le champ et sa valeur');
+update public.coaching set stage_statut = 'convention_signee' where apprenant_id = 'a1000000-0000-4000-8000-000000000003';
+select tests.verifier(
+  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000003' and contenu like '%Stage : Convention signée%') = 1,
+  'coaching modifié : seul le champ changé est commenté');
+update public.apprenants set date_examen = '2026-12-04' where id = 'a1000000-0000-4000-8000-000000000003';
+select tests.verifier(
+  (select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000003' and contenu like '%Date d''examen : 04/12/2026%') = 1,
+  'examen modifié : commentaire automatique');
+insert into public.commentaires (apprenant_id, organisme_id, contenu, auteur_id)
+values ('a1000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000002', 'Rappel mardi 14 h', '44444444-4444-4444-8444-444444444444');
+select tests.verifier(
+  (select auteur_id = '11111111-1111-4111-8111-111111111111' and organisme_id = 'a0000000-0000-4000-8000-000000000001'
+     from public.commentaires where contenu = 'Rappel mardi 14 h'),
+  'commentaire manuel : auteur réel et bon dossier imposés par la base');
+
+select tests.session('22222222-2222-4222-8222-222222222222');
+select tests.verifier((select count(*) from public.commentaires) = 0, 'client Horizon : ne voit AUCUN commentaire, même de ses apprenants');
+select tests.doit_etre_refuse(
+  $$insert into public.commentaires (apprenant_id, organisme_id, contenu) values ('a1000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001', 'x')$$,
+  'client : ne peut pas écrire de commentaire');
+
+select tests.session('44444444-4444-4444-8444-444444444444');
+select tests.verifier(
+  (select count(*) from public.commentaires
+    where apprenant_id not in ('a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000003', 'a1000000-0000-4000-8000-000000000004')) = 0
+  and (select count(*) from public.commentaires) > 0,
+  'appelante : voit seulement le fil de ses apprenants confiés');
+insert into public.commentaires (apprenant_id, organisme_id, contenu) values ('a1000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001', 'Préfère être appelée le soir');
+select tests.verifier(
+  (select count(*) from public.commentaires where contenu = 'Préfère être appelée le soir') = 1,
+  'appelante : écrit un commentaire sur son apprenante confiée');
+select tests.doit_etre_refuse(
+  $$insert into public.commentaires (apprenant_id, organisme_id, contenu) values ('a1000000-0000-4000-8000-000000000002', 'a0000000-0000-4000-8000-000000000001', 'x')$$,
+  'appelante : pas de commentaire sur un apprenant non confié');
+select tests.doit_etre_refuse(
+  $$insert into public.commentaires (apprenant_id, organisme_id, contenu, source) values ('a1000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001', 'x', 'coaching')$$,
+  'appelante : ne peut pas fabriquer un commentaire automatique');
+rollback;
+
+begin;
+set local role anon;
+select tests.doit_etre_refuse($$select * from public.commentaires$$, 'visiteur non connecté : aucun commentaire');
+rollback;
+
 \echo
 \echo 'TOUS LES TESTS SONT PASSÉS'

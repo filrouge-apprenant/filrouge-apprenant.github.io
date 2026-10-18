@@ -109,7 +109,7 @@
     boutonMenu.hidden = !avecMenu;
     if (!avecMenu) ouvrirMenu(false);
     contenu.replaceChildren(...elements.filter((e) => e !== null && e !== undefined && e !== false));
-    document.body.classList.toggle("page-large", !!contenu.querySelector(".fiche-grille, .fiche-grille-page"));
+    document.body.classList.toggle("page-large", !!contenu.querySelector(".fiche-page"));
     // Onglets trop larges pour un téléphone : on fait défiler jusqu'à l'onglet actif.
     const ongletActif = contenu.querySelector(".onglet[aria-current='page']");
     if (ongletActif && ongletActif.parentElement) {
@@ -2274,6 +2274,71 @@
         h("span", { class: "compteur-libelle" }, `personne réellement eue · ${detailAboutis}`)));
   }
 
+  // --- Fil de commentaires (bandeau de droite de la fiche) ---
+  // Les plus récents en premier. Appels, notes internes et coaching s'y ajoutent
+  // tout seuls (la base s'en charge) ; on peut aussi écrire en direct.
+  const SOURCE_COMMENTAIRE = {
+    manuel: ["💬", "Commentaire"],
+    appel: ["📞", "Appel"],
+    note_interne: ["🔒", "Note interne"],
+    coaching: ["🎯", "Coaching"],
+  };
+
+  function blocCommentaires(a, liste) {
+    const commentaires = (liste || []).slice();
+    let filtre = "tous";
+    const zone = h("div");
+    const champ = h("textarea", { class: "commentaire-champ", rows: "3", maxlength: "4000", placeholder: "Écrire un commentaire…", "aria-label": "Nouveau commentaire" });
+    const publier = h("button", { type: "submit", class: "bouton bouton-petit" }, "Publier");
+    const formulaire = h("form", { class: "commentaire-formulaire", novalidate: true }, champ, h("div", { class: "commentaire-actions" }, h("span", { class: "aide" }, "Ctrl + Entrée pour publier"), publier), zone);
+    const listeEl = h("ol", { class: "commentaires-liste" });
+    const filtres = h("div", { class: "commentaires-filtres", role: "group", "aria-label": "Filtrer les commentaires" });
+
+    function ligne(c) {
+      const [icone, libelle] = SOURCE_COMMENTAIRE[c.source] || ["💬", "Commentaire"];
+      return h("li", { class: `commentaire commentaire-${c.source}` },
+        h("div", { class: "commentaire-tete" },
+          h("span", { class: "commentaire-source" }, `${icone} ${libelle}`),
+          h("span", { class: "commentaire-date" }, dateHeureComplete(c.cree_le))),
+        h("p", { class: "commentaire-texte" }, c.contenu),
+        c.auteur_nom ? h("p", { class: "commentaire-auteur" }, c.auteur_nom) : null);
+    }
+    function dessiner() {
+      const compte = (src) => commentaires.filter((c) => src === "tous" || c.source === src).length;
+      filtres.replaceChildren(...[["tous", "Tout"], ["manuel", "Commentaires"], ["appel", "Appels"], ["note_interne", "Notes"], ["coaching", "Coaching"]]
+        .filter(([cle]) => cle === "tous" || compte(cle))
+        .map(([cle, texte]) => {
+          const b = h("button", { type: "button", class: "filtre", "aria-pressed": String(cle === filtre) }, texte, h("span", { class: "filtre-nombre" }, String(compte(cle))));
+          b.addEventListener("click", () => { filtre = cle; dessiner(); });
+          return b;
+        }));
+      const visibles = commentaires.filter((c) => filtre === "tous" || c.source === filtre);
+      listeEl.replaceChildren(...(visibles.length ? visibles.map(ligne) : [h("li", { class: "aide" }, "Aucun commentaire pour l'instant.")]));
+    }
+    async function envoyer() {
+      const texte = champ.value.trim();
+      if (!texte) return;
+      occupe(publier, true, "…");
+      const { data, error } = await sb.from("commentaires")
+        .insert({ apprenant_id: a.id, organisme_id: a.organisme_id, contenu: texte })
+        .select("id, source, contenu, cree_le, auteur_nom").single();
+      occupe(publier, false);
+      if (error) return signaler(zone, "erreur", texteErreur(error));
+      signaler(zone);
+      champ.value = "";
+      commentaires.unshift(data);
+      filtre = "tous";
+      dessiner();
+    }
+    formulaire.addEventListener("submit", (e) => { e.preventDefault(); envoyer(); });
+    champ.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); envoyer(); } });
+    dessiner();
+
+    return h("section", { class: "commentaires" },
+      h("div", { class: "commentaires-titre" }, h("h2", {}, "Commentaires"), h("span", { class: "aide" }, "🔒 Équipe Fil Rouge")),
+      formulaire, filtres, listeEl);
+  }
+
   // --- Situation personnelle (équipe Fil Rouge uniquement, jamais visible du client) ---
   const LIBELLE_SITUATION_PRO = {
     demandeur_emploi: "Demandeur·se d'emploi",
@@ -2359,7 +2424,7 @@
 
     return h("section", { class: "carte carte-large perso", "aria-label": "Situation personnelle" },
       h("div", { class: "perso-entete" },
-        h("p", { class: "surtitre" }, "Situation personnelle"),
+        h("p", { class: "surtitre" }, "Situation personnelle et professionnelle"),
         h("span", { class: "aide" }, "🔒 Visible par l'équipe Fil Rouge uniquement")),
       h("div", { class: "perso-grille" },
         caseInfo("Âge", age === null ? null : `${age} ans`),
@@ -2445,7 +2510,7 @@
     const entete = () => (estAdmin ? [navigationAdmin("rappels")] : []);
     afficher(...entete(), h("p", { class: "chargement" }, "Chargement de la fiche…"));
 
-    const [apprenant, appels, coaching, situation] = await Promise.all([
+    const [apprenant, appels, coaching, situation, commentaires] = await Promise.all([
       sb.from("apprenants")
         .select("id, organisme_id, appelante_id, identifiant_externe, prenom, nom, telephone, email, parcours, date_inscription, date_entree_formation, date_sortie_formation, avancement_pct, derniere_connexion, statut, date_dernier_contact, cree_le, date_examen, presence_examen, resultat_examen, organismes ( nom, seuil_vert_jours, seuil_orange_jours )")
         .eq("id", id).maybeSingle(),
@@ -2457,8 +2522,12 @@
       sb.from("coaching").select("*").eq("apprenant_id", id).maybeSingle(),
       // Situation personnelle : équipe Fil Rouge seulement (la base refuse au client).
       peutNoter ? sb.from("situation_personnelle").select("*").eq("apprenant_id", id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+      // Fil de commentaires : équipe Fil Rouge seulement.
+      peutNoter
+        ? sb.from("commentaires").select("id, source, contenu, cree_le, auteur_nom").eq("apprenant_id", id).order("cree_le", { ascending: false }).limit(300)
+        : Promise.resolve({ data: [], error: null }),
     ]);
-    const erreur = apprenant.error || appels.error || coaching.error || situation.error;
+    const erreur = apprenant.error || appels.error || coaching.error || situation.error || commentaires.error;
     if (erreur) return afficher(...entete(), message("erreur", texteErreur(erreur)));
     const retourParDefaut = estAdmin ? (apprenant.data ? `eleves/${apprenant.data.organisme_id}` : "rappels") : "";
     if (!apprenant.data) {
@@ -2601,6 +2670,7 @@
       h("p", { class: "fiche-rappel" }, h("strong", {}, nomApprenant(a)), " · ", [org.nom, a.parcours].filter(Boolean).join(" · ")),
       h("div", { class: "onglets-fiche onglets-haut" }, ongletsFiche.barre));
 
+    // Onglet « Fiche » : identité avec l'action de formation juste à côté, puis les chiffres.
     panneauFiche.append(
         h("div", { class: "fiche-entete" },
          h("div", { class: "fiche-identite" },
@@ -2614,30 +2684,31 @@
               : pastille("neutre", LIBELLE_STATUT[a.statut]),
             " ", pastilleSortie(a))),
          blocActionFormation(a, estAdmin, () => rafraichir("Dates de formation enregistrées."))),
+        h("div", { class: "compteurs" },
+          h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, a.avancement_pct === null || a.avancement_pct === undefined ? "—" : `${Math.round(a.avancement_pct)} %`), h("span", { class: "compteur-libelle" }, "avancement")),
+          h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.derniere_connexion ? dateLisible(a.derniere_connexion) : "—"), h("span", { class: "compteur-libelle" }, "dernière connexion")),
+          h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_dernier_contact ? dateLisible(a.date_dernier_contact) : "—"), h("span", { class: "compteur-libelle" }, "dernier contact")),
+          h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_examen ? dateLisible(a.date_examen) : "—"), h("span", { class: "compteur-libelle" }, "examen"))),
+        blocCompteursContact(appels.data));
 
-        // Deux colonnes sur ordinateur : les chiffres à gauche, la situation à droite.
-        h("div", { class: `fiche-grille${peutNoter ? "" : " fiche-grille-seule"}` },
-          peutNoter
-            ? h("aside", { class: "fiche-cote", "aria-label": "Situation personnelle et professionnelle" },
-                blocSituationPerso(a, situation.data, () => rafraichir("Situation personnelle enregistrée.")))
-            : null,
-          h("div", { class: "fiche-principale pile" },
-            h("div", { class: "compteurs" },
-              h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, a.avancement_pct === null || a.avancement_pct === undefined ? "—" : `${Math.round(a.avancement_pct)} %`), h("span", { class: "compteur-libelle" }, "avancement")),
-              h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.derniere_connexion ? dateLisible(a.derniere_connexion) : "—"), h("span", { class: "compteur-libelle" }, "dernière connexion")),
-              h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_dernier_contact ? dateLisible(a.date_dernier_contact) : "—"), h("span", { class: "compteur-libelle" }, "dernier contact")),
-              h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_examen ? dateLisible(a.date_examen) : "—"), h("span", { class: "compteur-libelle" }, "examen"))),
-            blocCompteursContact(appels.data))));
-
+    // Trois colonnes sur ordinateur : situation à gauche, fiche au centre, commentaires à droite.
+    // Le client ne voit ni la situation ni les commentaires : une seule colonne.
     afficher(
-      ...entete(),
-      h("div", { class: "pile fiche-grille-page" },
-        hautFiche,
-        info ? message("info", info) : null,
-        suivantId
-          ? h("p", { class: "message message-action" }, lienInterne(`apprenant/${suivantId}`, "Apprenant suivant dans la liste →"))
+      h("div", { class: `fiche-page${peutNoter ? "" : " fiche-page-seule"}` },
+        peutNoter
+          ? h("aside", { class: "fiche-gauche", "aria-label": "Situation personnelle et professionnelle" },
+              blocSituationPerso(a, situation.data, () => rafraichir("Situation personnelle enregistrée.")))
           : null,
-        ongletsFiche)
+        h("div", { class: "fiche-centre pile" },
+          hautFiche,
+          info ? message("info", info) : null,
+          suivantId
+            ? h("p", { class: "message message-action" }, lienInterne(`apprenant/${suivantId}`, "Apprenant suivant dans la liste →"))
+            : null,
+          ongletsFiche),
+        peutNoter
+          ? h("aside", { class: "fiche-droite", "aria-label": "Commentaires" }, blocCommentaires(a, commentaires.data))
+          : null)
     );
     window.scrollTo(0, 0);
   }
@@ -3224,7 +3295,8 @@
   menu.addEventListener("click", (e) => { if (e.target.closest("a")) ouvrirMenu(false); });
 
   function menuVisible() {
-    return Boolean(etat.profil && etat.profil.role === "admin" && !zoneCompte.hidden);
+    // Sur la fiche élève, on ne voit que la fiche : pas de menu latéral.
+    return Boolean(etat.profil && etat.profil.role === "admin" && !zoneCompte.hidden && lireRoute().nom !== "apprenant");
   }
 
   function etapeDe(o) {

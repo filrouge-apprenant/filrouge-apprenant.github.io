@@ -1046,3 +1046,48 @@ input:focus, select:focus, textarea:focus { border-color: var(--violet); }
 .fiche-rappel { display: none; margin: 0.15rem 0 0.25rem; font-size: 1.05rem; }
 .fiche-haut-onglet .fiche-rappel { display: block; }
 .onglets-fiche > .panneau-onglet { padding-top: 1.25rem; }
+
+/* ---------- Fiche élève : trois colonnes (situation / fiche / commentaires) ---------- */
+.fiche-page { display: grid; gap: 1.25rem; align-items: start; grid-template-columns: minmax(0, 1fr); grid-template-areas: "centre" "gauche" "droite"; }
+.fiche-gauche { grid-area: gauche; min-width: 0; }
+.fiche-centre { grid-area: centre; min-width: 0; }
+.fiche-droite { grid-area: droite; min-width: 0; }
+.fiche-gauche .perso-grille { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fiche-gauche .deux-colonnes { grid-template-columns: minmax(0, 1fr); }
+.fiche-gauche .carte { padding: 1rem; }
+
+/* Action de formation collée à l'identité */
+.fiche-entete { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.75rem 2rem; }
+.fiche-entete .fiche-identite { flex: 0 1 auto; }
+.fiche-entete .formation-compacte { margin-top: 0.4rem; max-width: 24rem; }
+
+@media (min-width: 64rem) {
+  body.page-large .contenu, body.page-large.avec-menu .contenu { max-width: 96rem; }
+  .fiche-page { grid-template-columns: 17rem minmax(0, 1fr) 22rem; grid-template-areas: "gauche centre droite"; }
+  .fiche-page-seule { grid-template-columns: minmax(0, 1fr); grid-template-areas: "centre"; }
+  .fiche-gauche, .fiche-droite { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; }
+}
+@media (min-width: 64rem) and (max-width: 80rem) {
+  .fiche-page { grid-template-columns: 15rem minmax(0, 1fr) 19rem; }
+}
+
+/* Commentaires */
+.commentaires { display: flex; flex-direction: column; gap: 0.6rem; border: 1px solid var(--filet); border-radius: var(--rayon); padding: 0.9rem; background: var(--fond); }
+.commentaires-titre { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+.commentaires-titre h2 { margin: 0; font-size: 1.3rem; }
+.commentaire-formulaire { display: flex; flex-direction: column; gap: 0.4rem; }
+.commentaire-champ { width: 100%; resize: vertical; font: inherit; }
+.commentaire-actions { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.commentaire-actions .aide { font-size: 0.75rem; }
+.commentaires-filtres { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.commentaires-filtres .filtre { font-size: 0.8rem; padding: 0.15rem 0.5rem; }
+.commentaires-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.commentaire { padding: 0.55rem 0.7rem; border-radius: var(--rayon); background: var(--fond-doux); border-left: 3px solid var(--filet); }
+.commentaire-manuel { border-left-color: var(--violet); }
+.commentaire-appel { border-left-color: var(--alerte-vert); }
+.commentaire-note_interne { border-left-color: var(--alerte-orange); }
+.commentaire-coaching { border-left-color: var(--violet-moyen); }
+.commentaire-tete { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.75rem; color: var(--texte-doux); }
+.commentaire-source { font-weight: 700; color: var(--texte); }
+.commentaire-texte { margin: 0.25rem 0 0; white-space: pre-line; font-size: 0.92rem; overflow-wrap: anywhere; }
+.commentaire-auteur { margin: 0.2rem 0 0; font-size: 0.75rem; color: var(--texte-doux); }
