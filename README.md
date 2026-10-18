@@ -18,6 +18,7 @@ Le cahier des charges complet est dans le document « Plateforme Fil Rouge — C
 | 8. Satisfaction des élèves | Onglet « Satisfaction » : envoi du questionnaire élève par élève, réponses privées, déblocage pour le client, récap mensuel ; page publique questionnaire.html | Terminée |
 | 9. Accès clients | Onglet « Accès clients » : période d'accès par compte (début, fin, +1 mois / +3 mois / +1 an), rubriques visibles par client (comptes rendus, examens, coaching, avis, Qualiopi), dernière connexion, alertes d'expiration ; appliqué par la base | Terminée |
 | 10. Comptabilité | Onglet « Comptabilité » de la fiche client : contrat (PDF dans un dossier sécurisé), échéancier mensuel (appels × tarif 20/15/12 € ou tarif du contrat), payé / à payer / en retard ; alertes de relance J+3, J+15, mise en demeure J+30 (aucun envoi automatique : Émilie relance par email ou téléphone et note la relance) ; page « Impayés » | Terminée |
+| 11. Tunnel de vente | Page publique `offre-pilote.html` (forfait pilote 400 € HT : 20 apprenants, 2 mois) ; bouton « Réserver et payer » vers un lien de paiement Stripe (`lienPaiementPilote` dans `config.js`, prélèvement SEPA ou carte) ; tant que le lien est vide, réservation par email prérédigé ; devis sur mesure par email | En place (paiement à activer) |
 | 7. Sécurité et mise en ligne | Plan Pro, nom de domaine, hébergement | À faire |
 
 ## Contenu du dossier

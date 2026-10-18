@@ -1,0 +1,86 @@
+/* Page « Offre pilote » — complète styles.css (mêmes couleurs : fond blanc,
+   filets violet et rose, fil rouge autour du nom). Aucun aplat foncé. */
+
+html { scroll-behavior: smooth; }
+
+.op-page {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.op-haut { text-align: center; padding: 1.5rem 0 2rem; }
+.op-surtitre {
+  display: inline-block;
+  margin: 0 0 0.75rem;
+  padding: 0.2rem 0.75rem;
+  border: 1px solid var(--fil);
+  border-radius: 999px;
+  color: var(--fil);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.op-haut h1 {
+  font-family: var(--police-titre);
+  font-weight: 400;
+  font-size: clamp(1.9rem, 6vw, 2.6rem);
+  line-height: 1.15;
+  margin: 0 0 1rem;
+}
+.op-chapo { color: var(--texte-doux); font-size: 1.08rem; line-height: 1.55; margin: 0 0 1.5rem; }
+
+.op-bouton { display: inline-block; font-size: 1.05rem; padding: 0.8rem 1.5rem; text-decoration: none; }
+
+.op-bloc {
+  border-top: 1px solid var(--filet);
+  padding: 1.75rem 0;
+}
+.op-bloc h2 {
+  font-family: var(--police-titre);
+  font-weight: 400;
+  font-size: 1.7rem;
+  margin: 0 0 1rem;
+}
+
+.op-liste, .op-etapes { margin: 0; padding-left: 1.25rem; }
+.op-liste li, .op-etapes li { margin-bottom: 0.6rem; line-height: 1.5; }
+.op-liste li::marker { color: var(--fil); }
+.op-etapes li::marker { color: var(--violet); font-weight: 700; }
+
+.op-prix {
+  text-align: center;
+  border: 1px solid var(--violet);
+  border-radius: 10px;
+  padding: 1.75rem 1.25rem;
+  margin: 0.5rem 0 1.5rem;
+}
+.op-montant {
+  font-family: var(--police-titre);
+  font-size: 3.4rem;
+  line-height: 1;
+  margin: 0 0 0.4rem;
+}
+.op-montant span { font-family: var(--police-texte); font-size: 1rem; color: var(--texte-doux); }
+.op-detail { margin: 0 0 0.25rem; font-weight: 700; }
+.op-remise { margin: 0 0 1.25rem; color: var(--fil); }
+.op-securite, .op-indispo { margin: 1rem 0 0; font-size: 0.9rem; color: var(--texte-doux); }
+
+.op-grille { width: 100%; border-collapse: collapse; margin: 0.5rem 0 1rem; }
+.op-grille th, .op-grille td { text-align: left; padding: 0.55rem 0.25rem; border-bottom: 1px solid var(--filet); }
+.op-grille th { font-size: 0.9rem; color: var(--texte-doux); font-weight: 700; }
+.op-grille td:last-child, .op-grille th:last-child { text-align: right; }
+.op-petit { font-size: 0.92rem; color: var(--texte-doux); }
+
+.op-devis .bouton { text-decoration: none; }
+
+.op-pied {
+  border-top: 1px solid var(--filet);
+  padding-top: 1.25rem;
+  text-align: center;
+  font-size: 0.92rem;
+  color: var(--texte-doux);
+}
+.op-pied p { margin: 0.25rem 0; }
+.op-pied a { color: var(--violet); }

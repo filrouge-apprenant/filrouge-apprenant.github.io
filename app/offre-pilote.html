@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="only light">
+  <!-- Page publique de vente (offre pilote). Aucun script extérieur ;
+       le paiement se fait sur la page sécurisée de Stripe (lien dans config.js). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Cache-Control" content="no-cache">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>Offre pilote — Suivi téléphonique de vos apprenants | Fil Rouge Apprenants</title>
+  <meta name="description" content="Offre pilote réservée à 2 organismes de formation : 2 mois de suivi téléphonique de 20 apprenants jusqu'à l'examen, avec les preuves Qualiopi. 400 € HT, soit 10 € l'appel au lieu de 20 €.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Instrument+Serif&display=swap">
+  <link rel="stylesheet" href="styles.css?v=__VERSION__">
+  <link rel="stylesheet" href="offre-pilote.css?v=__VERSION__">
+</head>
+<body>
+  <header class="bandeau">
+    <div class="bandeau-interieur">
+      <p class="marque">
+        <span class="marque-texte">Fil Rouge <span class="marque-sous">Apprenants</span></span>
+        <svg class="marque-fil" viewBox="0 0 320 64" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path d="M4 50 C 22 52, 30 44, 44 40 C 70 10, 170 2, 262 8 C 300 11, 316 24, 312 36 C 306 52, 250 60, 160 60 C 92 60, 30 57, 16 46 C 4 36, 10 16, 34 7"
+                fill="none" stroke="#c1121f" stroke-width="1.4" stroke-linecap="round" vector-effect="non-scaling-stroke" pathLength="1"/>
+        </svg>
+      </p>
+    </div>
+  </header>
+
+  <main class="op-page">
+
+    <section class="op-haut">
+      <p class="op-surtitre">Offre pilote · 2 places</p>
+      <h1>Vos apprenants vont jusqu'à l'examen.<br>Vous avez les preuves pour Qualiopi.</h1>
+      <p class="op-chapo">J'appelle vos apprenants chaque mois, avant qu'ils décrochent : point sur leur progression, objectifs, relance, aide pour l'inscription à l'examen. Vous suivez tout en direct.</p>
+      <a class="bouton op-bouton" href="#reserver">Voir l'offre pilote</a>
+    </section>
+
+    <section class="op-bloc" aria-labelledby="op-inclus">
+      <h2 id="op-inclus">Ce qui est inclus</h2>
+      <ul class="op-liste">
+        <li><strong>Un appel par apprenant et par mois</strong> : progression, objectifs fixés, relance s'ils ne sont pas tenus.</li>
+        <li><strong>Des appels en plus</strong> pour les apprenants qui risquent de décrocher.</li>
+        <li><strong>L'administratif</strong> : inscription à l'examen, convention de stage.</li>
+        <li><strong>Votre espace en ligne</strong> : chaque apprenant et le compte rendu de chaque appel, en direct.</li>
+        <li><strong>Un signalement immédiat</strong> à votre référent pédagogique en cas d'alerte.</li>
+        <li><strong>Un rapport mensuel</strong>, utilisable comme preuve pour votre audit Qualiopi (indicateurs 10, 11 et 12).</li>
+      </ul>
+    </section>
+
+    <section class="op-bloc op-prix" id="reserver" aria-labelledby="op-tarif">
+      <h2 id="op-tarif">Tarif pilote</h2>
+      <p class="op-montant">400 € <span>HT</span></p>
+      <p class="op-detail">20 apprenants · 2 mois · 1 appel par mois chacun</p>
+      <p class="op-remise">soit <strong>10 € l'appel</strong> au lieu de 20 €</p>
+      <a class="bouton op-bouton op-lien-paiement" href="#reserver">Réserver et payer en ligne</a>
+      <p class="op-securite">Paiement sécurisé par prélèvement sur RIB ou par carte bancaire. Vous acceptez les conditions de prestation sur la page de paiement.</p>
+      <p class="op-indispo" hidden>Le paiement en ligne ouvre très bientôt. Le bouton ci-dessus vous permet de réserver votre place par email dès maintenant.</p>
+    </section>
+
+    <section class="op-bloc" aria-labelledby="op-etapes">
+      <h2 id="op-etapes">Comment ça se passe</h2>
+      <ol class="op-etapes">
+        <li><strong>Vous réservez</strong> en ligne en 2 minutes.</li>
+        <li><strong>Sous 7 jours</strong>, on échange 30 minutes sur vos formations et vos apprenants.</li>
+        <li><strong>Mois 1 et 2</strong> : les appels, votre espace en ligne, un rapport chaque mois.</li>
+        <li><strong>Fin du pilote</strong> : bilan chiffré de 30 minutes. Vous décidez librement de continuer.</li>
+      </ol>
+    </section>
+
+    <section class="op-bloc" aria-labelledby="op-apres">
+      <h2 id="op-apres">Et après ?</h2>
+      <p>Si vous continuez, vous ne payez que les appels passés, par prélèvement mensuel, sans engagement :</p>
+      <table class="op-grille">
+        <thead><tr><th scope="col">Apprenants suivis</th><th scope="col">Prix par appel (HT)</th></tr></thead>
+        <tbody>
+          <tr><td>Moins de 20</td><td>20 €</td></tr>
+          <tr><td>De 20 à 150</td><td>15 €</td></tr>
+          <tr><td>Plus de 150</td><td>12 €</td></tr>
+        </tbody>
+      </table>
+      <p class="op-petit">En échange du tarif pilote : un témoignage de quelques lignes si vous êtes satisfait, et l'autorisation de citer les résultats chiffrés (anonymement si vous préférez).</p>
+    </section>
+
+    <section class="op-bloc op-devis" aria-labelledby="op-surmesure">
+      <h2 id="op-surmesure">Plus de 20 apprenants, ou un besoin particulier ?</h2>
+      <p>CAP sur 12 mois, titre professionnel sur 6 mois, formation courte : le nombre d'appels s'adapte à la durée de la formation. Je vous fais un devis sur mesure.</p>
+      <a class="bouton bouton-secondaire op-lien-devis" href="mailto:contact.filrouge.apprenant@gmail.com?subject=Demande%20de%20devis%20%E2%80%94%20Fil%20Rouge%20Apprenants">Demander un devis</a>
+    </section>
+
+    <footer class="op-pied">
+      <p><strong>Fil Rouge Apprenants</strong> · Émilie Rachas</p>
+      <p><a href="mailto:contact.filrouge.apprenant@gmail.com">contact.filrouge.apprenant@gmail.com</a> · <a href="tel:+33617755617">06 17 75 56 17</a></p>
+    </footer>
+  </main>
+
+  <script src="config.js?v=__VERSION__"></script>
+  <script src="offre-pilote.js?v=__VERSION__"></script>
+</body>
+</html>
