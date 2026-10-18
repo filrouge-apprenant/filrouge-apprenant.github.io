@@ -989,3 +989,27 @@ input:focus, select:focus, textarea:focus { border-color: var(--violet); }
 .dialogue-fermer { background: none; border: none; font-size: 1.6rem; line-height: 1; cursor: pointer; color: var(--texte-doux); padding: 0.25rem 0.5rem; }
 .email-entete { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.5rem 0.75rem; background: var(--fond-doux); border-radius: var(--rayon); }
 .email-entete p { margin: 0; overflow-wrap: anywhere; }
+
+/* ---------- Fiche apprenant : en-tête, puis formation à gauche et situation à droite ---------- */
+.fiche-ecole { margin: 0.15rem 0 0; font-size: 1.1rem; font-weight: 600; }
+.fiche-diplome { margin: 0.1rem 0 0.4rem; font-family: var(--police-titre); font-size: 1.45rem; line-height: 1.2; color: var(--violet); }
+.formation-duree-bloc { margin-left: auto; text-align: right; }
+.fiche-grille {
+  display: grid; gap: 1.25rem; align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "formation" "cote" "principale";
+}
+.fiche-formation { grid-area: formation; min-width: 0; }
+.fiche-cote { grid-area: cote; min-width: 0; }
+.fiche-principale { grid-area: principale; min-width: 0; }
+.fiche-cote .perso-grille { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fiche-cote .deux-colonnes { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 64rem) {
+  body.page-large .contenu, body.page-large.avec-menu .contenu { max-width: 78rem; }
+  .fiche-grille {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    grid-template-areas: "formation cote" "principale cote";
+  }
+  .fiche-grille-seule { grid-template-columns: minmax(0, 1fr); grid-template-areas: "formation" "principale"; }
+  .fiche-cote { position: sticky; top: 1rem; }
+}

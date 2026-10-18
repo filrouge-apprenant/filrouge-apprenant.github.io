@@ -109,6 +109,7 @@
     boutonMenu.hidden = !avecMenu;
     if (!avecMenu) ouvrirMenu(false);
     contenu.replaceChildren(...elements.filter((e) => e !== null && e !== undefined && e !== false));
+    document.body.classList.toggle("page-large", !!contenu.querySelector(".fiche-grille"));
     // Onglets trop larges pour un téléphone : on fait défiler jusqu'à l'onglet actif.
     const ongletActif = contenu.querySelector(".onglet[aria-current='page']");
     if (ongletActif && ongletActif.parentElement) {
@@ -2371,6 +2372,17 @@
 
   // Bandeau « Action de formation » en haut de la fiche : entrée officielle,
   // sortie, et où en est l'apprenant entre les deux. L'administratrice modifie les dates ici.
+  // Durée lisible entre deux dates : « 6 mois (182 jours) ».
+  function dureeLisible(debut, fin) {
+    const jours = joursDepuis(debut) - joursDepuis(fin) + 1;
+    const [y1, m1, d1] = debut.split("-").map(Number);
+    const [y2, m2, d2] = fin.split("-").map(Number);
+    const mois = Math.round(((y2 - y1) * 12 + (m2 - m1) + (d2 - d1 + 1) / 30.44) * 2) / 2;
+    const texteMois = mois >= 1 ? `${String(mois).replace(".", ",")} mois` : null;
+    const texteJours = pluriel(jours, "jour", "jours");
+    return texteMois ? `${texteMois} (${texteJours})` : texteJours;
+  }
+
   function blocActionFormation(a, estAdmin, apresEnregistrement) {
     const e = a.date_entree_formation, s = a.date_sortie_formation;
     const ajd = aujourdhui();
@@ -2411,9 +2423,13 @@
         h("summary", {}, e || s ? "Modifier les dates" : "Renseigner les dates"), formulaire);
     }
 
-    return h("section", { class: "carte carte-large formation", "aria-label": "Action de formation" },
+    return h("section", { class: "carte carte-large formation", "aria-label": "Formation" },
       h("p", { class: "surtitre" }, "Action de formation"),
-      h("div", { class: "formation-dates" }, case_("Entrée officielle", e), h("span", { class: "formation-fleche", "aria-hidden": "true" }, "→"), case_("Sortie de formation", s)),
+      h("div", { class: "formation-dates" },
+        case_("Entrée officielle", e), h("span", { class: "formation-fleche", "aria-hidden": "true" }, "→"), case_("Sortie de formation", s),
+        e && s ? h("div", { class: "formation-date formation-duree-bloc" },
+          h("span", { class: "compteur-libelle" }, "Durée"),
+          h("span", { class: "formation-valeur" }, dureeLisible(e, s))) : null),
       avancement !== null
         ? h("div", { class: "formation-barre", role: "progressbar", "aria-valuenow": String(avancement), "aria-valuemin": "0", "aria-valuemax": "100", "aria-label": "Avancée dans la période de formation" },
             (() => { const remplissage = h("span"); remplissage.style.width = `${avancement}%`; return remplissage; })())
@@ -2532,8 +2548,10 @@
         h("div", {},
           h("p", { class: "surtitre" }, lienInterne(retour, "← Retour à la liste")),
           h("h1", {}, nomApprenant(a)),
+          h("p", { class: "fiche-ecole" }, org.nom || "École non renseignée",
+            a.identifiant_externe ? h("span", { class: "aide" }, ` · ${a.identifiant_externe}`) : null),
+          h("p", { class: "fiche-diplome" }, a.parcours || "Formation non renseignée"),
           h("p", { class: "chapo" },
-            [org.nom, a.parcours, a.identifiant_externe].filter(Boolean).join(" · "), " ",
             a.statut === "actif"
               ? pastille(couleur, jours === null ? "jamais contacté·e" : `${jours} j sans contact`)
               : pastille("neutre", LIBELLE_STATUT[a.statut]),
@@ -2544,11 +2562,17 @@
           ? h("p", { class: "message message-action" }, lienInterne(`apprenant/${suivantId}`, "Apprenant suivant dans la liste →"))
           : null,
 
-        peutNoter ? blocSituationPerso(a, situation.data, () => rafraichir("Situation personnelle enregistrée.")) : null,
-
-        blocActionFormation(a, estAdmin, () => rafraichir("Dates de formation enregistrées.")),
-
-        blocCompteursContact(appels.data),
+        // Deux colonnes sur ordinateur : à droite la formation et la situation,
+        // à gauche les chiffres puis Suivi des appels / Coaching.
+        // Sur téléphone, la colonne de droite passe en premier.
+        h("div", { class: `fiche-grille${peutNoter ? "" : " fiche-grille-seule"}` },
+          h("div", { class: "fiche-formation" },
+            blocActionFormation(a, estAdmin, () => rafraichir("Dates de formation enregistrées."))),
+          peutNoter
+            ? h("aside", { class: "fiche-cote", "aria-label": "Situation personnelle et professionnelle" },
+                blocSituationPerso(a, situation.data, () => rafraichir("Situation personnelle enregistrée.")))
+            : null,
+          h("div", { class: "fiche-principale pile" },
 
         h("div", { class: "compteurs" },
           h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, a.avancement_pct === null || a.avancement_pct === undefined ? "—" : `${Math.round(a.avancement_pct)} %`), h("span", { class: "compteur-libelle" }, "avancement")),
@@ -2556,7 +2580,9 @@
           h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_dernier_contact ? dateLisible(a.date_dernier_contact) : "—"), h("span", { class: "compteur-libelle" }, "dernier contact")),
           h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_examen ? dateLisible(a.date_examen) : "—"), h("span", { class: "compteur-libelle" }, "examen"))),
 
-        ongletsFiche)
+        blocCompteursContact(appels.data),
+
+        ongletsFiche)))
     );
     window.scrollTo(0, 0);
   }
