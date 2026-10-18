@@ -672,6 +672,7 @@
     if (morceaux[0] === "apprenant" && UUID.test(morceaux[1] || "")) return { nom: "apprenant", id: morceaux[1], onglet: morceaux[2] || null, partie: morceaux[3] || null };
     if (morceaux[0] === "preuves") return { nom: "preuves", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "eleves" && UUID.test(morceaux[1] || "")) return { nom: "eleves", id: morceaux[1] };
+    if (morceaux[0] === "impayes") return { nom: "impayes" };
     if (morceaux[0] === "satisfaction") return { nom: "satisfaction", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "coaching") return { nom: "coaching", type: morceaux[1] || "stage", id: UUID.test(morceaux[2] || "") ? morceaux[2] : null };
     return { nom: "accueil" };
@@ -700,6 +701,7 @@
     if (route.nom === "eleves") return ecranDossierEleves(route.id);
     if (route.nom === "coaching") return ecranCoaching(route.type, route.id);
     if (route.nom === "satisfaction") return ecranSatisfaction(route.id);
+    if (route.nom === "impayes") return ecranImpayes();
     if (route.nom === "prospection") return ecranProspection(route.etape);
     if (route.nom === "nouveau") return ecranNouvelOrganisme();
     if (route.nom === "organisme") return ecranOrganisme(route.id);
@@ -1260,6 +1262,7 @@
       ["suivi", "Suivi commercial", panneauSuivi],
       ["eleves", `Élèves${nb(apprenantsCount)}`, panneauEleves],
       ["acces", `Accès plateforme${nb(comptes.length)}`, panneauAcces],
+      ["compta", "Comptabilité", blocComptabilite(org.data, s)],
     ], memoOrg.onglet, (cle) => {
       memoOrg.onglet = cle;
       const cible = `#/organisme/${id}/${cle}`;
@@ -3847,12 +3850,13 @@
 
   async function chargerMenu() {
     if (!menuVisible()) return;
-    const [orgs, appr, urgents, avis, comptes] = await Promise.all([
+    const [orgs, appr, urgents, avis, comptes, impayes] = await Promise.all([
       sb.from("organismes").select("id, nom, organismes_suivi_commercial ( etape )").order("nom"),
       sb.from("apprenants").select("organisme_id, statut"),
       sb.from("vue_qui_rappeler").select("id").eq("alerte", "rouge"),
       sb.from("satisfaction").select("id", { count: "exact", head: true }).not("repondu_le", "is", null).is("lu_le", null),
       sb.rpc("comptes_acces"),
+      sb.from("vue_echeances").select("id", { count: "exact", head: true }).eq("statut", "en_retard"),
     ]);
     if (orgs.error || appr.error || urgents.error) return;
     const total = new Map();
@@ -3869,6 +3873,7 @@
       urgents: urgents.data.length,
       avis: avis.error ? 0 : avis.count || 0,
       // Accès à traiter : expirent bientôt, ou expirés mais encore actifs.
+      impayes: impayes.error ? 0 : impayes.count || 0,
       acces: comptes.error ? 0 : comptes.data.filter((p) => ["bientot", "expire"].includes(etatCompte(p).code)).length,
     };
     const signature = JSON.stringify(donnees);
@@ -3900,7 +3905,8 @@
         lien("rappels", "À rappeler", d.urgents ? nombre(d.urgents, true) : null),
         lien("examens", "Relances d'examen"),
         lien("satisfaction", "Satisfaction", d.avis ? nombre(d.avis, true) : null),
-        lien("acces", "Accès clients", d.acces ? nombre(d.acces, true) : null)),
+        lien("acces", "Accès clients", d.acces ? nombre(d.acces, true) : null),
+        lien("impayes", "Impayés", d.impayes ? nombre(d.impayes, true) : null)),
       groupe("prospects", "Prospects", [
         lien("prospection", "Tous les centres à démarcher"),
         lien("nouveau", "Ajouter un centre"),
@@ -4193,6 +4199,360 @@
     return bloc;
   }
 
+
+  // ===========================================================================
+  // COMPTABILITÉ D'UN CLIENT (onglet de la fiche organisme) et page IMPAYÉS
+  // ===========================================================================
+  // Contrat (PDF signé dans le dossier sécurisé « contrats »), échéancier :
+  // mois payés, à payer, en retard, mois en cours (estimation), mois à venir.
+  // Le calcul mensuel et les relances (J+3, J+15, J+30) tournent seuls dans
+  // la base ; ici on voit, on corrige, on marque « payée ».
+  // ===========================================================================
+
+  const LIBELLE_MODE_PAIEMENT = { prelevement: "Prélèvement automatique", virement: "Virement" };
+  const LIBELLE_BASE_FACTURATION = { appels_aboutis: "Appels aboutis (joint·e)", tous_les_appels: "Tous les appels passés" };
+  const LIBELLE_RELANCE = { 1: "Rappel (J+3)", 2: "Relance (J+15)", 3: "Mise en demeure (J+30)" };
+  const MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+
+  function euros(n) {
+    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(Number(n || 0));
+  }
+  function moisLettres(dateIso) {
+    const [a, m] = dateIso.split("-").map(Number);
+    const t = `${MOIS_FR[m - 1]} ${a}`;
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+  function premierDuMois(dateIso) { return `${dateIso.slice(0, 7)}-01`; }
+  function moisSuivant(dateIso) {
+    const [a, m] = dateIso.split("-").map(Number);
+    return m === 12 ? `${a + 1}-01-01` : `${a}-${String(m + 1).padStart(2, "0")}-01`;
+  }
+  function tarifGrille(nbApprenants) {
+    return nbApprenants < 20 ? 20 : nbApprenants <= 150 ? 15 : 12;
+  }
+  function pastilleEcheance(e) {
+    if (e.statut === "payee") return pastille("vert", `Payée${e.payee_le ? " le " + dateLisible(e.payee_le) : ""}`);
+    if (e.statut === "annulee") return pastille("neutre", "Annulée");
+    if (e.statut === "en_retard") return pastille("rouge", `En retard de ${e.jours_retard} j`);
+    return pastille("orange", `À payer avant le ${dateLisible(e.date_echeance)}`);
+  }
+
+  function blocComptabilite(org, suivi) {
+    const zone = h("div", { class: "pile" }, h("p", { class: "chargement" }, "Chargement de la comptabilité…"));
+    const recharger = (info) => charger(info);
+
+    async function charger(info) {
+      const debutMois = premierDuMois(aujourdhui());
+      const [contrat, echeances, relances, appelsMois, actifs] = await Promise.all([
+        sb.from("contrats").select("*").eq("organisme_id", org.id).maybeSingle(),
+        sb.from("vue_echeances").select("*").eq("organisme_id", org.id).order("mois"),
+        sb.from("relances_paiement").select("id, echeance_id, niveau, envoyee_le, destinataire, objet, texte").eq("organisme_id", org.id).order("envoyee_le", { ascending: false }),
+        sb.from("appels").select("id, canal, resultat").eq("organisme_id", org.id).gte("date_appel", debutJourParis(debutMois)),
+        sb.from("apprenants").select("id", { count: "exact", head: true }).eq("organisme_id", org.id).eq("statut", "actif"),
+      ]);
+      const erreur = contrat.error || echeances.error || relances.error || appelsMois.error || actifs.error;
+      if (erreur) {
+        const pasEncore = /contrats|echeances|relances_paiement|does not exist|schema cache/i.test(erreur.message || "");
+        return zone.replaceChildren(message(pasEncore ? "info" : "erreur", pasEncore
+          ? "La comptabilité n'est pas encore activée dans la base : il reste le script à coller dans Supabase."
+          : texteErreur(erreur)));
+      }
+      const c = contrat.data;
+      const liste = echeances.data;
+      const parMois = new Map(liste.map((e) => [e.mois, e]));
+      const relancesPar = new Map();
+      for (const r of relances.data) {
+        if (!relancesPar.has(r.echeance_id)) relancesPar.set(r.echeance_id, []);
+        relancesPar.get(r.echeance_id).push(r);
+      }
+
+      // --- Compteurs ---
+      const actives = liste.filter((e) => e.statut !== "annulee");
+      const encaisse = actives.filter((e) => e.statut === "payee").reduce((t, e) => t + Number(e.montant), 0);
+      const enRetard = actives.filter((e) => e.statut === "en_retard");
+      const aPayer = actives.filter((e) => e.statut === "a_payer");
+      const compteurs = h("div", { class: "compteurs" },
+        h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, euros(actives.reduce((t, e) => t + Number(e.montant), 0))), h("span", { class: "compteur-libelle" }, "facturé")),
+        h("div", { class: "compteur compteur-vert" }, h("span", { class: "compteur-valeur" }, euros(encaisse)), h("span", { class: "compteur-libelle" }, "encaissé")),
+        h("div", { class: "compteur compteur-orange" }, h("span", { class: "compteur-valeur" }, euros(aPayer.reduce((t, e) => t + Number(e.montant), 0))), h("span", { class: "compteur-libelle" }, "à venir (non échu)")),
+        h("div", { class: `compteur${enRetard.length ? " compteur-rouge" : ""}` }, h("span", { class: "compteur-valeur" }, euros(enRetard.reduce((t, e) => t + Number(e.montant), 0))), h("span", { class: "compteur-libelle" }, pluriel(enRetard.length, "impayé en retard", "impayés en retard"))));
+
+      // --- Contrat ---
+      const blocContrat = await formulaireContrat(org, suivi, c, recharger);
+
+      // --- Échéancier ---
+      let sectionEcheancier = null;
+      if (c) {
+        const tarifBase = c.tarif_fixe ? Number(c.tarif_fixe) : tarifGrille(actifs.count || 0);
+        const aboutis = appelsMois.data.filter((a) => ["telephone", "visio"].includes(a.canal) && (c.base_facturation === "tous_les_appels" || a.resultat === "joint")).length;
+        const debut = premierDuMois(c.date_debut);
+        const moisCourant = premierDuMois(aujourdhui());
+        let fin = c.date_fin ? premierDuMois(c.date_fin) : moisSuivant(moisSuivant(moisSuivant(moisCourant)));
+        const lignes = [];
+        for (let m = debut, garde = 0; m <= fin && garde < 60; m = moisSuivant(m), garde += 1) lignes.push(m);
+        for (const e of liste) if (!lignes.includes(e.mois)) lignes.push(e.mois);
+        lignes.sort().reverse();
+
+        const ligneMois = (m) => {
+          const e = parMois.get(m);
+          if (e) return ligneEcheance(e, relancesPar.get(e.id) || [], recharger);
+          const zoneL = h("div");
+          if (m === moisCourant) {
+            return h("li", { class: "ligne" },
+              h("span", { class: "ligne-titre" }, `${moisLettres(m)} · en cours`),
+              h("span", { class: "pastilles" }, pastille("neutre", `≈ ${euros(aboutis * tarifBase)}`)),
+              h("span", { class: "ligne-detail" }, `${pluriel(aboutis, "appel facturable", "appels facturables")} à ce jour × ${euros(tarifBase)}. Calcul définitif le 1er du mois prochain.`));
+          }
+          if (m > moisCourant) {
+            const estimation = (actifs.count || 0) * tarifBase;
+            return h("li", { class: "ligne ligne-a-venir" },
+              h("span", { class: "ligne-titre" }, moisLettres(m)),
+              h("span", { class: "pastilles" }, pastille("neutre", `prévue ≈ ${euros(estimation)}`)),
+              h("span", { class: "ligne-detail" }, `Estimation : ${pluriel(actifs.count || 0, "apprenant en formation", "apprenants en formation")} × 1 appel × ${euros(tarifBase)}.`));
+          }
+          const calculer = h("button", { type: "button", class: "bouton bouton-petit" }, "Calculer cette échéance");
+          calculer.addEventListener("click", async () => {
+            occupe(calculer, true, "Calcul…");
+            const { error } = await sb.rpc("calculer_echeance", { p_organisme: org.id, p_mois: m });
+            occupe(calculer, false);
+            if (error) return signaler(zoneL, "erreur", texteErreur(error));
+            recharger(`Échéance de ${moisLettres(m).toLowerCase()} calculée.`);
+          });
+          return h("li", { class: "ligne" },
+            h("span", { class: "ligne-titre" }, moisLettres(m)),
+            h("span", { class: "pastilles" }, pastille("neutre", "pas encore calculée")),
+            h("div", { class: "ligne-detail" }, calculer, zoneL));
+        };
+        sectionEcheancier = h("section", { class: "pile-serree" },
+          h("div", { class: "section-titre" }, h("h2", {}, "Échéancier"), h("p", {}, pluriel(liste.length, "échéance", "échéances"))),
+          h("p", { class: "aide" }, `Chaque 1er du mois, l'échéance du mois écoulé est calculée : ${LIBELLE_BASE_FACTURATION[c.base_facturation].toLowerCase()} × ${c.tarif_fixe ? euros(c.tarif_fixe) + " (tarif du contrat)" : "la grille (20 € sous 20 apprenants, 15 € jusqu'à 150, 12 € au-delà)"}, à régler sous ${c.delai_paiement_jours} jours.`),
+          h("ul", { class: "liste" }, lignes.map(ligneMois)));
+      }
+
+      // --- Relances ---
+      const sectionRelances = c ? h("section", { class: "pile-serree" },
+        h("div", { class: "section-titre" }, h("h2", {}, "Relances d'impayés"), h("p", {}, pluriel(relances.data.length, "envoyée", "envoyées"))),
+        message(c.relances_auto ? "info" : "erreur", c.relances_auto
+          ? `Automatiques : rappel à J+3, relance à J+15, mise en demeure à J+30 (au moins 7 jours entre deux), envoyées chaque matin à ${c.email_facturation || suivi.contact_email || "— email de facturation manquant —"}, copie dans la boîte Fil Rouge.`
+          : "Relances automatiques coupées pour ce client (réglage du contrat)."),
+        relances.data.length
+          ? h("ul", { class: "liste" }, relances.data.map((r) => {
+              const e = liste.find((x) => x.id === r.echeance_id);
+              const det = h("details", {}, h("summary", { class: "bouton-lien" }, "Voir le message"), h("p", { class: "texte-libre message-a-envoyer" }, r.texte));
+              return h("li", { class: "ligne" },
+                h("span", { class: "ligne-titre" }, LIBELLE_RELANCE[r.niveau]),
+                h("span", { class: "pastilles" }, pastille(r.niveau === 3 ? "rouge" : "orange", dateHeureComplete(r.envoyee_le))),
+                h("span", { class: "ligne-detail" }, [e ? `${e.reference} · ${moisLettres(e.mois)} · ${euros(e.montant)}` : null, `à ${r.destinataire}`].filter(Boolean).join(" · ")),
+                h("div", { class: "ligne-detail" }, det));
+            }))
+          : h("p", { class: "aide" }, "Aucune relance envoyée pour l'instant.")) : null;
+
+      zone.replaceChildren(...[
+        info ? message("info", info) : null,
+        c ? compteurs : null,
+        blocContrat,
+        sectionEcheancier,
+        sectionRelances].filter(Boolean));
+    }
+    charger();
+    return zone;
+  }
+
+  function ligneEcheance(e, relancesEch, recharger) {
+    const zoneL = h("div");
+    const actions = h("div", { class: "actions-ligne" });
+    const bouton = (texte, classe, action) => {
+      const b = h("button", { type: "button", class: classe }, texte);
+      b.addEventListener("click", async () => {
+        occupe(b, true, "…");
+        const { error } = await action();
+        occupe(b, false);
+        if (error) return signaler(zoneL, "erreur", texteErreur(error));
+        recharger();
+      });
+      return b;
+    };
+    const maj = (valeurs) => () => sb.from("echeances").update(valeurs).eq("id", e.id);
+
+    if (e.statut === "payee") {
+      actions.append(bouton("Annuler le paiement", "bouton-lien", maj({ payee_le: null })));
+    } else if (e.statut !== "annulee") {
+      const datePaiement = h("input", { type: "date", "aria-label": "Date du paiement" });
+      datePaiement.value = aujourdhui();
+      actions.append(
+        h("span", { class: "paiement-ligne" }, datePaiement,
+          bouton("Marquer payée", "bouton bouton-petit", () => sb.from("echeances").update({ payee_le: datePaiement.value || aujourdhui() }).eq("id", e.id))),
+        bouton("Recalculer", "bouton-lien", () => sb.rpc("calculer_echeance", { p_organisme: e.organisme_id, p_mois: e.mois })),
+        bouton(e.relances_suspendues ? "Reprendre les relances" : "Suspendre les relances", "bouton-lien", maj({ relances_suspendues: !e.relances_suspendues })),
+        bouton("Annuler l'échéance", "bouton-lien bouton-lien-danger", maj({ annulee: true })));
+    } else {
+      actions.append(bouton("Rétablir l'échéance", "bouton-lien", maj({ annulee: false })));
+    }
+
+    // Aperçu de la prochaine relance (si l'échéance est en retard).
+    let apercu = null;
+    if (e.statut === "en_retard" && !e.relances_suspendues && (e.derniere_relance || 0) < 3) {
+      const prochain = (e.derniere_relance || 0) + 1;
+      apercu = h("details", {}, h("summary", { class: "bouton-lien" }, `Voir la prochaine relance : ${LIBELLE_RELANCE[prochain]}`));
+      apercu.addEventListener("toggle", async () => {
+        if (!apercu.open || apercu.dataset.charge) return;
+        apercu.dataset.charge = "1";
+        const { data, error } = await sb.rpc("apercu_relance", { p_echeance: e.id, p_niveau: prochain });
+        apercu.append(error ? message("erreur", texteErreur(error)) : h("div", { class: "pile-serree" },
+          h("p", {}, h("strong", {}, data[0].objet)), h("p", { class: "texte-libre message-a-envoyer" }, data[0].texte)));
+      });
+    }
+
+    const detail = [
+      e.reference,
+      `${pluriel(e.nb_appels, "appel", "appels")} × ${euros(e.tarif_unitaire)}`,
+      `${pluriel(e.nb_apprenants, "apprenant suivi", "apprenants suivis")}`,
+      `échéance ${dateLisible(e.date_echeance)}`,
+      relancesEch.length ? `${LIBELLE_RELANCE[Math.max(...relancesEch.map((r) => r.niveau))]} envoyée le ${dateLisible(relancesEch[0].envoyee_le.slice(0, 10))}` : null,
+      e.relances_suspendues && e.statut !== "payee" ? "relances suspendues" : null,
+    ].filter(Boolean).join(" · ");
+
+    return h("li", { class: `ligne${e.statut === "en_retard" ? " ligne-retard" : ""}` },
+      h("span", { class: "ligne-titre" }, `${moisLettres(e.mois)} · ${euros(e.montant)}`),
+      h("span", { class: "pastilles" }, pastilleEcheance(e)),
+      h("span", { class: "ligne-detail" }, detail),
+      h("div", { class: "ligne-detail pile-serree" }, actions, apercu, zoneL));
+  }
+
+  async function formulaireContrat(org, suivi, c, recharger) {
+    const zone = h("div");
+    const debut = champTexte("contrat-debut", "Début du contrat", c?.date_debut || suivi.date_debut_contrat || aujourdhui(), { type: "date", obligatoire: true });
+    const fin = champTexte("contrat-fin", "Fin du contrat", c?.date_fin || "", { type: "date", aide: "Vide = sans date de fin (reconduction)." });
+    const mode = champChoix("contrat-mode", "Paiement", LIBELLE_MODE_PAIEMENT, c?.mode_paiement || "prelevement");
+    const base = champChoix("contrat-base", "Ce qui est facturé", LIBELLE_BASE_FACTURATION, c?.base_facturation || "appels_aboutis");
+    const tarif = champTexte("contrat-tarif", "Prix d'un appel (€)", c?.tarif_fixe ?? "", { inputmode: "decimal", aide: "Vide = grille : 20 € sous 20 apprenants, 15 € jusqu'à 150, 12 € au-delà." });
+    const delai = champTexte("contrat-delai", "Délai de paiement (jours)", String(c?.delai_paiement_jours ?? 30), { inputmode: "numeric", aide: "30 jours maximum conseillé ; 60 jours au plus (loi)." });
+    const email = champTexte("contrat-email", "Email de facturation", c?.email_facturation || suivi.contact_email || "", { type: "email", inputmode: "email", aide: "Reçoit les relances. Vide = email du contact." });
+    const mandat = champTexte("contrat-mandat", "Référence du mandat de prélèvement", c?.reference_mandat || "", { aide: "Fournie par GoCardless ou Stripe une fois le prélèvement mis en place." });
+    const notes = champTexte("contrat-notes", "Notes", c?.notes || "", { multiligne: true });
+    const relancesAuto = h("input", { type: "checkbox", id: "contrat-relances" });
+    relancesAuto.checked = c ? c.relances_auto : true;
+    const blocMandat = h("div", {}, mandat.bloc);
+    const majMode = () => { blocMandat.hidden = mode.champ.value !== "prelevement"; };
+    mode.champ.addEventListener("change", majMode);
+    majMode();
+
+    // --- PDF du contrat signé ---
+    const zonePdf = h("div");
+    const fichier = h("input", { type: "file", accept: "application/pdf", id: "contrat-pdf", class: "champ-fichier" });
+    let lienPdf = null;
+    if (c?.fichier_chemin) {
+      const { data } = await sb.storage.from("contrats").createSignedUrl(c.fichier_chemin, 3600);
+      lienPdf = data?.signedUrl
+        ? h("a", { class: "bouton bouton-secondaire bouton-petit", href: data.signedUrl, target: "_blank", rel: "noopener" }, `📄 Ouvrir le contrat${c.fichier_nom ? " · " + c.fichier_nom : ""}`)
+        : h("p", { class: "aide" }, "Le contrat est enregistré, mais il n'a pas pu être ouvert. Rechargez la page.");
+    }
+    const deposer = h("button", { type: "button", class: "bouton bouton-petit" }, c?.fichier_chemin ? "Remplacer le PDF" : "Déposer le PDF");
+    deposer.addEventListener("click", async () => {
+      const f = fichier.files && fichier.files[0];
+      if (!c) return signaler(zonePdf, "erreur", "Enregistre d'abord le contrat (bouton plus bas), puis dépose le PDF.");
+      if (!f) return signaler(zonePdf, "erreur", "Choisis d'abord le fichier PDF.");
+      if (f.type !== "application/pdf") return signaler(zonePdf, "erreur", "Le contrat doit être un PDF.");
+      if (f.size > 10 * 1024 * 1024) return signaler(zonePdf, "erreur", "Le PDF dépasse 10 Mo.");
+      occupe(deposer, true, "Envoi…");
+      const chemin = `${org.id}/contrat-${Date.now()}.pdf`;
+      const envoi = await sb.storage.from("contrats").upload(chemin, f, { contentType: "application/pdf", upsert: false });
+      if (envoi.error) { occupe(deposer, false); return signaler(zonePdf, "erreur", texteErreur(envoi.error)); }
+      const { error } = await sb.from("contrats").update({ fichier_chemin: chemin, fichier_nom: f.name.slice(0, 150) }).eq("organisme_id", org.id);
+      if (!error && c.fichier_chemin) await sb.storage.from("contrats").remove([c.fichier_chemin]);
+      occupe(deposer, false);
+      if (error) return signaler(zonePdf, "erreur", texteErreur(error));
+      recharger("Contrat PDF enregistré.");
+    });
+    const blocPdf = h("div", { class: "pile-serree bloc-pdf" },
+      h("p", { class: "case-titre" }, "Contrat signé (PDF)"),
+      lienPdf || h("p", { class: "aide" }, "Aucun PDF déposé."),
+      h("div", { class: "actions-ligne" }, fichier, deposer),
+      h("p", { class: "aide" }, "Rangé dans un dossier sécurisé : toi seule peux l'ouvrir."),
+      zonePdf);
+
+    const enregistrer = h("button", { type: "submit", class: "bouton" }, c ? "Enregistrer le contrat" : "Créer le contrat");
+    const form = h("form", { class: "formulaire", novalidate: true },
+      h("div", { class: "deux-colonnes" }, debut.bloc, fin.bloc),
+      h("div", { class: "deux-colonnes" }, mode.bloc, base.bloc),
+      h("div", { class: "deux-colonnes" }, tarif.bloc, delai.bloc),
+      email.bloc, blocMandat,
+      h("label", { class: "case", for: "contrat-relances" }, relancesAuto,
+        h("span", {}, h("span", { class: "case-titre" }, "Relances automatiques des impayés"),
+          h("span", { class: "case-aide" }, "Rappel à J+3, relance à J+15, mise en demeure à J+30, par email, copie dans ta boîte."))),
+      notes.bloc, zone, enregistrer);
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const t = tarif.champ.value.trim().replace(",", ".");
+      const d = Number(delai.champ.value.trim());
+      if (!debut.champ.value) return signaler(zone, "erreur", "Indique la date de début du contrat.");
+      if (fin.champ.value && fin.champ.value < debut.champ.value) return signaler(zone, "erreur", "La fin du contrat est avant son début.");
+      if (t && !(Number(t) > 0)) return signaler(zone, "erreur", "Le prix d'un appel doit être un nombre, par exemple 15.");
+      if (!Number.isInteger(d) || d < 0 || d > 60) return signaler(zone, "erreur", "Le délai de paiement doit être entre 0 et 60 jours.");
+      const mail = email.champ.value.trim();
+      if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(mail)) return signaler(zone, "erreur", "L'email de facturation n'est pas valable.");
+      occupe(enregistrer, true, "Enregistrement…");
+      const { error } = await sb.from("contrats").upsert({
+        organisme_id: org.id,
+        date_debut: debut.champ.value,
+        date_fin: fin.champ.value || null,
+        mode_paiement: mode.champ.value,
+        base_facturation: base.champ.value,
+        tarif_fixe: t ? Number(t) : null,
+        delai_paiement_jours: d,
+        email_facturation: mail || null,
+        relances_auto: relancesAuto.checked,
+        reference_mandat: mandat.champ.value.trim() || null,
+        notes: notes.champ.value.trim() || null,
+      }, { onConflict: "organisme_id" });
+      occupe(enregistrer, false);
+      if (error) return signaler(zone, "erreur", texteErreur(error));
+      recharger(c ? "Contrat enregistré." : "Contrat créé : l'échéancier est prêt.");
+    });
+
+    const resume = c
+      ? [`Depuis le ${dateLisible(c.date_debut)}${c.date_fin ? ` jusqu'au ${dateLisible(c.date_fin)}` : ", sans date de fin"}`,
+         LIBELLE_MODE_PAIEMENT[c.mode_paiement],
+         c.tarif_fixe ? `${euros(c.tarif_fixe)} l'appel` : "tarif selon la grille",
+         `paiement à ${c.delai_paiement_jours} jours`].join(" · ")
+      : null;
+    return h("section", { class: "pile-serree" },
+      h("div", { class: "section-titre" }, h("h2", {}, "Contrat"), resume ? h("p", {}, c.fichier_chemin ? "PDF déposé" : "PDF à déposer") : null),
+      c ? null : message("info", "Pas encore de contrat pour cet organisme. Renseigne-le : l'échéancier et les relances se mettent en place tout seuls."),
+      resume ? h("p", { class: "chapo" }, resume) : null,
+      c ? blocPdf : null,
+      c ? h("details", { class: "carte carte-large depliant" }, h("summary", {}, "Modifier le contrat"), form) : h("div", { class: "carte carte-large" }, form));
+  }
+
+  // Page « Impayés » : toutes les échéances en retard, tous clients confondus.
+  async function ecranImpayes() {
+    afficher(h("p", { class: "chargement" }, "Chargement des impayés…"));
+    const { data, error } = await sb.from("vue_echeances").select("*").in("statut", ["en_retard", "a_payer"]).order("date_echeance");
+    if (error) return afficher(message("info", "La comptabilité n'est pas encore activée dans la base : il reste le script à coller dans Supabase."));
+    const retard = data.filter((e) => e.statut === "en_retard").sort((a, b) => b.jours_retard - a.jours_retard);
+    const aVenir = data.filter((e) => e.statut === "a_payer");
+    const ligne = (e) => h("li", { class: `ligne${e.statut === "en_retard" ? " ligne-retard" : ""}` },
+      h("span", { class: "ligne-titre" }, lienInterne(`organisme/${e.organisme_id}/compta`, e.organisme_nom), ` · ${euros(e.montant)}`),
+      h("span", { class: "pastilles" }, pastilleEcheance(e)),
+      h("span", { class: "ligne-detail" }, [moisLettres(e.mois), e.reference,
+        e.derniere_relance ? `${LIBELLE_RELANCE[e.derniere_relance]} envoyée` : (e.statut === "en_retard" ? "aucune relance encore" : null),
+        e.relances_suspendues ? "relances suspendues" : null].filter(Boolean).join(" · ")));
+    afficher(h("div", { class: "pile" },
+      h("div", {},
+        h("p", { class: "surtitre" }, "Comptabilité"),
+        h("h1", {}, "Impayés et paiements à venir"),
+        h("p", { class: "chapo" }, "Les relances partent seules chaque matin (J+3, J+15, J+30). Ouvre la fiche d'un client pour marquer une échéance payée ou suspendre ses relances.")),
+      h("div", { class: "compteurs compteurs-deux" },
+        h("div", { class: `compteur${retard.length ? " compteur-rouge" : ""}` }, h("span", { class: "compteur-valeur" }, euros(retard.reduce((t, e) => t + Number(e.montant), 0))), h("span", { class: "compteur-libelle" }, pluriel(retard.length, "échéance en retard", "échéances en retard"))),
+        h("div", { class: "compteur compteur-orange" }, h("span", { class: "compteur-valeur" }, euros(aVenir.reduce((t, e) => t + Number(e.montant), 0))), h("span", { class: "compteur-libelle" }, "à encaisser (non échu)"))),
+      h("section", { class: "pile-serree" },
+        h("div", { class: "section-titre" }, h("h2", {}, "En retard"), h("p", {}, pluriel(retard.length, "échéance", "échéances"))),
+        retard.length ? h("ul", { class: "liste" }, retard.map(ligne)) : message("info", "Aucun impayé. 👍")),
+      h("section", { class: "pile-serree" },
+        h("div", { class: "section-titre" }, h("h2", {}, "À encaisser"), h("p", {}, pluriel(aVenir.length, "échéance", "échéances"))),
+        aVenir.length ? h("ul", { class: "liste" }, aVenir.map(ligne)) : h("p", { class: "aide" }, "Rien en attente."))));
+    window.scrollTo(0, 0);
+  }
 
   // ===========================================================================
   // ÉCHANGES AVEC UN ORGANISME : un sous-onglet par canal

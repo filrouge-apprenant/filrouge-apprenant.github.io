@@ -1215,3 +1215,13 @@ label.case input {
 .onglets-canaux .carte form, .onglets-canaux .carte { gap: 0.9rem; }
 .bouton-inactif { opacity: 0.5; }
 .note-echange { background: var(--fond-doux); }
+
+/* Comptabilité */
+.ligne-retard .ligne-titre { color: var(--alerte-rouge); }
+.ligne-a-venir .ligne-titre { color: var(--texte-doux); font-weight: 400; }
+.paiement-ligne { display: inline-flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+.paiement-ligne input[type="date"] { padding: 0.35rem 0.5rem; font-size: 0.9rem; }
+.bloc-pdf { border: 1px solid var(--filet); border-radius: var(--rayon); padding: 1rem; }
+.champ-fichier { font: inherit; font-size: 0.9rem; max-width: 100%; }
+.paiement-ligne input[type="date"] { width: auto; }
+.ligne-detail .actions-ligne { align-items: center; }
