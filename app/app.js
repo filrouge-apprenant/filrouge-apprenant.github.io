@@ -2079,7 +2079,12 @@
       appel.prochaine_action || appel.date_prochaine_action
         ? h("span", { class: "ligne-detail" }, "Suite : ", [appel.prochaine_action, appel.date_prochaine_action ? `le ${dateLisible(appel.date_prochaine_action)}` : null].filter(Boolean).join(" "))
         : null,
-      noteInterne ? h("div", { class: "ligne-detail note-interne" }, h("strong", {}, "Note interne · "), noteInterne) : null,
+      noteInterne ? h("div", { class: "ligne-detail note-interne" }, h("strong", {}, "Note interne · "), noteInterne, " ",
+        peutSupprimer ? boutonEffacer(async () => {
+          const r = await sb.from("notes_internes").delete().eq("appel_id", appel.id);
+          if (!r.error) apresSuppression();
+          return r;
+        }, "Effacer la note") : null) : null,
       suppression,
     ].filter(Boolean));
   }
@@ -2274,6 +2279,26 @@
         h("span", { class: "compteur-libelle" }, `personne réellement eue · ${detailAboutis}`)));
   }
 
+  // Bouton « Effacer » en deux temps (« Effacer » puis « Oui, effacer »).
+  // Réservé à l'administratrice : renvoie null pour les autres.
+  function boutonEffacer(action, texte = "Effacer") {
+    if (etat.profil?.role !== "admin") return null;
+    const zone = h("span");
+    const demander = h("button", { type: "button", class: "bouton-lien bouton-lien-danger bouton-effacer" }, texte);
+    const confirmer = h("button", { type: "button", class: "bouton-lien bouton-lien-danger bouton-effacer", hidden: true }, "Oui, effacer");
+    const annuler = h("button", { type: "button", class: "bouton-lien bouton-effacer", hidden: true }, "Annuler");
+    const basculer = (oui) => { demander.hidden = oui; confirmer.hidden = !oui; annuler.hidden = !oui; };
+    demander.addEventListener("click", () => basculer(true));
+    annuler.addEventListener("click", () => basculer(false));
+    confirmer.addEventListener("click", async () => {
+      occupe(confirmer, true, "…");
+      const { error } = await action();
+      occupe(confirmer, false);
+      if (error) return signaler(zone, "erreur", texteErreur(error));
+    });
+    return h("span", { class: "effacer" }, demander, confirmer, annuler, zone);
+  }
+
   // --- Fil de commentaires (bandeau de droite de la fiche) ---
   // Les plus récents en premier. Appels, notes internes et coaching s'y ajoutent
   // tout seuls (la base s'en charge) ; on peut aussi écrire en direct.
@@ -2302,7 +2327,13 @@
           h("span", { class: "commentaire-source" }, `${icone} ${libelle}`),
           h("span", { class: "commentaire-date" }, dateHeureComplete(c.cree_le))),
         h("p", { class: "commentaire-texte" }, c.contenu),
-        c.auteur_nom ? h("p", { class: "commentaire-auteur" }, c.auteur_nom) : null);
+        h("div", { class: "commentaire-pied" },
+          c.auteur_nom ? h("span", { class: "commentaire-auteur" }, c.auteur_nom) : h("span"),
+          boutonEffacer(async () => {
+            const r = await sb.from("commentaires").delete().eq("id", c.id);
+            if (!r.error) { const i = commentaires.indexOf(c); if (i >= 0) commentaires.splice(i, 1); dessiner(); }
+            return r;
+          })));
     }
     function dessiner() {
       const compte = (src) => commentaires.filter((c) => src === "tous" || c.source === src).length;
@@ -2609,7 +2640,13 @@
         ? h("ol", { class: "commentaires-liste" }, notesInternes.map((c) => h("li", { class: "commentaire commentaire-note_interne" },
             h("div", { class: "commentaire-tete" }, h("span", { class: "commentaire-source" }, "🔒 Note interne"), h("span", { class: "commentaire-date" }, dateHeureComplete(c.cree_le))),
             h("p", { class: "commentaire-texte" }, c.contenu),
-            c.auteur_nom ? h("p", { class: "commentaire-auteur" }, c.auteur_nom) : null)))
+            h("div", { class: "commentaire-pied" },
+              c.auteur_nom ? h("span", { class: "commentaire-auteur" }, c.auteur_nom) : h("span"),
+              boutonEffacer(async () => {
+                const r = await sb.from("commentaires").delete().eq("id", c.id);
+                if (!r.error) rafraichir("Note interne effacée.");
+                return r;
+              })))))
         : message("info", "Aucune note interne pour l'instant."));
 
     // --- Compte rendu pour l'organisme : ce que voit le client ---
@@ -2674,14 +2711,24 @@
                 h("span", { class: "ligne-titre" }, dateHeureComplete(el.cr.cree_le)),
                 h("span", { class: "pastilles" }, pastille("vert", "Compte rendu")),
                 h("span", { class: "ligne-detail texte-libre" }, el.cr.contenu),
-                el.cr.auteur_nom ? h("span", { class: "ligne-detail aide" }, el.cr.auteur_nom) : null)
+                el.cr.auteur_nom ? h("span", { class: "ligne-detail aide" }, el.cr.auteur_nom) : null,
+                h("span", { class: "ligne-detail" }, boutonEffacer(async () => {
+                  const r = await sb.from("comptes_rendus").delete().eq("id", el.cr.id);
+                  if (!r.error) rafraichir("Compte rendu effacé : l'organisme ne le voit plus.");
+                  return r;
+                }, "Effacer ce compte rendu")))
             : h("li", { class: "ligne ligne-echange" },
                 h("span", { class: "ligne-titre" }, dateHeureComplete(el.ap.date_appel)),
                 h("span", { class: "pastilles" }, pastille(COULEUR_RESULTAT_APPEL[el.ap.resultat] || "neutre", LIBELLE_RESULTAT_APPEL[el.ap.resultat] || el.ap.resultat)),
                 el.ap.note_client ? h("span", { class: "ligne-detail texte-libre" }, el.ap.note_client) : null,
                 el.ap.prochaine_action || el.ap.date_prochaine_action
                   ? h("span", { class: "ligne-detail" }, "Suite : ", [el.ap.prochaine_action, el.ap.date_prochaine_action ? `le ${dateLisible(el.ap.date_prochaine_action)}` : null].filter(Boolean).join(" "))
-                  : null)))
+                  : null,
+                h("span", { class: "ligne-detail" }, boutonEffacer(async () => {
+                  const r = await sb.from("appels").update({ note_client: null, prochaine_action: null, date_prochaine_action: null }).eq("id", el.ap.id);
+                  if (!r.error) rafraichir("Compte rendu de l'appel effacé (l'appel reste dans l'historique).");
+                  return r;
+                }, "Effacer ce compte rendu")))))
         : message("info", "Aucun compte rendu pour l'instant."));
 
     // --- Onglets en haut de la fiche ---

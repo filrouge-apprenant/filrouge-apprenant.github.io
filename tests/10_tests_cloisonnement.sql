@@ -874,5 +874,26 @@ set local role anon;
 select tests.doit_etre_refuse($$select * from public.comptes_rendus$$, 'visiteur non connecté : aucun compte rendu');
 rollback;
 
+\echo '== 21. Effacer un commentaire : la copie dans le fil disparaît avec l''original'
+begin;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+set local role authenticated;
+select public.noter_appel('a1000000-0000-4000-8000-000000000004', 'joint', 'telephone', now() - interval '1 hour', 'Appel à effacer', 'Note à effacer', '', null) as id_appel \gset
+select tests.verifier((select count(*) from public.commentaires where apprenant_id = 'a1000000-0000-4000-8000-000000000004' and contenu in ('Note à effacer') ) = 1, 'avant : la note interne est dans le fil');
+delete from public.notes_internes where appel_id = :'id_appel';
+select tests.verifier((select count(*) from public.commentaires where contenu = 'Note à effacer') = 0, 'note interne effacée : sa copie quitte le fil');
+delete from public.appels where id = :'id_appel';
+select tests.verifier((select count(*) from public.commentaires where contenu like '%Appel à effacer%') = 0, 'appel effacé : son commentaire quitte le fil');
+insert into public.comptes_rendus (apprenant_id, organisme_id, contenu) values ('a1000000-0000-4000-8000-000000000004', 'a0000000-0000-4000-8000-000000000001', 'CR à effacer');
+delete from public.comptes_rendus where contenu = 'CR à effacer';
+select tests.verifier((select count(*) from public.commentaires where contenu = 'CR à effacer') = 0, 'compte rendu effacé : sa copie quitte le fil');
+insert into public.commentaires (apprenant_id, organisme_id, contenu) values ('a1000000-0000-4000-8000-000000000004', 'a0000000-0000-4000-8000-000000000001', 'À effacer');
+select tests.verifier(tests.lignes_touchees($$delete from public.commentaires where contenu = 'À effacer'$$) = 1, 'administratrice : efface un commentaire');
+select tests.session('44444444-4444-4444-8444-444444444444');
+select tests.verifier(tests.lignes_touchees($$delete from public.commentaires$$) = 0, 'appelante : ne peut rien effacer dans le fil');
+select tests.session('22222222-2222-4222-8222-222222222222');
+select tests.verifier(tests.lignes_touchees($$delete from public.comptes_rendus$$) = 0, 'client : ne peut pas effacer un compte rendu');
+rollback;
+
 \echo
 \echo 'TOUS LES TESTS SONT PASSÉS'

@@ -1129,3 +1129,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--violet); }
 
 .commentaire-compte_rendu { border-left-color: var(--alerte-vert); background: var(--alerte-vert-fond); }
 .bouton-coaching { border-color: var(--coaching-trait); color: var(--coaching-texte); }
+
+/* Effacer un commentaire */
+.commentaire-pied { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-top: 0.2rem; }
+.commentaire-pied .commentaire-auteur { margin: 0; }
+.effacer { display: inline-flex; gap: 0.6rem; align-items: center; }
+.bouton-effacer { font-size: 0.78rem; }
+.commentaire .bouton-effacer:not(:hover) { opacity: 0.7; }
