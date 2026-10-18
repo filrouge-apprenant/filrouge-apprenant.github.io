@@ -17,7 +17,7 @@ Le cahier des charges complet est dans le document « Plateforme Fil Rouge — C
 | 7. Comptes et portail client | Création des comptes clients et appelantes depuis l'onglet Accès, désactivation, apprenants confiés ; espace client en lecture seule avec exports | Terminée |
 | 8. Satisfaction des élèves | Onglet « Satisfaction » : envoi du questionnaire élève par élève, réponses privées, déblocage pour le client, récap mensuel ; page publique questionnaire.html | Terminée |
 | 9. Accès clients | Onglet « Accès clients » : période d'accès par compte (début, fin, +1 mois / +3 mois / +1 an), rubriques visibles par client (comptes rendus, examens, coaching, avis, Qualiopi), dernière connexion, alertes d'expiration ; appliqué par la base | Terminée |
-| 10. Comptabilité | Onglet « Comptabilité » de la fiche client : contrat (PDF dans un dossier sécurisé), échéancier mensuel (appels × tarif 20/15/12 € ou tarif du contrat), payé / à payer / en retard ; relances automatiques par Brevo (J+3, J+15, mise en demeure J+30, une marche à la fois, 7 jours d'écart) ; page « Impayés » | Terminée |
+| 10. Comptabilité | Onglet « Comptabilité » de la fiche client : contrat (PDF dans un dossier sécurisé), échéancier mensuel (appels × tarif 20/15/12 € ou tarif du contrat), payé / à payer / en retard ; alertes de relance J+3, J+15, mise en demeure J+30 (aucun envoi automatique : Émilie relance par email ou téléphone et note la relance) ; page « Impayés » | Terminée |
 | 7. Sécurité et mise en ligne | Plan Pro, nom de domaine, hébergement | À faire |
 
 ## Contenu du dossier

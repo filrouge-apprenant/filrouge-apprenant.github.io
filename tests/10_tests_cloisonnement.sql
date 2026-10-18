@@ -1086,9 +1086,10 @@ select tests.doit_etre_refuse(
   'mois avant le début du contrat : refusé');
 rollback;
 
--- Relances : niveau selon le retard, une seule fois par niveau, rien si suspendu.
+-- Relances : AUCUN envoi automatique ; la base signale la relance à faire.
 begin;
-insert into vault.secrets_test values ('brevo_cle', 'cle-de-test');
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+set local role authenticated;
 insert into public.contrats (organisme_id, date_debut, email_facturation)
 values ('a0000000-0000-4000-8000-000000000001', '2026-01-01', 'compta@horizon.example');
 insert into public.echeances (organisme_id, mois, reference, nb_appels, tarif_unitaire, montant, date_emission, date_echeance) values
@@ -1096,30 +1097,35 @@ insert into public.echeances (organisme_id, mois, reference, nb_appels, tarif_un
   ('a0000000-0000-4000-8000-000000000001', '2026-07-01', 'T-2', 5, 20, 100, prive.aujourdhui() - 60, prive.aujourdhui() - 20),
   ('a0000000-0000-4000-8000-000000000001', '2026-08-01', 'T-3', 5, 20, 100, prive.aujourdhui() - 70, prive.aujourdhui() - 31),
   ('a0000000-0000-4000-8000-000000000001', '2026-09-01', 'T-4', 5, 20, 100, prive.aujourdhui() - 30, prive.aujourdhui() - 1);
-select tests.verifier(prive.envoyer_relances() = 3, 'relances : 3 envoyées (J+5, J+20, J+31) ; rien à J+1');
 select tests.verifier(
-  (select string_agg(e.reference || '=' || r.niveau, ' ' order by e.reference) from public.relances_paiement r join public.echeances e on e.id = r.echeance_id) = 'T-1=1 T-2=1 T-3=1',
-  'première relance toujours au niveau 1, même très en retard (pas de mise en demeure d''emblée)');
-select tests.verifier((select count(*) from net.requetes_test where url like 'https://api.brevo.com/%' and body -> 'to' -> 0 ->> 'email' = 'compta@horizon.example') = 3,
-  'emails partis par Brevo vers l''email de facturation');
-select tests.verifier(prive.envoyer_relances() = 0, 'relances : rien de nouveau moins de 7 jours après la précédente');
-update public.relances_paiement set envoyee_le = now() - interval '8 days';
-select tests.verifier(prive.envoyer_relances() = 2, 'une semaine plus tard : relance de niveau 2 pour J+20 et J+31, rien pour J+5');
-update public.relances_paiement set envoyee_le = now() - interval '8 days';
-select tests.verifier(prive.envoyer_relances() = 1, 'encore une semaine : une seule relance envoyée');
+  (select string_agg(reference || '=' || coalesce(relance_due::text, '-'), ' ' order by reference) from public.vue_echeances) = 'T-1=1 T-2=1 T-3=1 T-4=-',
+  'alerte : rappel à faire dès J+3 (jamais de mise en demeure d''emblée) ; rien à J+1');
+select tests.verifier(to_regprocedure('prive.envoyer_relances()') is null and to_regprocedure('prive.envoyer_email_brevo(text,text,text)') is null,
+  'aucune fonction d''envoi automatique dans la base');
+insert into public.relances_paiement (echeance_id, organisme_id, niveau, canal, note)
+select id, 'b0000000-0000-4000-8000-000000000002', 1, 'telephone', 'Appel à la comptable' from public.echeances where reference = 'T-3';
 select tests.verifier(
-  (select string_agg(e.reference || '=' || r.niveau, ' ' order by e.reference, r.niveau) from public.relances_paiement r join public.echeances e on e.id = r.echeance_id)
-  = 'T-1=1 T-2=1 T-2=2 T-3=1 T-3=2 T-3=3',
-  'mise en demeure (niveau 3) seulement pour J+31, après les deux relances précédentes');
-update public.relances_paiement set envoyee_le = now() - interval '8 days';
-select tests.verifier(prive.envoyer_relances() = 0, 'relances : jamais plus de 3 niveaux');
-update public.echeances set relances_suspendues = true where reference = 'T-4';
-update public.echeances set date_echeance = prive.aujourdhui() - 4 where reference = 'T-4';
-select tests.verifier(prive.envoyer_relances() = 0, 'relances suspendues sur une échéance : rien n''est envoyé');
-update public.contrats set relances_auto = false;
-update public.echeances set relances_suspendues = false where reference = 'T-4';
-select tests.verifier(prive.envoyer_relances() = 0, 'relances automatiques coupées sur le contrat : rien n''est envoyé');
-select tests.verifier((select texte like '%L441-10%' from public.relances_paiement where niveau = 3), 'mise en demeure : mentionne pénalités et indemnité de 40 €');
+  (select organisme_id = 'a0000000-0000-4000-8000-000000000001' and auteur_id = auth.uid() from public.relances_paiement),
+  'relance notée : organisme et auteur posés par la base');
+select tests.verifier((select relance_due is null from public.vue_echeances where reference = 'T-3'), 'relance notée : l''alerte s''éteint');
+update public.relances_paiement set faite_le = now() - interval '8 days';
+select tests.verifier((select relance_due = 2 from public.vue_echeances where reference = 'T-3'), '7 jours plus tard, J+31 : alerte pour la relance de niveau 2');
+insert into public.relances_paiement (echeance_id, organisme_id, niveau, canal) select id, organisme_id, 2, 'email' from public.echeances where reference = 'T-3';
+update public.relances_paiement set faite_le = now() - interval '8 days';
+select tests.verifier((select relance_due = 3 from public.vue_echeances where reference = 'T-3'), 'encore 7 jours : alerte mise en demeure (niveau 3)');
+insert into public.relances_paiement (echeance_id, organisme_id, niveau, canal) select id, organisme_id, 3, 'courrier' from public.echeances where reference = 'T-3';
+update public.relances_paiement set faite_le = now() - interval '30 days';
+select tests.verifier((select relance_due is null from public.vue_echeances where reference = 'T-3'), 'après la mise en demeure : plus d''alerte automatique');
+update public.echeances set alertes_suspendues = true where reference = 'T-1';
+select tests.verifier((select relance_due is null from public.vue_echeances where reference = 'T-1'), 'alertes en pause sur une échéance : pas d''alerte');
+update public.echeances set alertes_suspendues = false where reference = 'T-1';
+update public.contrats set alertes_relance = false;
+select tests.verifier((select count(*) from public.vue_echeances where relance_due is not null) = 0, 'alertes coupées sur le contrat : aucune alerte');
+update public.echeances set payee_le = prive.aujourdhui() where reference = 'T-2';
+update public.contrats set alertes_relance = true;
+select tests.verifier((select relance_due is null from public.vue_echeances where reference = 'T-2'), 'échéance payée : plus d''alerte');
+select tests.verifier((select texte like '%L441-10%' from public.apercu_relance((select id from public.echeances where reference = 'T-3'), 3)),
+  'texte de mise en demeure prêt : mentionne pénalités et indemnité de 40 €');
 rollback;
 
 -- Cloisonnement : rien de la comptabilité pour un client ni une appelante.
@@ -1131,7 +1137,7 @@ select tests.session('22222222-2222-4222-8222-222222222222');
 set local role authenticated;
 select tests.verifier((select count(*) from public.contrats) = 0 and (select count(*) from public.echeances) = 0, 'client : ne voit ni contrat ni échéances, même les siens');
 select tests.doit_etre_refuse($$select public.calculer_echeance('a0000000-0000-4000-8000-000000000001', '2026-06-01')$$, 'client : ne peut pas calculer une échéance');
-select tests.doit_etre_refuse($$select prive.envoyer_relances()$$, 'client : ne peut pas déclencher de relances');
+select tests.doit_etre_refuse($$select * from public.apercu_relance(gen_random_uuid(), 1)$$, 'client : pas de texte de relance');
 reset role;
 select tests.session('44444444-4444-4444-8444-444444444444');
 set local role authenticated;

@@ -5,17 +5,14 @@
 -- programmées, appels web, stockage de fichiers — absents de la base de test.)
 --
 --   Le 1er de chaque mois à 7 h (Paris) : échéances du mois écoulé.
---   Chaque jour à 9 h (Paris) : relances des échéances en retard.
+--   Aucune relance automatique : la plateforme alerte, l'administratrice relance.
 --   Dossier « contrats » : PDF signés, lisibles par l'administratrice seule.
 -- =============================================================================
 
-create extension if not exists pg_net with schema extensions;
 create extension if not exists pg_cron;
 
--- Les heures de cron sont en UTC : 5 h et 7 h UTC = 7 h et 9 h à Paris (été),
--- 6 h et 8 h l'hiver.
+-- Heure de cron en UTC : 5 h UTC = 7 h à Paris l'été, 6 h l'hiver.
 select cron.schedule('fil-rouge-echeances-mensuelles', '0 5 1 * *', $$select prive.generer_echeances_mois_ecoule()$$);
-select cron.schedule('fil-rouge-relances-impayes', '0 7 * * *', $$select prive.envoyer_relances()$$);
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('contrats', 'contrats', false, 10485760, array['application/pdf'])

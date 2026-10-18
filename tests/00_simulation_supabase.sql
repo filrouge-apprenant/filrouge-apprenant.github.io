@@ -56,13 +56,3 @@ alter default privileges in schema public grant all on tables to anon, authentic
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
 
--- Coffre-fort (Vault) et appels web (pg_net) : de quoi tester les relances.
-create schema if not exists vault;
-create table vault.secrets_test (name text primary key, decrypted_secret text);
-create view vault.decrypted_secrets as select name, decrypted_secret from vault.secrets_test;
-create schema if not exists net;
-create table net.requetes_test (id bigserial primary key, url text, headers jsonb, body jsonb);
-create function net.http_post(url text, body jsonb default '{}', params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds integer default 5000)
-returns bigint language sql as $$
-  insert into net.requetes_test (url, headers, body) values (url, headers, body) returning id
-$$;

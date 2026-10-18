@@ -5,13 +5,16 @@
 --   echeances           une échéance par mois facturé :
 --                       appels du mois × tarif (20 € / 15 € / 12 € selon le
 --                       nombre d'apprenants, ou tarif fixé au contrat)
---   relances_paiement   relances envoyées : J+3, J+15, J+30 (mise en demeure)
---   vue_echeances       statut calculé : payée, à payer, en retard, annulée
+--   relances_paiement   relances FAITES PAR L'ADMINISTRATRICE (email, appel…)
+--   vue_echeances       statut calculé : payée, à payer, en retard, annulée,
+--                       et « relance_due » : l'alerte de relance à faire
 --
 -- Calcul : public.calculer_echeance(organisme, mois) — appelé chaque 1er du
 -- mois pour le mois écoulé (voir le fichier « planification »), ou à la main.
--- Relances : prive.envoyer_relances() — chaque matin, envoie par Brevo la
--- relance due, une seule fois par niveau, copie à la boîte Fil Rouge.
+-- Relances : AUCUN envoi automatique. La base signale la relance à faire
+-- (rappel à J+3, relance à J+15, mise en demeure à J+30, une marche à la fois,
+-- 7 jours au moins entre deux) ; l'administratrice relance elle-même puis
+-- note sa relance, ce qui fait avancer l'alerte.
 --
 -- Tout est réservé à l'administratrice (double authentification).
 -- =============================================================================
@@ -32,7 +35,7 @@ create table public.contrats (
   tarif_fixe            numeric(8,2) check (tarif_fixe is null or tarif_fixe > 0),
   delai_paiement_jours  smallint not null default 30 check (delai_paiement_jours between 0 and 60),
   email_facturation     text check (email_facturation is null or email_facturation ~ '^[^\s@]+@[^\s@]+\.[^\s@]{2,}$'),
-  relances_auto         boolean not null default true,
+  alertes_relance       boolean not null default true,
   reference_mandat      text check (char_length(reference_mandat) <= 100),
   fichier_chemin        text,
   fichier_nom           text,
@@ -68,7 +71,7 @@ create table public.echeances (
   date_echeance         date not null,
   payee_le              date,
   annulee               boolean not null default false,
-  relances_suspendues   boolean not null default false,
+  alertes_suspendues    boolean not null default false,
   note                  text check (char_length(note) <= 1000),
   cree_le               timestamptz not null default now(),
   modifie_le            timestamptz not null default now(),
@@ -87,20 +90,39 @@ create trigger journal_echeances after insert or update or delete on public.eche
 -- Relances envoyées
 -- -----------------------------------------------------------------------------
 
+create type public.canal_relance as enum ('email', 'telephone', 'courrier', 'autre');
+
 create table public.relances_paiement (
   id             uuid primary key default gen_random_uuid(),
   echeance_id    uuid not null references public.echeances (id) on delete cascade,
   organisme_id   uuid not null references public.organismes (id) on delete cascade,
   niveau         smallint not null check (niveau between 1 and 3),
-  envoyee_le     timestamptz not null default now(),
-  destinataire   text not null,
-  objet          text not null,
-  texte          text not null,
-  requete_id     bigint,
-  unique (echeance_id, niveau)
+  canal          public.canal_relance not null default 'email',
+  faite_le       timestamptz not null default now(),
+  auteur_id      uuid default auth.uid() references public.profils (id) on delete set null,
+  note           text check (char_length(note) <= 1000)
 );
 
-comment on table public.relances_paiement is 'Relances d''impayés envoyées (1 = rappel J+3, 2 = relance J+15, 3 = mise en demeure J+30).';
+comment on table public.relances_paiement is 'Relances d''impayés faites par l''administratrice (1 = rappel, 2 = relance, 3 = mise en demeure). Aucun envoi automatique.';
+
+-- L'organisme et l'auteur sont posés par la base, jamais par l'écran.
+create or replace function prive.relance_preparer()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  select e.organisme_id into new.organisme_id from public.echeances e where e.id = new.echeance_id;
+  new.auteur_id := auth.uid();
+  return new;
+end;
+$$;
+
+create trigger relances_paiement_preparer before insert on public.relances_paiement
+  for each row execute function prive.relance_preparer();
+create trigger journal_relances_paiement after insert or update or delete on public.relances_paiement
+  for each row execute function prive.journaliser();
 
 alter table public.contrats enable row level security;
 alter table public.echeances enable row level security;
@@ -110,28 +132,49 @@ create policy contrats_admin on public.contrats for all to authenticated
   using (prive.est_admin()) with check (prive.est_admin());
 create policy echeances_admin on public.echeances for all to authenticated
   using (prive.est_admin()) with check (prive.est_admin());
-create policy relances_paiement_admin_lecture on public.relances_paiement for select to authenticated
-  using (prive.est_admin());
+create policy relances_paiement_admin on public.relances_paiement for all to authenticated
+  using (prive.est_admin()) with check (prive.est_admin());
 
 -- -----------------------------------------------------------------------------
 -- Statut calculé
 -- -----------------------------------------------------------------------------
 
+-- relance_due : niveau de la relance à faire (1, 2 ou 3), ou vide.
+--   1 = rappel dès J+3, 2 = relance dès J+15, 3 = mise en demeure dès J+30 ;
+--   une marche à la fois, au moins 7 jours après la relance précédente ;
+--   rien si l'échéance est payée, annulée, en pause, ou si le contrat coupe les alertes.
 create view public.vue_echeances with (security_invoker = true) as
-select e.*,
-  o.nom as organisme_nom,
+select b.*,
   case
-    when e.annulee then 'annulee'
-    when e.payee_le is not null then 'payee'
-    when e.date_echeance < prive.aujourdhui() then 'en_retard'
-    else 'a_payer'
-  end as statut,
-  case when e.payee_le is null and not e.annulee and e.date_echeance < prive.aujourdhui()
-       then prive.aujourdhui() - e.date_echeance else 0 end as jours_retard,
-  (select max(r.niveau) from public.relances_paiement r where r.echeance_id = e.id) as derniere_relance,
-  (select max(r.envoyee_le) from public.relances_paiement r where r.echeance_id = e.id) as derniere_relance_le
-from public.echeances e
-join public.organismes o on o.id = e.organisme_id;
+    when b.statut = 'en_retard' and not b.alertes_suspendues and b.alertes_contrat
+     and coalesce(b.derniere_relance, 0) < 3
+     and b.jours_retard >= (array[3, 15, 30])[coalesce(b.derniere_relance, 0) + 1]
+     and (b.derniere_relance_le is null or b.derniere_relance_le <= now() - interval '7 days')
+    then coalesce(b.derniere_relance, 0) + 1
+  end as relance_due
+from (
+  select e.*,
+    o.nom as organisme_nom,
+    case
+      when e.annulee then 'annulee'
+      when e.payee_le is not null then 'payee'
+      when e.date_echeance < prive.aujourdhui() then 'en_retard'
+      else 'a_payer'
+    end as statut,
+    case when e.payee_le is null and not e.annulee and e.date_echeance < prive.aujourdhui()
+         then prive.aujourdhui() - e.date_echeance else 0 end as jours_retard,
+    (select max(r.niveau) from public.relances_paiement r where r.echeance_id = e.id) as derniere_relance,
+    (select max(r.faite_le) from public.relances_paiement r where r.echeance_id = e.id) as derniere_relance_le,
+    coalesce(c.alertes_relance, true) as alertes_contrat,
+    c.email_facturation,
+    s.contact_email,
+    s.contact_telephone,
+    s.contact_nom
+  from public.echeances e
+  join public.organismes o on o.id = e.organisme_id
+  left join public.contrats c on c.organisme_id = e.organisme_id
+  left join public.organismes_suivi_commercial s on s.organisme_id = e.organisme_id
+) b;
 
 -- -----------------------------------------------------------------------------
 -- Calcul d'une échéance
@@ -266,21 +309,9 @@ end;
 $$;
 
 -- -----------------------------------------------------------------------------
--- Relances automatiques (Brevo)
+-- Texte des relances : prêt à envoyer par l'administratrice (email) ou à
+-- suivre au téléphone. Rien n'est envoyé par la base.
 -- -----------------------------------------------------------------------------
--- La clé Brevo est rangée dans le coffre-fort de Supabase (Vault), sous le nom
--- « brevo_cle » ; elle n'apparaît jamais dans le code ni dans la plateforme.
-
-create table prive.reglages_relances (
-  id                 boolean primary key default true check (id),
-  expediteur_email   text not null default 'contact.filrouge.apprenant@gmail.com',
-  expediteur_nom     text not null default 'Émilie Rachas · Fil Rouge Apprenants',
-  copie_email        text not null default 'contact.filrouge.apprenant@gmail.com',
-  jours_niveau_1     smallint not null default 3,
-  jours_niveau_2     smallint not null default 15,
-  jours_niveau_3     smallint not null default 30
-);
-insert into prive.reglages_relances default values;
 
 create or replace function prive.texte_relance(p_niveau integer, e public.vue_echeances, c public.contrats)
 returns table (objet text, texte text)
@@ -316,82 +347,7 @@ as $$
     || E'\n\n' || 'Cordialement,' || E'\n' || 'Émilie Rachas' || E'\n' || 'Fil Rouge Apprenants' || E'\n' || 'contact.filrouge.apprenant@gmail.com'
 $$;
 
--- Envoi d'un email par l'API Brevo (asynchrone, via pg_net).
-create or replace function prive.envoyer_email_brevo(p_destinataire text, p_objet text, p_texte text)
-returns bigint
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  r prive.reglages_relances;
-  v_cle text;
-begin
-  select * into r from prive.reglages_relances;
-  select decrypted_secret into v_cle from vault.decrypted_secrets where name = 'brevo_cle' limit 1;
-  if v_cle is null then
-    raise exception 'Clé Brevo absente du coffre-fort (nom attendu : brevo_cle).' using errcode = 'P0001';
-  end if;
-  return net.http_post(
-    url := 'https://api.brevo.com/v3/smtp/email',
-    headers := jsonb_build_object('api-key', v_cle, 'Content-Type', 'application/json', 'accept', 'application/json'),
-    body := jsonb_build_object(
-      'sender', jsonb_build_object('name', r.expediteur_nom, 'email', r.expediteur_email),
-      'to', jsonb_build_array(jsonb_build_object('email', p_destinataire)),
-      'bcc', jsonb_build_array(jsonb_build_object('email', r.copie_email)),
-      'replyTo', jsonb_build_object('email', r.expediteur_email),
-      'subject', p_objet,
-      'textContent', p_texte)
-  );
-end;
-$$;
-
--- Chaque matin : pour chaque échéance en retard, envoie la relance suivante
--- si son délai est atteint (J+3, J+15, J+30), une seule fois par niveau.
--- Renvoie le nombre de relances envoyées.
-create or replace function prive.envoyer_relances()
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  r prive.reglages_relances;
-  e public.vue_echeances;
-  c public.contrats;
-  v_niveau integer;
-  v_dest text;
-  v_objet text;
-  v_texte text;
-  v_requete bigint;
-  v_seuil integer;
-  n integer := 0;
-begin
-  select * into r from prive.reglages_relances;
-  for e in select * from public.vue_echeances where statut = 'en_retard' and not relances_suspendues and montant > 0 loop
-    select * into c from public.contrats where organisme_id = e.organisme_id;
-    if c is null or not c.relances_auto then continue; end if;
-    -- Escalade une marche à la fois : jamais de mise en demeure sans relance
-    -- préalable, et au moins 7 jours entre deux relances.
-    v_niveau := coalesce(e.derniere_relance, 0) + 1;
-    if v_niveau > 3 then continue; end if;
-    v_seuil := (array[r.jours_niveau_1, r.jours_niveau_2, r.jours_niveau_3])[v_niveau];
-    if e.jours_retard < v_seuil then continue; end if;
-    if e.derniere_relance_le is not null and e.derniere_relance_le > now() - interval '7 days' then continue; end if;
-    v_dest := coalesce(c.email_facturation,
-      (select s.contact_email from public.organismes_suivi_commercial s where s.organisme_id = e.organisme_id));
-    if v_dest is null then continue; end if;
-    select t.objet, t.texte into v_objet, v_texte from prive.texte_relance(v_niveau, e, c) t;
-    v_requete := prive.envoyer_email_brevo(v_dest, v_objet, v_texte);
-    insert into public.relances_paiement (echeance_id, organisme_id, niveau, destinataire, objet, texte, requete_id)
-    values (e.id, e.organisme_id, v_niveau, v_dest, v_objet, v_texte, v_requete);
-    n := n + 1;
-  end loop;
-  return n;
-end;
-$$;
-
--- Aperçu de la prochaine relance d'une échéance (pour l'afficher sur la fiche).
+-- Texte de la relance à faire (pour l'email prérempli et le script d'appel).
 create or replace function public.apercu_relance(p_echeance uuid, p_niveau integer)
 returns table (objet text, texte text)
 language plpgsql
@@ -414,10 +370,7 @@ $$;
 
 revoke all on function prive.calculer_echeance(uuid, date) from public, anon, authenticated;
 revoke all on function prive.generer_echeances_mois_ecoule() from public, anon, authenticated;
-revoke all on function prive.envoyer_email_brevo(text, text, text) from public, anon, authenticated;
-revoke all on function prive.envoyer_relances() from public, anon, authenticated;
 revoke all on function public.calculer_echeance(uuid, date) from public, anon;
 grant execute on function public.calculer_echeance(uuid, date) to authenticated;
 revoke all on function public.apercu_relance(uuid, integer) from public, anon;
 grant execute on function public.apercu_relance(uuid, integer) to authenticated;
-revoke all on table prive.reglages_relances from public, anon, authenticated;

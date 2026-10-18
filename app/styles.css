@@ -1225,3 +1225,10 @@ label.case input {
 .champ-fichier { font: inherit; font-size: 0.9rem; max-width: 100%; }
 .paiement-ligne input[type="date"] { width: auto; }
 .ligne-detail .actions-ligne { align-items: center; }
+.relance-bloc { border: 1px solid var(--filet); border-radius: var(--rayon); padding: 0.8rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; background: var(--fond); }
+.relance-due { border-color: var(--alerte-rouge); background: var(--alerte-rouge-fond); }
+.relance-titre { margin: 0; font-weight: 700; color: var(--texte); }
+.relance-due .relance-titre { color: var(--alerte-rouge); }
+.groupe-client { margin: 0 0 0.2rem; font-weight: 700; }
+.compteurs.compteurs-trois { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 34rem) { .compteurs.compteurs-trois { grid-template-columns: repeat(2, minmax(0, 1fr)); } .compteurs-trois .compteur:last-child { grid-column: 1 / -1; } }
