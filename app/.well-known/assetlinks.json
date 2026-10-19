@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "fr.filrouge.apprenants",
+      "sha256_cert_fingerprints": [
+        "3C:78:1B:CA:61:E8:59:39:31:C1:8E:F7:7F:37:8F:99:8A:12:FA:2B:D1:BE:57:22:DD:4D:C0:C7:46:97:0B:EF"
+      ]
+    }
+  }
+]

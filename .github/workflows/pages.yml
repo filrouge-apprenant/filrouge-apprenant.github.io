@@ -27,7 +27,7 @@ jobs:
       # Chaque mise en ligne porte un numéro de version unique : les navigateurs
       # rechargent aussitôt les fichiers modifiés au lieu de garder l'ancienne version.
       - name: Numéro de version des fichiers
-        run: sed -i "s/__VERSION__/${GITHUB_SHA::8}/g" app/*.html
+        run: sed -i "s/__VERSION__/${GITHUB_SHA::8}/g" app/*.html app/sw.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
