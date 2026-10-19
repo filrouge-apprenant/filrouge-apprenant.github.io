@@ -1,6 +1,7 @@
 # Construction de l'appli Android (Play Store) à partir du site.
 # Se lance après chaque mise en ligne du site, ou à la main (onglet Actions).
-# Produit un fichier .aab NON signé, déposé sur la branche « appli-android ».
+# Produit un fichier .aab NON signé, déposé sur la branche « appli-android »,
+# avec le journal de construction (journal.txt), même en cas d'échec.
 # La signature se fait hors de GitHub : la clé n'est jamais dans le dépôt.
 name: Appli Android
 
@@ -21,42 +22,52 @@ concurrency:
 jobs:
   construire:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
 
-      - name: Outil de génération
-        run: npm install --no-save --prefix android @bubblewrap/core@1
-
-      - name: Projet Android
-        run: NODE_PATH=android/node_modules node android/generer.js build-android "${{ github.run_number }}"
-
-      - name: Compilation (fichier .aab pour le Play Store)
-        working-directory: build-android
+      - name: Construction
+        id: construction
+        shell: bash
         run: |
-          chmod +x gradlew
-          ./gradlew --no-daemon bundleRelease
+          set -o pipefail
+          mkdir -p /tmp/sortie
+          {
+            echo "== Outil de génération"
+            npm install --no-save --prefix android @bubblewrap/core@1
+            echo "== Projet Android"
+            NODE_PATH=android/node_modules node android/generer.js build-android "${{ github.run_number }}"
+            echo "== Compilation"
+            cd build-android
+            chmod +x gradlew
+            ./gradlew --no-daemon bundleRelease
+            cd ..
+            cp build-android/app/build/outputs/bundle/release/*.aab /tmp/sortie/fil-rouge-apprenants-non-signe.aab
+            cp build-android/twa-manifest.json /tmp/sortie/
+            echo "== Terminé"
+          } 2>&1 | tee /tmp/sortie/journal.txt
 
       - name: Dépôt sur la branche appli-android
+        if: always()
+        shell: bash
         run: |
-          mkdir -p /tmp/sortie
-          cp build-android/app/build/outputs/bundle/release/*.aab /tmp/sortie/fil-rouge-apprenants-non-signe.aab
-          cp build-android/twa-manifest.json /tmp/sortie/
-          echo "Version ${{ github.run_number }} — construite le $(date -u +%Y-%m-%dT%H:%MZ) depuis ${GITHUB_SHA::8}" > /tmp/sortie/VERSION.txt
+          etat="${{ steps.construction.outcome }}"
+          echo "Version ${{ github.run_number }} ($etat) — $(date -u +%Y-%m-%dT%H:%MZ) depuis ${GITHUB_SHA::8}" > /tmp/sortie/VERSION.txt
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          git checkout --orphan appli-android
+          git checkout -q --orphan appli-android
           git rm -rf . -q
+          rm -rf build-android android/node_modules
           cp /tmp/sortie/* .
-          git add -A
-          git commit -q -m "Appli Android, version ${{ github.run_number }}"
-          git push -f origin appli-android
+          git add VERSION.txt journal.txt $(ls *.aab twa-manifest.json 2>/dev/null)
+          git commit -q -m "Appli Android, version ${{ github.run_number }} ($etat)"
+          git push -q -f origin appli-android
