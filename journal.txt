@@ -1,0 +1,67 @@
+== Écran après connexion ==
+Fil Rouge Apprenants
+
+Démonstration (Google Play) · Espace client
+Se déconnecter
+
+ESPACE CLIENT
+
+Académie Horizon (fictif)
+
+Le suivi de vos apprenants, mis à jour après chaque appel.
+
+20
+apprenants suivis
+3
+à jour
+3
+à surveiller
+14
+en alerte
+Jusqu'à l'examen
+Dossier de preuves Qualiopi
+2
+examens à venir
+50 %
+taux de présence
+100 %
+taux de réussite
+2
+examens renseignés
+Inscrits en	Examens	Présents	Absents	Présence	Réussis	Réussite
+Mai 2026	1	1	0	100 %	1	100 %
+Juin 2026	1	0	0	—	0	—
+Juillet 2026	2	0	1	0 %	0	—
+Août 2026	0	0	0	—	0	—
+Septembre 2026	2	0	0	—	0	—
+Octobre 2026	0	0	0	—	0	—
+Total	6	1	1	50 %	1	100 %
+
+Taux de présence = présents ÷ (présents + absents). Taux de réussite = réussis ÷ résultats connus. 2 examens passés ne sont pas encore renseignés : il n'entre pas dans les taux. Taux de présence avant Fil Rouge : 70 %.
+
+Vos apprenants
+
+Les plus urgents en premier
+
+Manon Lemoine
+134 j · en alerte
+Titre pro Secrétaire assistant(e) · 0 tentative · 0 contact abouti
+Inès Ferreira
+131 j · en alerte
+Titre pro Secrétaire assistant(e) · 0 tentative · 0 contact abouti
+Moussa Traoré
+57 j · en alerte
+Titre pro Secrétaire assistant(e) · 0 tentative · 0 contact abouti
+Chloé Perrin
+55 j · en alerte
+BTS Gestion de la PME · 0 tentative · 0 contact abouti
+Kevin Morel
+53 j · en alerte
+Titre pro Comptable assistant(e) · 0 tentative · 0 contact abouti
+Pauline Simon
+49 j · en alerte
+Titre pro Secrétaire assistant(e) · 0 tentative · 0 contact abouti
+Samir Haddou
+41 j · en alerte
+BTS Gestion de la P
+== RÉUSSI : connexion démo OK, uniquement l'organisme fictif, aucune rubrique d'administration ==
