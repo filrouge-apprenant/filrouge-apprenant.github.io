@@ -24,29 +24,39 @@ async function main() {
   const manifesteWeb = JSON.parse(
     fs.readFileSync(path.join(__dirname, "..", "app", "manifest.webmanifest"), "utf8")
   );
-  const twa = TwaManifest.fromWebManifestJson(new URL(SITE + "/manifest.webmanifest"), manifesteWeb);
+  // Valeurs par défaut tirées du manifeste du site, puis réglages propres à l'appli.
+  const base = TwaManifest.fromWebManifestJson(
+    new URL(SITE + "/manifest.webmanifest"),
+    manifesteWeb
+  ).toJson();
 
-  twa.packageId = PAQUET;
-  twa.host = "filrouge-apprenant.github.io";
-  twa.name = "Fil Rouge Apprenants";
-  twa.launcherName = "Fil Rouge";
-  twa.startUrl = "/?source=appli";
-  twa.themeColor = "#ffffff";
-  twa.navigationColor = "#ffffff";
-  twa.backgroundColor = "#ffffff";
-  twa.enableNotifications = false;
-  twa.fallbackType = "customtabs";
-  twa.appVersionCode = Number(numero);
-  twa.appVersionName = "1.0." + numero;
-  twa.signingKey = { path: "./signature.keystore", alias: "filrouge" };
+  const twa = new TwaManifest({
+    ...base,
+    packageId: PAQUET,
+    host: "filrouge-apprenant.github.io",
+    name: "Fil Rouge Apprenants",
+    launcherName: "Fil Rouge",
+    startUrl: "/?source=appli",
+    themeColor: "#ffffff",
+    navigationColor: "#ffffff",
+    navigationColorDark: "#ffffff",
+    navigationDividerColor: "#ffffff",
+    navigationDividerColorDark: "#ffffff",
+    backgroundColor: "#ffffff",
+    enableNotifications: false,
+    fallbackType: "customtabs",
+    appVersionCode: Number(numero),
+    appVersion: "1.0." + numero,
+    signingKey: { path: "./signature.keystore", alias: "filrouge" },
+  });
 
-  const erreur = twa.validate();
+  const erreur = typeof twa.validate === "function" ? twa.validate() : null;
   if (erreur) throw new Error("Manifeste invalide : " + erreur);
 
   fs.mkdirSync(sortie, { recursive: true });
   fs.writeFileSync(path.join(sortie, "twa-manifest.json"), JSON.stringify(twa.toJson(), null, 2));
   await new TwaGenerator().createTwaProject(sortie, twa, new ConsoleLog("generer"));
-  console.log("Projet Android généré dans", sortie, "— version", twa.appVersionName);
+  console.log("Projet Android généré dans", sortie, "— version", twa.appVersionName || twa.appVersion);
 }
 
 main().catch((e) => {
