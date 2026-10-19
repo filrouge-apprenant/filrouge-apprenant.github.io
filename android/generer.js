@@ -47,6 +47,7 @@ async function main() {
     fallbackType: "customtabs",
     appVersionCode: Number(numero),
     appVersion: "1.0." + numero,
+    minSdkVersion: 24, // Android 7.0 minimum (exigé par la bibliothèque Google)
     signingKey: { path: "./signature.keystore", alias: "filrouge" },
   });
 
