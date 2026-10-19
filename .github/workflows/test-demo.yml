@@ -1,0 +1,54 @@
+# Test du compte de démonstration sur le site en ligne + captures d'écran
+# pour la fiche Play Store (données 100 % fictives).
+# Lancement à la main (onglet Actions), avec le mot de passe du compte démo.
+# Résultat (captures + journal) déposé sur la branche « captures-play-store ».
+name: Test compte démo
+
+on:
+  workflow_dispatch:
+    inputs:
+      mot_de_passe:
+        description: "Mot de passe du compte de démonstration"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  tester:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Navigateur
+        run: |
+          pip install -q playwright==1.55.0
+          python -m playwright install --with-deps chromium
+
+      - name: Connexion démo et captures
+        id: test
+        shell: bash
+        env:
+          MDP_DEMO: ${{ inputs.mot_de_passe }}
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/sortie
+          python tests/demo_play_store.py /tmp/sortie 2>&1 | tee /tmp/sortie/journal.txt
+
+      - name: Dépôt sur la branche captures-play-store
+        if: always()
+        shell: bash
+        run: |
+          echo "Test ${{ steps.test.outcome }} — $(date -u +%Y-%m-%dT%H:%MZ) depuis ${GITHUB_SHA::8}" > /tmp/sortie/RESULTAT.txt
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git checkout -q --orphan captures-play-store
+          git rm -rf . -q
+          cp /tmp/sortie/* .
+          git add -A
+          git commit -q -m "Captures Play Store (${{ steps.test.outcome }})"
+          git push -q -f origin captures-play-store

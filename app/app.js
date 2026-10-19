@@ -246,10 +246,18 @@
     });
     const bouton = h("button", { class: "bouton", type: "submit" }, "Recevoir mon lien de connexion");
 
+    // Connexion par mot de passe : réservée au compte de démonstration
+    // (vérification Google Play, démos prospects). Les vrais comptes n'ont pas
+    // de mot de passe et passent toujours par le code envoyé par email.
+    const lienMotDePasse = h("button", {
+      class: "bouton-lien", type: "button", onclick: () => ecranMotDePasse(),
+    }, "Compte de démonstration");
+
     const formulaire = h("form", { novalidate: true },
       h("label", { for: "champ-email" }, "Adresse email", champ),
       zone,
-      bouton
+      bouton,
+      h("div", { class: "actions-secondaires" }, lienMotDePasse)
     );
 
     formulaire.addEventListener("submit", async (evenement) => {
@@ -284,6 +292,64 @@
         h("div", { class: "carte" }, formulaire)
       )
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Écran 1 bis : compte de démonstration (email + mot de passe)
+  // ---------------------------------------------------------------------------
+  // Le compte de démonstration est un compte client rattaché à l'organisme
+  // fictif : il ne voit que des données inventées, en lecture seule (règles de
+  // la base). Il sert à la vérification de l'appli par Google Play.
+
+  function ecranMotDePasse() {
+    const zone = h("div");
+    const champEmail = h("input", {
+      id: "champ-email-demo", type: "email", name: "email", autocomplete: "username",
+      required: true, inputmode: "email", value: etat.email,
+    });
+    const champMdp = h("input", {
+      id: "champ-mdp-demo", type: "password", name: "password", autocomplete: "current-password", required: true,
+    });
+    const bouton = h("button", { class: "bouton", type: "submit" }, "Me connecter");
+    const retour = h("button", { class: "bouton-lien", type: "button", onclick: () => ecranEmail() }, "Revenir à la connexion par email");
+
+    const formulaire = h("form", { novalidate: true },
+      h("label", { for: "champ-email-demo" }, "Adresse email", champEmail),
+      h("label", { for: "champ-mdp-demo" }, "Mot de passe", champMdp),
+      zone,
+      bouton,
+      h("div", { class: "actions-secondaires" }, retour)
+    );
+
+    formulaire.addEventListener("submit", async (evenement) => {
+      evenement.preventDefault();
+      const email = champEmail.value.trim().toLowerCase();
+      if (!email || !champMdp.value) {
+        return signaler(zone, "erreur", "Saisissez l'adresse email et le mot de passe du compte de démonstration.");
+      }
+      signaler(zone);
+      occupe(bouton, true, "Vérification…");
+      const { error } = await sb.auth.signInWithPassword({ email, password: champMdp.value });
+      occupe(bouton, false);
+      if (error) {
+        // Message volontairement identique quel que soit le motif.
+        return signaler(zone, "erreur", "Adresse ou mot de passe incorrect.");
+      }
+      etat.email = email;
+      aiguiller();
+    });
+
+    afficher(
+      h("div", { class: "pile" },
+        h("div", {},
+          h("p", { class: "surtitre" }, "Connexion"),
+          h("h1", {}, "Compte de démonstration"),
+          h("p", { class: "chapo" }, "Accès de démonstration, avec des apprenants fictifs, en lecture seule. Les organismes clients et l'équipe se connectent avec le code reçu par email.")
+        ),
+        h("div", { class: "carte" }, formulaire)
+      )
+    );
+    champEmail.focus();
   }
 
   // ---------------------------------------------------------------------------
