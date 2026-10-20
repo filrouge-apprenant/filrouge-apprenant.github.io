@@ -767,6 +767,7 @@
     if (morceaux[0] === "impayes") return { nom: "impayes" };
     if (morceaux[0] === "devis") return { nom: "devis" };
     if (morceaux[0] === "satisfaction") return { nom: "satisfaction", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
+    if (morceaux[0] === "entrainement") return { nom: "entrainement", morceaux: morceaux.slice(1).filter((m) => m === "nouveau" || /^[a-z]+$/.test(m) || UUID.test(m)) };
     if (morceaux[0] === "coaching") return { nom: "coaching", type: morceaux[1] || "stage", id: UUID.test(morceaux[2] || "") ? morceaux[2] : null };
     return { nom: "accueil" };
   }
@@ -793,6 +794,7 @@
     chargerMenu();
     if (route.nom === "eleves") return ecranDossierEleves(route.id);
     if (route.nom === "coaching") return ecranCoaching(route.type, route.id);
+    if (route.nom === "entrainement") return entrainement().route(route.morceaux);
     if (route.nom === "satisfaction") return ecranSatisfaction(route.id);
     if (route.nom === "impayes") return ecranImpayes();
     if (route.nom === "devis") return ecranDevis();
@@ -822,7 +824,21 @@
     if (!etat.profil || etat.profil.role !== "appelante") return aiguiller();
     const route = lireRoute();
     if (route.nom === "apprenant") return ecranApprenant(route.id);
+    if (route.nom === "entrainement") return entrainement().route(route.morceaux);
     return accueilAppelante(etat.profil);
+  }
+
+  // Entraînement aux appels (entrainement.js) : simulateur avec un apprenant joué par l'IA.
+  let moduleEntrainement = null;
+  function entrainement() {
+    if (!moduleEntrainement) {
+      moduleEntrainement = window.FilRougeEntrainement({
+        sb, h, afficher, message, texteErreur, champTexte, champChoix,
+        role: () => etat.profil?.role,
+        monId: () => etat.profil?.id,
+      });
+    }
+    return moduleEntrainement;
   }
 
   window.addEventListener("hashchange", () => {
@@ -3669,6 +3685,9 @@
           h("h1", {}, "Qui rappeler en premier ?"),
           h("p", { class: "chapo" }, "Les apprenants qui vous sont confiés, les plus urgents en premier.")
         ),
+        h("div", { class: "message message-info entr-invitation" },
+          h("span", {}, "Nouvelle dans l'équipe, ou envie de progresser ? Entraînez-vous avec un apprenant fictif joué par l'IA."),
+          h("a", { class: "bouton bouton-petit", href: "#/entrainement" }, "S'entraîner aux appels")),
         listeApprenants(trierParUrgence(data))
       )
     );
@@ -4113,7 +4132,8 @@
         lien("satisfaction", "Satisfaction", d.avis ? nombre(d.avis, true) : null),
         lien("acces", "Accès clients", d.acces ? nombre(d.acces, true) : null),
         lien("impayes", "Impayés", d.impayes ? nombre(d.impayes, true) : null),
-        lien("devis", "Demandes de devis", d.devis ? nombre(d.devis, true) : null)),
+        lien("devis", "Demandes de devis", d.devis ? nombre(d.devis, true) : null),
+        lien("entrainement", "Entraînement aux appels")),
       groupe("prospects", "Prospects", [
         lien("prospection", "Tous les centres à démarcher"),
         lien("nouveau", "Ajouter un centre"),

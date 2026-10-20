@@ -1279,3 +1279,58 @@ label.case input {
 .propo-demande-bloc p { margin: 0.15rem 0; }
 .propo-resume { margin: 0; font-weight: 700; color: var(--violet); }
 .propo a { overflow-wrap: anywhere; }
+
+/* =============================================================================
+   Entraînement aux appels (entrainement.js)
+   Fond blanc, filets roses, bulles sans aplat foncé.
+   ============================================================================= */
+
+.entr-invitation { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; }
+
+.entr-fiche { display: flex; flex-direction: column; gap: 0.75rem; }
+.entr-fiche h2 { margin: 0; }
+.entr-fiche p { margin: 0; }
+.entr-infos { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.25rem 1rem; margin: 0; font-size: 0.95rem; }
+.entr-infos dt { color: var(--texte-doux); }
+.entr-infos dd { margin: 0; font-weight: 700; }
+.entr-objectif { padding: 0.7rem 0.85rem; border-left: 3px solid var(--violet); background: var(--fond-doux); border-radius: 0 var(--rayon) var(--rayon) 0; }
+.entr-depart select { font: inherit; font-weight: 400; padding: 0.6rem 0.7rem; border: 1px solid var(--filet); border-radius: var(--rayon); background: var(--fond); }
+
+.entr-tete { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; }
+.entr-tete h1 { margin: 0; }
+.entr-tete-droite { display: flex; align-items: center; gap: 0.5rem; font-variant-numeric: tabular-nums; font-size: 1.4rem; color: var(--violet); }
+.entr-voyant { width: 0.7rem; height: 0.7rem; border-radius: 50%; background: var(--alerte-vert); animation: entr-clignote 1.4s ease-in-out infinite; }
+@keyframes entr-clignote { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .entr-voyant { animation: none; } }
+
+.entr-fil {
+  display: flex; flex-direction: column; gap: 0.6rem;
+  max-height: 55vh; overflow-y: auto;
+  padding: 0.9rem; border: 1px solid var(--filet); border-radius: var(--rayon); background: var(--fond);
+}
+.entr-fil-relecture { max-height: none; margin-top: 0.75rem; }
+.entr-bulle { display: flex; flex-direction: column; gap: 0.15rem; max-width: 85%; padding: 0.55rem 0.8rem; border-radius: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.entr-apprenant { align-self: flex-start; background: var(--fond-doux); border: 1px solid var(--filet); border-bottom-left-radius: 3px; }
+.entr-appelante { align-self: flex-end; background: var(--rose); border: 1px solid var(--rose-fort); border-bottom-right-radius: 3px; }
+.entr-qui { font-size: 0.75rem; font-weight: 700; color: var(--violet-moyen); }
+.entr-etat { margin: 0; min-height: 1.5em; color: var(--texte-doux); font-style: italic; }
+
+.entr-saisie { display: flex; flex-direction: column; gap: 0.6rem; }
+.entr-saisie textarea { font: inherit; padding: 0.7rem 0.8rem; border: 1px solid var(--filet); border-radius: var(--rayon); width: 100%; resize: vertical; }
+.entr-label-cache { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.entr-micro[aria-pressed="true"] { border-style: dashed; color: var(--texte-doux); }
+.entr-fin { padding-top: 0.5rem; border-top: 1px solid var(--filet); }
+
+.entr-note { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.3rem 0.8rem; }
+.entr-note-chiffre { font-family: var(--police-titre); font-size: 4rem; line-height: 1; color: var(--violet); }
+.entr-note-sur { font-family: var(--police-titre); font-size: 1.8rem; color: var(--texte-doux); margin-left: -0.6rem; }
+.entr-jauge { display: inline-flex; align-items: center; gap: 0.25rem; }
+.entr-point { width: 0.75rem; height: 0.75rem; border-radius: 50%; border: 1px solid var(--violet-moyen); background: var(--fond); }
+.entr-point-plein { background: var(--violet-moyen); }
+.entr-jauge-texte { margin-left: 0.35rem; font-size: 0.85rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.entr-puces { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.35rem; }
+
+@media (max-width: 40rem) {
+  .entr-bulle { max-width: 92%; }
+  .entr-note-chiffre { font-size: 3.2rem; }
+}
