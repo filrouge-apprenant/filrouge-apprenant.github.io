@@ -1,17 +1,22 @@
 // =============================================================================
 // Fil Rouge Apprenants — fonction serveur « simulation-appel »
 // =============================================================================
-// Entraînement des appelantes : l'IA (Claude) joue un apprenant FICTIF au
-// téléphone, puis évalue l'appel selon la grille Fil Rouge.
+// Entraînement des appelantes : l'IA joue un apprenant FICTIF au téléphone,
+// puis évalue l'appel selon la grille Fil Rouge.
+//
+// IA utilisée (choisie selon le secret présent dans Supabase) :
+//   - MISTRAL_API_KEY   -> Mistral, formule gratuite « Experiment » (par défaut)
+//   - ANTHROPIC_API_KEY -> Claude (payant), seulement si Mistral n'est pas configuré
+// Seules des données fictives sont envoyées : jamais un vrai apprenant.
 //
 // Sécurité :
 //   1. Supabase refuse tout appel sans jeton de connexion (verify_jwt).
 //   2. La base dit si la personne peut s'entraîner (je_peux_m_entrainer :
 //      administratrice avec double authentification, ou appelante active).
-//   3. La clé de l'IA (secret ANTHROPIC_API_KEY) reste ici, jamais dans le site.
+//   3. La clé de l'IA (secret Supabase) reste ici, jamais dans le site.
 //   4. Seule cette fonction écrit les sessions : une appelante ne peut pas
 //      modifier sa transcription ni sa note.
-//   5. Garde-fous de coût : 25 appels d'entraînement par jour et par personne,
+//   5. Garde-fous d'usage : 25 appels d'entraînement par jour et par personne,
 //      40 répliques par appel, 600 caractères par réplique.
 //
 // Appels (POST, JSON) :
@@ -23,7 +28,8 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const ORIGINES_AUTORISEES = ["https://filrouge-apprenant.github.io"];
-const MODELE = Deno.env.get("ANTHROPIC_MODEL") ?? "claude-haiku-5-5";
+const MODELE_MISTRAL = Deno.env.get("MISTRAL_MODEL") ?? "mistral-small-latest";
+const MODELE_CLAUDE = Deno.env.get("ANTHROPIC_MODEL") ?? "claude-haiku-5-5";
 const MAX_APPELS_PAR_JOUR = 25;
 const MAX_REPLIQUES = 40;
 const MAX_CARACTERES = 600;
@@ -31,6 +37,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FIN_APPEL = "[RACCROCHE]";
 
 type Replique = { qui: "appelante" | "apprenant"; texte: string };
+type Message = { role: "user" | "assistant"; content: string };
 
 function entetes(origine: string | null) {
   return {
@@ -59,21 +66,66 @@ const GRILLE = [
 ];
 
 // -----------------------------------------------------------------------------
-// Appel à l'IA
+// Appel à l'IA : renvoie le texte produit. json = true : réponse en JSON.
 // -----------------------------------------------------------------------------
-async function appelerIA(corps: Record<string, unknown>) {
-  const cle = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!cle) throw new Error("CLE_ABSENTE");
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "x-api-key": cle, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODELE, ...corps }),
-  });
+async function appelerIA(systeme: string, messages: Message[], maxTokens: number, json = false): Promise<string> {
+  const cleMistral = Deno.env.get("MISTRAL_API_KEY");
+  const cleClaude = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!cleMistral && !cleClaude) throw new Error("CLE_ABSENTE");
+
+  let r: Response;
+  if (cleMistral) {
+    r = await fetch("https://api.mistral.ai/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${cleMistral}`, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        model: MODELE_MISTRAL,
+        max_tokens: maxTokens,
+        temperature: json ? 0.2 : 0.8,
+        messages: [{ role: "system", content: systeme }, ...messages],
+        ...(json ? { response_format: { type: "json_object" } } : {}),
+      }),
+    });
+  } else {
+    r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": cleClaude!, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model: MODELE_CLAUDE, max_tokens: maxTokens, system: systeme, messages }),
+    });
+  }
   if (!r.ok) {
     console.error("Erreur IA", r.status, await r.text());
-    throw new Error(r.status === 401 ? "CLE_INVALIDE" : r.status === 400 ? "IA_REFUS" : "IA_INDISPONIBLE");
+    if (r.status === 401 || r.status === 403) throw new Error("CLE_INVALIDE");
+    if (r.status === 429) throw new Error("IA_SATUREE");
+    throw new Error("IA_INDISPONIBLE");
   }
-  return await r.json();
+  const d = await r.json();
+  if (cleMistral) {
+    const c = d.choices?.[0]?.message?.content;
+    return (Array.isArray(c) ? c.map((x: { text?: string }) => x.text ?? "").join("") : String(c ?? "")).trim();
+  }
+  return (d.content ?? []).filter((b: { type: string }) => b.type === "text").map((b: { text?: string }) => b.text ?? "").join(" ").trim();
+}
+
+// Lit le premier objet JSON d'une réponse (même entouré de texte).
+function lireJson(texte: string): Record<string, unknown> {
+  try { return JSON.parse(texte); } catch { /* on cherche l'objet dans le texte */ }
+  const a = texte.indexOf("{"), b = texte.lastIndexOf("}");
+  if (a >= 0 && b > a) {
+    try { return JSON.parse(texte.slice(a, b + 1)); } catch { /* illisible */ }
+  }
+  return {};
+}
+
+// Garde seulement les paroles : sans balise de fin, didascalies, astérisques ni « Sarah : ».
+function nettoyer(texte: string) {
+  return texte
+    .replace(FIN_APPEL, "")
+    .replace(/\*[^*]*\*/g, "")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/^\s*(apprenant|apprenante|[A-ZÀ-Ý][a-zà-ÿ]+(\s[A-ZÀ-Ý][a-zà-ÿ]+)?)\s*:\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function consignePersonnage(scenario: Record<string, unknown>, personnage: string) {
@@ -91,7 +143,7 @@ ${personnage}
 
 Règles du jeu :
 - Tu parles comme au téléphone, en français oral naturel : 1 à 3 phrases courtes par réplique, avec des hésitations si ça colle au personnage (« euh », « bah »…).
-- Ne fais jamais de didascalie, d'astérisque, d'emoji ni de description entre parenthèses : seulement les paroles prononcées (le texte est lu à voix haute).
+- Écris uniquement les paroles prononcées : jamais de didascalie, d'astérisque, d'emoji, de description entre parenthèses, ni ton nom devant ta réplique (le texte est lu à voix haute).
 - Ne dis jamais que tu es une IA, ne sors jamais du rôle, ne donne jamais de conseil à l'appelante.
 - Ne révèle pas ton vrai frein trop tôt : il faut que l'appelante le mérite par ses questions et son écoute.
 - Reste cohérent avec ce que tu as déjà dit.
@@ -99,10 +151,10 @@ Règles du jeu :
 - Quand l'appel se termine (au revoir échangé), ou si ton personnage raccroche, dis ta dernière phrase puis ajoute exactement ${FIN_APPEL} à la fin.`;
 }
 
-function versMessages(transcription: Replique[]) {
+function versMessages(transcription: Replique[]): Message[] {
   // L'appelante = « user », l'apprenant joué par l'IA = « assistant ».
-  // L'API attend un premier message « user » : on ouvre par le décroché.
-  const messages: { role: "user" | "assistant"; content: string }[] = [{ role: "user", content: "(Ton téléphone sonne. Tu décroches.)" }];
+  // On ouvre par le décroché, pour que la conversation commence par « user ».
+  const messages: Message[] = [{ role: "user", content: "(Ton téléphone sonne. Tu décroches.)" }];
   for (const r of transcription) {
     const role = r.qui === "appelante" ? "user" : "assistant";
     const dernier = messages[messages.length - 1];
@@ -110,10 +162,6 @@ function versMessages(transcription: Replique[]) {
     else messages.push({ role, content: r.texte });
   }
   return messages;
-}
-
-function texteDe(resultat: { content?: { type: string; text?: string }[] }) {
-  return (resultat.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join(" ").trim();
 }
 
 // -----------------------------------------------------------------------------
@@ -172,12 +220,8 @@ Deno.serve(async (req: Request) => {
       if (!scenario || !persona) return reponse(origine, 404, { erreur: "Ce scénario n'est pas disponible." });
 
       // Le décroché : l'IA répond comme le personnage décroche
-      const resultat = await appelerIA({
-        max_tokens: 120,
-        system: consignePersonnage(scenario, persona.personnage),
-        messages: versMessages([]),
-      });
-      const premier = texteDe(resultat).replace(FIN_APPEL, "").trim() || "Allô ?";
+      const decroche = await appelerIA(consignePersonnage(scenario, persona.personnage), versMessages([]), 120);
+      const premier = nettoyer(decroche) || "Allô ?";
 
       const { data: session, error } = await base.from("entrainement_sessions").insert({
         appelante_id: moi, scenario_id: scenarioId, scenario_titre: scenario.titre, mode,
@@ -207,14 +251,9 @@ Deno.serve(async (req: Request) => {
       if (!scenario || !persona) return reponse(origine, 404, { erreur: "Ce scénario n'existe plus." });
 
       transcription.push({ qui: "appelante", texte });
-      const resultat = await appelerIA({
-        max_tokens: 250,
-        system: consignePersonnage(scenario, persona.personnage),
-        messages: versMessages(transcription),
-      });
-      let replique = texteDe(resultat);
-      const raccroche = replique.includes(FIN_APPEL);
-      replique = replique.replace(FIN_APPEL, "").trim() || "…";
+      const brute = await appelerIA(consignePersonnage(scenario, persona.personnage), versMessages(transcription), 250);
+      const raccroche = brute.includes(FIN_APPEL);
+      const replique = nettoyer(brute) || "…";
       transcription.push({ qui: "apprenant", texte: replique });
 
       const { error } = await base.from("entrainement_sessions").update({ transcription }).eq("id", sessionId);
@@ -235,57 +274,39 @@ Deno.serve(async (req: Request) => {
       const { data: persona } = await base.from("entrainement_personas").select("personnage").eq("scenario_id", session.scenario_id).maybeSingle();
 
       const texteAppel = transcription.map((r) => `${r.qui === "appelante" ? "APPELANTE" : "APPRENANT"} : ${r.texte}`).join("\n");
-      const resultat = await appelerIA({
-        max_tokens: 1500,
-        system: `Tu es formatrice experte en relation client à distance et en suivi d'apprenants en formation à distance (lutte contre le décrochage, accompagnement jusqu'à l'examen). Tu évalues un appel d'entraînement d'une appelante débutante, avec bienveillance mais exigence. Tu tutoies l'appelante dans tes commentaires. Les transcriptions viennent parfois d'une dictée vocale : ignore les fautes de transcription. Note seulement ce que l'appelante a dit.`,
-        tools: [{
-          name: "enregistrer_evaluation",
-          description: "Enregistre l'évaluation de l'appel.",
-          input_schema: {
-            type: "object",
-            properties: {
-              criteres: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    cle: { type: "string", enum: GRILLE.map((g) => g.cle) },
-                    note: { type: "integer", minimum: 0, maximum: 5 },
-                    commentaire: { type: "string", description: "1 à 2 phrases, avec un exemple tiré de l'appel." },
-                  },
-                  required: ["cle", "note", "commentaire"],
-                },
-              },
-              points_forts: { type: "array", items: { type: "string" }, description: "2 ou 3 points forts concrets." },
-              a_ameliorer: { type: "array", items: { type: "string" }, description: "2 ou 3 axes d'amélioration concrets." },
-              phrase_modele: { type: "string", description: "Une phrase que l'appelante aurait pu dire au moment le plus délicat de l'appel." },
-              frein_decouvert: { type: "boolean", description: "L'appelante a-t-elle découvert le vrai frein caché de l'apprenant ?" },
-            },
-            required: ["criteres", "points_forts", "a_ameliorer", "phrase_modele", "frein_decouvert"],
-          },
-        }],
-        tool_choice: { type: "tool", name: "enregistrer_evaluation" },
-        messages: [{
+      const reponseIA = await appelerIA(
+        "Tu es formatrice experte en relation client à distance et en suivi d'apprenants en formation à distance (lutte contre le décrochage, accompagnement jusqu'à l'examen). Tu évalues un appel d'entraînement d'une appelante débutante, avec bienveillance mais exigence. Tu tutoies l'appelante dans tes commentaires et tu écris en français. Les transcriptions viennent parfois d'une dictée vocale : ignore les fautes de transcription. Note seulement ce que l'appelante a dit. Tu réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte autour.",
+        [{
           role: "user",
           content: `Scénario : ${scenario?.titre ?? session.scenario_titre}
 Fiche visible par l'appelante : ${scenario?.contexte ?? ""}
 Objectif de l'appel : ${scenario?.objectif_appel ?? ""}
 Ce que l'appelante ne savait pas (personnage joué) : ${persona?.personnage ?? ""}
 
-Grille (chaque critère de 0 à 5) :
+Grille (chaque critère noté de 0 à 5) :
 ${GRILLE.map((g) => `- ${g.cle} — ${g.nom} : ${g.attendu}`).join("\n")}
 
 Transcription :
-${texteAppel}`,
-        }],
-      });
+${texteAppel}
 
-      const bloc = (resultat.content ?? []).find((b: { type: string }) => b.type === "tool_use");
-      const brut = (bloc?.input ?? {}) as Record<string, unknown>;
+Réponds avec un objet JSON de cette forme, avec exactement 6 critères (un par clé de la grille : ${GRILLE.map((g) => g.cle).join(", ")}) :
+{"criteres": [{"cle": "accueil", "note": 3, "commentaire": "1 à 2 phrases avec un exemple tiré de l'appel"}],
+ "points_forts": ["2 ou 3 points forts concrets"],
+ "a_ameliorer": ["2 ou 3 axes d'amélioration concrets"],
+ "phrase_modele": "une phrase que l'appelante aurait pu dire au moment le plus délicat de l'appel",
+ "frein_decouvert": true}`,
+        }],
+        1500,
+        true,
+      );
+      const brut = lireJson(reponseIA);
+
       const notes = new Map<string, { note: number; commentaire: string }>();
-      for (const c of (brut.criteres as { cle: string; note: number; commentaire: string }[] | undefined) ?? []) {
-        notes.set(c.cle, { note: Math.max(0, Math.min(5, Math.round(Number(c.note) || 0))), commentaire: String(c.commentaire ?? "").slice(0, 600) });
+      const criteresIA = Array.isArray(brut.criteres) ? brut.criteres as { cle: string; note: number; commentaire: string }[] : [];
+      for (const c of criteresIA) {
+        notes.set(String(c.cle), { note: Math.max(0, Math.min(5, Math.round(Number(c.note) || 0))), commentaire: String(c.commentaire ?? "").slice(0, 600) });
       }
+      if (!notes.size) throw new Error("IA_INDISPONIBLE");
       const criteres = GRILLE.map((g) => ({ cle: g.cle, nom: g.nom, note: notes.get(g.cle)?.note ?? 0, commentaire: notes.get(g.cle)?.commentaire ?? "" }));
       const total = criteres.reduce((s, c) => s + c.note, 0);
       const noteSur20 = Math.round((total / (GRILLE.length * 5)) * 20);
@@ -309,9 +330,10 @@ ${texteAppel}`,
   } catch (e) {
     const code = e instanceof Error ? e.message : "";
     console.error("simulation-appel", e);
-    if (code === "CLE_ABSENTE") return reponse(origine, 503, { erreur: "L'IA n'est pas encore branchée : la clé Anthropic n'est pas installée dans Supabase." });
-    if (code === "CLE_INVALIDE") return reponse(origine, 503, { erreur: "La clé de l'IA est refusée (clé invalide ou crédit épuisé). Vérifiez le compte Anthropic." });
-    if (code === "IA_INDISPONIBLE" || code === "IA_REFUS") return reponse(origine, 502, { erreur: "L'IA ne répond pas pour le moment. Réessayez dans un instant." });
+    if (code === "CLE_ABSENTE") return reponse(origine, 503, { erreur: "L'IA n'est pas encore branchée : la clé Mistral n'est pas installée dans Supabase." });
+    if (code === "CLE_INVALIDE") return reponse(origine, 503, { erreur: "La clé de l'IA est refusée. Vérifiez la clé dans le compte Mistral." });
+    if (code === "IA_SATUREE") return reponse(origine, 429, { erreur: "L'IA gratuite est très demandée en ce moment. Patientez quelques secondes, puis renvoyez votre phrase." });
+    if (code === "IA_INDISPONIBLE") return reponse(origine, 502, { erreur: "L'IA ne répond pas pour le moment. Réessayez dans un instant." });
     return reponse(origine, 500, { erreur: "Erreur inattendue. Réessayez." });
   }
 });

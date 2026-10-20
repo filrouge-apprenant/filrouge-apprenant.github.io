@@ -381,6 +381,7 @@
         synth?.cancel();
         appelEnCours = null;
         const secondes = Math.round((Date.now() - debut) / 1000);
+        const evaluer = async () => {
         afficher(h("div", { class: "pile" },
           h("p", { class: "surtitre" }, "Entraînement"),
           h("h1", {}, "Appel terminé"),
@@ -398,10 +399,15 @@
           window.location.hash = `#/entrainement/resultat/${sessionId}`;
         } catch (e) {
           afficher(h("div", { class: "pile" },
-            h("h1", {}, "Évaluation impossible"),
+            h("h1", {}, "Évaluation impossible pour l'instant"),
             message("erreur", e.message),
-            h("div", { class: "actions" }, lien("entrainement", "← Retour à l'entraînement"))));
+            h("p", { class: "aide" }, "Votre appel est bien enregistré : réessayez dans quelques secondes."),
+            h("div", { class: "actions" },
+              h("button", { class: "bouton", type: "button", onclick: evaluer }, "Réessayer l'évaluation"),
+              lien("entrainement", "← Retour à l'entraînement"))));
         }
+        };
+        return evaluer();
       }
 
       // ---- Branchements
