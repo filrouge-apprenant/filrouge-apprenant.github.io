@@ -1334,3 +1334,56 @@ label.case input {
   .entr-bulle { max-width: 92%; }
   .entr-note-chiffre { font-size: 3.2rem; }
 }
+
+/* ===========================================================================
+   Script d'appel guidé (#/script)
+   =========================================================================== */
+.scr-haut { display: flex; flex-direction: column; gap: 0.6rem; background: var(--fond); padding-bottom: 0.6rem; border-bottom: 1px solid var(--filet); }
+/* Sur ordinateur, le nom et les étapes restent visibles pendant qu'on fait défiler. */
+@media (min-width: 900px) { .scr-haut { position: sticky; top: 0; z-index: 2; } }
+.scr-titre { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 1rem; }
+.scr-titre h1 { margin: 0; }
+.scr-chrono-bloc { font-size: 0.9rem; color: var(--texte-doux); font-variant-numeric: tabular-nums; }
+.scr-etapes { display: flex; gap: 0.4rem; overflow-x: auto; padding-bottom: 0.2rem; scrollbar-width: thin; }
+.scr-etape {
+  font: inherit; font-size: 0.85rem; white-space: nowrap;
+  padding: 0.4rem 0.75rem; border-radius: 999px;
+  border: 1px solid var(--filet); background: var(--fond); color: var(--texte); cursor: pointer;
+}
+.scr-etape:hover { border-color: var(--violet); color: var(--violet); }
+.scr-etape-faite { background: var(--fond-doux); border-color: var(--rose-fort); }
+.scr-etape-faite::before { content: "✓ "; color: var(--alerte-vert); }
+.scr-etape[aria-selected="true"] { background: var(--violet); border-color: var(--violet); color: #fff; }
+.scr-etape[aria-selected="true"]::before { color: #fff; }
+.scr-panneau { display: flex; flex-direction: column; gap: 1rem; }
+.scr-phrase {
+  margin: 0; padding: 0.6rem 0.9rem;
+  border-left: 3px solid var(--violet-moyen); background: var(--fond-doux);
+  border-radius: 0 var(--rayon) var(--rayon) 0; font-size: 1rem; line-height: 1.5;
+}
+.scr-question { display: flex; flex-direction: column; gap: 0.45rem; }
+.scr-question .etiquette { margin: 0; font-weight: 700; }
+.scr-choix { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.scr-option {
+  font: inherit; font-size: 0.92rem; min-height: 2.5rem;
+  padding: 0.45rem 0.9rem; border-radius: var(--rayon);
+  border: 1px solid var(--filet); background: var(--fond); color: var(--texte); cursor: pointer;
+  text-align: left;
+}
+.scr-option:hover { border-color: var(--violet); }
+.scr-option-active { background: var(--rose); border-color: var(--violet); color: var(--violet); font-weight: 700; }
+.scr-option-active::before { content: "✓ "; }
+.scr-conseil { margin: 0; font-size: 0.88rem; color: var(--texte-doux); padding-left: 0.9rem; border-left: 2px solid var(--filet); }
+.scr-non-joint { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.7rem 0.85rem; border: 1px dashed var(--filet); border-radius: var(--rayon); }
+.scr-non-joint .etiquette { margin: 0; font-size: 0.9rem; color: var(--texte-doux); }
+.scr-situations { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.6rem; }
+.scr-situation { display: flex; flex-direction: column; gap: 0.4rem; }
+.scr-situation .scr-option { width: 100%; }
+.scr-situation-ouverte .scr-option { background: var(--rose); border-color: var(--violet); color: var(--violet); font-weight: 700; }
+.scr-modes .bouton { flex: 1 1 14rem; }
+label.scr-case { display: flex; flex-direction: row; gap: 0.6rem; align-items: flex-start; font-size: 0.92rem; font-weight: 400; cursor: pointer; }
+label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
+.scr-recherche { width: 100%; }
+@media (max-width: 640px) {
+  .scr-option { flex: 1 1 calc(50% - 0.45rem); }
+}

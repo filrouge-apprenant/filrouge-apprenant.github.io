@@ -768,6 +768,7 @@
     if (morceaux[0] === "devis") return { nom: "devis" };
     if (morceaux[0] === "satisfaction") return { nom: "satisfaction", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "entrainement") return { nom: "entrainement", morceaux: morceaux.slice(1).filter((m) => m === "nouveau" || /^[a-z]+$/.test(m) || UUID.test(m)) };
+    if (morceaux[0] === "script") return { nom: "script", morceaux: morceaux.slice(1).filter((m) => UUID.test(m)) };
     if (morceaux[0] === "coaching") return { nom: "coaching", type: morceaux[1] || "stage", id: UUID.test(morceaux[2] || "") ? morceaux[2] : null };
     return { nom: "accueil" };
   }
@@ -795,6 +796,7 @@
     if (route.nom === "eleves") return ecranDossierEleves(route.id);
     if (route.nom === "coaching") return ecranCoaching(route.type, route.id);
     if (route.nom === "entrainement") return entrainement().route(route.morceaux);
+    if (route.nom === "script") return scriptAppel().route(route.morceaux);
     if (route.nom === "satisfaction") return ecranSatisfaction(route.id);
     if (route.nom === "impayes") return ecranImpayes();
     if (route.nom === "devis") return ecranDevis();
@@ -825,6 +827,7 @@
     const route = lireRoute();
     if (route.nom === "apprenant") return ecranApprenant(route.id);
     if (route.nom === "entrainement") return entrainement().route(route.morceaux);
+    if (route.nom === "script") return scriptAppel().route(route.morceaux);
     return accueilAppelante(etat.profil);
   }
 
@@ -839,6 +842,19 @@
       });
     }
     return moduleEntrainement;
+  }
+
+  // Script d'appel guidé (script.js) : QCM étape par étape, commentaire généré ou réponses seules.
+  let moduleScript = null;
+  function scriptAppel() {
+    if (!moduleScript) {
+      moduleScript = window.FilRougeScript({
+        sb, h, afficher, message, texteErreur, signaler, occupe, pastille, aujourdhui, ajouterJours, dateLisible, nomApprenant,
+        role: () => etat.profil?.role,
+        monId: () => etat.profil?.id,
+      });
+    }
+    return moduleScript;
   }
 
   window.addEventListener("hashchange", () => {
@@ -3180,6 +3196,9 @@
       ? h("section", { class: "pile-serree" },
           h("div", { class: "section-titre" }, h("h2", {}, "Statut de l'appel"), h("p", {}, "Résultat, suite prévue et date de la suite")),
           h("p", { class: "aide" }, "Le compte rendu pour l'organisme et les notes internes s'écrivent dans leurs onglets."),
+          h("div", { class: "message message-info entr-invitation" },
+            h("span", {}, "Préférez un appel guidé ? Le script vous fait cliquer les réponses et rédige le commentaire."),
+            h("a", { class: "bouton bouton-petit", href: `#/script/${a.id}` }, "Appeler avec le script")),
           h("div", { class: "carte carte-large" }, formulaireAppel(a, (publie) => rafraichir(publie
             ? "Appel enregistré et publié dans les commentaires. Le compteur repart à zéro."
             : "Appel rangé dans l'historique (non publié). Le compteur repart à zéro."), { sansNotes: true })),
@@ -3244,6 +3263,7 @@
           h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_dernier_contact ? dateLisible(a.date_dernier_contact) : "—"), h("span", { class: "compteur-libelle" }, "dernier contact")),
           clientPeut("voir_examens") ? h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_examen ? dateLisible(a.date_examen) : "—"), h("span", { class: "compteur-libelle" }, "examen")) : null),
         clientPeut("voir_comptes_rendus") ? blocCompteursContact(appels.data) : null,
+        peutNoter ? h("div", { class: "actions-ligne" }, h("a", { class: "bouton", href: `#/script/${a.id}` }, "Appeler avec le script")) : null,
         blocContacterFiche);
 
     // Trois colonnes sur ordinateur : situation à gauche, fiche au centre, commentaires à droite.
@@ -3687,7 +3707,8 @@
         ),
         h("div", { class: "message message-info entr-invitation" },
           h("span", {}, "Nouvelle dans l'équipe, ou envie de progresser ? Entraînez-vous avec un apprenant fictif joué par l'IA."),
-          h("a", { class: "bouton bouton-petit", href: "#/entrainement" }, "S'entraîner aux appels")),
+          h("a", { class: "bouton bouton-petit", href: "#/entrainement" }, "S'entraîner aux appels"),
+          h("a", { class: "bouton bouton-secondaire bouton-petit", href: "#/script" }, "Script d'appel")),
         listeApprenants(trierParUrgence(data))
       )
     );
@@ -4133,6 +4154,7 @@
         lien("acces", "Accès clients", d.acces ? nombre(d.acces, true) : null),
         lien("impayes", "Impayés", d.impayes ? nombre(d.impayes, true) : null),
         lien("devis", "Demandes de devis", d.devis ? nombre(d.devis, true) : null),
+        lien("script", "Script d'appel"),
         lien("entrainement", "Entraînement aux appels")),
       groupe("prospects", "Prospects", [
         lien("prospection", "Tous les centres à démarcher"),
