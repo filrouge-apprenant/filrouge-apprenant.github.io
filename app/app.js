@@ -4488,7 +4488,9 @@
     return nbApprenants < 20 ? 20 : nbApprenants <= 150 ? 15 : 12;
   }
   function pastilleEcheance(e) {
-    if (e.statut === "payee") return pastille("vert", `Payée${e.payee_le ? " le " + dateLisible(e.payee_le) : ""}`);
+    if (e.statut !== "annulee" && e.prelevement_statut === "en_cours") return pastille("orange", "Prélèvement en cours");
+    if (e.statut !== "payee" && e.prelevement_statut === "echoue") return pastille("rouge", "Prélèvement refusé");
+    if (e.statut === "payee") return pastille("vert", `${e.prelevement_statut === "reussi" ? "Prélevée" : "Payée"}${e.payee_le ? " le " + dateLisible(e.payee_le) : ""}`);
     if (e.statut === "annulee") return pastille("neutre", "Annulée");
     if (e.statut === "en_retard") return pastille("rouge", `En retard de ${e.jours_retard} j`);
     return pastille("orange", `À payer avant le ${dateLisible(e.date_echeance)}`);
@@ -4515,7 +4517,7 @@
   }
   // Tarif dégressif à l'appel (même règle que la base : prive.prix_appel_degressif).
   function prixDegressif(nb) { return nb < 20 ? 20 : nb <= 150 ? 15 : 12; }
-  const PAIEMENTS = { unique: "En une fois", mensuel: "Chaque mois (mensualités)" };
+  const PAIEMENTS = { mensuel: "Prélèvement mensuel, au réel des appels passés", unique: "Paiement unique en ligne (carte ou prélèvement)" };
 
   function lienPagePropo(p) {
     return `${window.location.origin}${window.location.pathname.replace(/index\.html$/, "").replace(/\/?$/, "/")}proposition.html?p=${p.jeton}`;
@@ -4707,7 +4709,9 @@
             h("p", { class: "surtitre" }, `Acceptée en ligne le ${dateHeureComplete(p.accepte_le)}`),
             h("p", {}, [p.accepte_nom, p.accepte_fonction, p.accepte_email].filter(Boolean).join(" · ")),
             h("p", { class: "aide" }, essai ? "Prochaine étape : appeler le centre pour récupérer le fichier des apprenants."
-              : p.statut === "payee" ? "Réglée." : p.stripe_lien_url ? "Le lien de paiement lui est proposé sur sa page." : "Crée le lien de paiement : il apparaîtra aussitôt sur sa page."))
+              : p.statut === "payee" ? "Réglée."
+              : p.paiement === "mensuel" ? "Le contrat est créé (onglet Comptabilité). Le centre met en place le prélèvement sur sa page : son état s'affiche dans Comptabilité."
+              : p.stripe_lien_url ? "Le lien de paiement lui est proposé sur sa page." : "Crée le lien de paiement : il apparaîtra aussitôt sur sa page."))
         : null,
       p.demande_le
         ? h("div", { class: "propo-demande-bloc" },
@@ -4724,15 +4728,18 @@
       description.bloc,
       mot.bloc,
       zoneMsg,
-      h("div", { class: "actions-ligne" }, bEnregistrer, p.statut !== "payee" && !essai ? bLien : null, bEnvoyer),
-      essai ? null : p.stripe_lien_url
+      h("div", { class: "actions-ligne" }, bEnregistrer, p.statut !== "payee" && !essai && p.paiement === "unique" ? bLien : null, bEnvoyer),
+      !essai && p.paiement === "mensuel"
+        ? h("p", { class: "aide" }, "Paiement : après avoir accepté, le centre met en place le prélèvement SEPA sur sa page (IBAN, une seule fois). Chaque mois, tu prélèves l'échéance depuis l'onglet Comptabilité, au réel des appels passés.")
+        : null,
+      essai || p.paiement === "mensuel" ? null : p.stripe_lien_url
         ? h("p", { class: lienAJour ? "aide" : "message message-impaye" },
             lienAJour ? "Lien de paiement : " : "Le montant ou le mode de paiement a changé : recrée le lien. Ancien lien : ",
             h("a", { href: p.stripe_lien_url, target: "_blank", rel: "noopener" }, p.stripe_lien_url))
-        : essai ? null : h("p", { class: "aide" }, "Pas encore de lien de paiement."),
+        : essai || p.paiement === "mensuel" ? null : h("p", { class: "aide" }, "Pas encore de lien de paiement."),
       h("p", { class: "aide" }, "Page à envoyer au client : ", h("a", { href: pageClient, target: "_blank", rel: "noopener" }, "voir la page"), " · ",
         (() => { const b = h("button", { type: "button", class: "bouton-lien" }, "copier le lien"); b.addEventListener("click", async () => { try { await navigator.clipboard.writeText(pageClient); b.textContent = "lien copié ✓"; } catch (e) { window.prompt("Lien à copier :", pageClient); } }); return b; })()),
-      p.paiement === "mensuel" ? h("p", { class: "aide" }, `Paiement mensuel : pense à arrêter l'abonnement dans Stripe après ${pluriel(p.duree_mois, "mensualité", "mensualités")}.`) : null,
+
       h("div", { class: "actions-secondaires" },
         essai ? null : p.statut !== "payee" ? statutBouton("Marquer payée", "payee", { payee_le: new Date().toISOString() }) : statutBouton("Annuler « payée »", "envoyee", { payee_le: null }),
         p.statut !== "refusee" && p.statut !== "payee" ? statutBouton("Refusée", "refusee") : null,
@@ -4779,12 +4786,16 @@
 
     async function charger(info) {
       const debutMois = premierDuMois(aujourdhui());
-      const [contrat, echeances, relances, appelsMois, actifs] = await Promise.all([
+      // Prélèvements en cours : on demande d'abord à Stripe où ils en sont.
+      await sb.functions.invoke("prelevement", { body: { action: "suivre", organisme_id: org.id } }).catch(() => null);
+      const [contrat, echeances, relances, appelsMois, actifs, mandat, suiviPrel] = await Promise.all([
         sb.from("contrats").select("*").eq("organisme_id", org.id).maybeSingle(),
         sb.from("vue_echeances").select("*").eq("organisme_id", org.id).order("mois"),
         sb.from("relances_paiement").select("id, echeance_id, niveau, canal, faite_le, note").eq("organisme_id", org.id).order("faite_le", { ascending: false }),
         sb.from("appels").select("id, canal, resultat").eq("organisme_id", org.id).gte("date_appel", debutJourParis(debutMois)),
         sb.from("apprenants").select("id", { count: "exact", head: true }).eq("organisme_id", org.id).eq("statut", "actif"),
+        sb.from("mandats_sepa").select("statut, iban_fin, titulaire, signe_le").eq("organisme_id", org.id).maybeSingle(),
+        sb.from("echeances").select("id, prelevement_statut, prelevement_demande_le, prelevement_erreur").eq("organisme_id", org.id),
       ]);
       const erreur = contrat.error || echeances.error || relances.error || appelsMois.error || actifs.error;
       if (erreur) {
@@ -4794,7 +4805,10 @@
           : texteErreur(erreur)));
       }
       const c = contrat.data;
-      const liste = echeances.data;
+      const prel = new Map(((suiviPrel && suiviPrel.data) || []).map((x) => [x.id, x]));
+      const liste = echeances.data.map((e) => ({ ...e, ...(prel.get(e.id) || {}) }));
+      const m = mandat && !mandat.error ? mandat.data : null;
+      const mandatActif = m && m.statut === "actif";
       const parMois = new Map(liste.map((e) => [e.mois, e]));
       const relancesPar = new Map();
       for (const r of relances.data) {
@@ -4831,7 +4845,7 @@
 
         const ligneMois = (m) => {
           const e = parMois.get(m);
-          if (e) return ligneEcheance(e, relancesPar.get(e.id) || [], recharger);
+          if (e) return ligneEcheance(e, relancesPar.get(e.id) || [], recharger, c.mode_paiement === "prelevement" && mandatActif);
           const zoneL = h("div");
           if (m === moisCourant) {
             return h("li", { class: "ligne" },
@@ -4890,10 +4904,38 @@
             h("span", { class: "bandeau-impaye-detail" }, `${pluriel(enRetard.length, "échéance en retard", "échéances en retard")} · la plus ancienne depuis ${pluriel(Math.max(...enRetard.map((e) => e.jours_retard)), "jour", "jours")}`))
         : null;
 
+      // --- Mandat de prélèvement SEPA ---
+      const zoneMandat = h("div");
+      const verifier = h("button", { type: "button", class: "bouton-lien" }, "Vérifier auprès de Stripe");
+      verifier.addEventListener("click", async () => {
+        occupe(verifier, true, "Vérification…");
+        const { data, error } = await sb.functions.invoke("prelevement", { body: { action: "synchroniser", organisme_id: org.id } });
+        occupe(verifier, false);
+        if (error) return signaler(zoneMandat, "erreur", await messageFonction(error));
+        recharger(data && data.mandat === "actif" ? "Mandat de prélèvement actif." : "Le mandat n'est pas encore signé.");
+      });
+      const blocMandat = c && c.mode_paiement === "prelevement"
+        ? h("section", { class: "carte carte-large pile-serree" },
+            h("div", { class: "propo-tete" }, h("strong", {}, "Prélèvement SEPA"),
+              mandatActif ? pastille("vert", "Mandat actif") : m ? pastille("orange", "Mandat en cours de signature") : pastille("neutre", "Mandat pas encore signé")),
+            mandatActif
+              ? h("p", {}, `Compte se terminant par ${m.iban_fin || "…"}${m.titulaire ? ` (${m.titulaire})` : ""}, mandat signé le ${dateLisible((m.signe_le || "").slice(0, 10))}. Chaque mois, vérifie l'échéance puis clique sur « Prélever » : le centre reçoit sa facture par email, et le montant arrive sous 3 à 5 jours ouvrés.`)
+              : h("p", { class: "aide" }, "Le centre met en place le prélèvement depuis sa page proposition, juste après l'avoir acceptée : il saisit son IBAN une seule fois sur la page sécurisée de Stripe. Rien n'est prélevé sans ton clic."),
+            h("div", { class: "actions-secondaires" }, verifier), zoneMandat)
+        : null;
+      if (blocMandat) {
+        sb.functions.invoke("prelevement", { body: { action: "serveur" } }).then(({ data }) => {
+          if (!data) return;
+          if (!data.stripe) signaler(zoneMandat, "erreur", "Stripe n'est pas encore branché : ajoute ta clé secrète Stripe (sk_test_… pour essayer) dans Supabase › Edge Functions › Secrets, sous le nom STRIPE_SECRET_KEY.");
+          else if (data.mode === "test") signaler(zoneMandat, "info", "Stripe en mode test : les prélèvements sont simulés, aucun argent réel ne circule.");
+        }).catch(() => null);
+      }
+
       zone.replaceChildren(...[
         bandeauImpaye,
         info ? message("info", info) : null,
         c ? compteurs : null,
+        blocMandat,
         blocContrat,
         sectionEcheancier,
         sectionRelances].filter(Boolean));
@@ -4902,7 +4944,13 @@
     return zone;
   }
 
-  function ligneEcheance(e, relancesEch, recharger) {
+  // Message lisible d'une erreur de fonction serveur.
+  async function messageFonction(error) {
+    try { const corps = await error.context.json(); if (corps && corps.erreur) return corps.erreur; } catch (x) { /* message par défaut */ }
+    return "L'opération n'a pas pu aboutir. Réessaie dans un instant.";
+  }
+
+  function ligneEcheance(e, relancesEch, recharger, prelevable) {
     const zoneL = h("div");
     const actions = h("div", { class: "actions-ligne" });
     const bouton = (texte, classe, action) => {
@@ -4923,7 +4971,27 @@
     } else if (e.statut !== "annulee") {
       const datePaiement = h("input", { type: "date", "aria-label": "Date du paiement" });
       datePaiement.value = aujourdhui();
-      actions.append(
+      const enCours = e.prelevement_statut === "en_cours";
+      if (prelevable && !enCours && Number(e.montant) >= 0.5) {
+        const prelever = h("button", { type: "button", class: "bouton bouton-petit" }, `Prélever ${euros(e.montant)}`);
+        const confirmer = h("button", { type: "button", class: "bouton bouton-petit", hidden: true }, `Oui, prélever ${euros(e.montant)}`);
+        const annuler = h("button", { type: "button", class: "bouton-lien", hidden: true }, "Annuler");
+        prelever.addEventListener("click", () => { prelever.hidden = true; confirmer.hidden = false; annuler.hidden = false; });
+        annuler.addEventListener("click", () => { prelever.hidden = false; confirmer.hidden = true; annuler.hidden = true; });
+        confirmer.addEventListener("click", async () => {
+          occupe(confirmer, true, "Prélèvement…");
+          const { data, error } = await sb.functions.invoke("prelevement", { body: { action: "prelever", echeance_id: e.id } });
+          occupe(confirmer, false);
+          if (error) return signaler(zoneL, "erreur", await messageFonction(error));
+          recharger(data && data.statut === "echoue"
+            ? `Prélèvement refusé : ${data.erreur || "voir le détail"}`
+            : `Prélèvement de ${euros(e.montant)} demandé${data && data.email ? ", facture envoyée au centre" : ""}${data && data.mode_test ? " (mode test : aucun argent réel)" : ""}. Il arrive sous 3 à 5 jours ouvrés.`);
+        });
+        actions.append(h("span", { class: "paiement-ligne" }, prelever, confirmer, annuler));
+      }
+      if (enCours) actions.append(h("span", { class: "aide" }, `Prélèvement demandé le ${dateLisible((e.prelevement_demande_le || "").slice(0, 10))} : l'état se met à jour à chaque ouverture de cet onglet.`));
+      if (e.prelevement_statut === "echoue" && e.prelevement_erreur) actions.append(h("span", { class: "message message-impaye" }, `Prélèvement refusé : ${e.prelevement_erreur}`));
+      if (!enCours) actions.append(
         h("span", { class: "paiement-ligne" }, datePaiement,
           bouton("Marquer payée", "bouton bouton-petit", () => sb.from("echeances").update({ payee_le: datePaiement.value || aujourdhui() }).eq("id", e.id))),
         bouton("Recalculer", "bouton-lien", () => sb.rpc("calculer_echeance", { p_organisme: e.organisme_id, p_mois: e.mois })),

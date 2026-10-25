@@ -42,7 +42,63 @@
       ? `${nom ? `Accepté par ${nom}` : "Accepté"}${date ? ` le ${dateFr(date)}` : ""}. Je vous appelle sous 48 h pour récupérer la liste de vos apprenants et démarrer votre essai gratuit.`
       : `${nom ? `Accepté par ${nom}` : "Accepté"}${date ? ` le ${dateFr(date)}` : ""}. ${lien ? "Vous pouvez régler en ligne dès maintenant :" : "Je vous recontacte sous 48 h pour démarrer."}`;
     $("pr-confirmation").hidden = false;
-    if (!essai) montrerPaiement(lien);
+    if (!essai && p.paiement === "mensuel") {
+      $("pr-confirmation-texte").textContent = `${nom ? `Accepté par ${nom}` : "Accepté"}${date ? ` le ${dateFr(date)}` : ""}. Dernière étape : mettre en place le prélèvement automatique, ci-dessous.`;
+      brancherMandat();
+    } else if (!essai) montrerPaiement(lien);
+  }
+
+  // --- Mandat de prélèvement SEPA (fonction serveur « prelevement ») ---
+  async function appelPrelevement(corps) {
+    const r = await fetch(`${config.supabaseUrl}/functions/v1/prelevement`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: config.supabaseCle },
+      body: JSON.stringify({ jeton, ...corps }),
+    });
+    let c = null;
+    try { c = await r.json(); } catch (e) { /* vide */ }
+    if (!r.ok) throw new Error((c && c.erreur) || `Le prélèvement n'a pas pu être mis en place. Réessayez, ou écrivez à ${BOITE}.`);
+    return c || {};
+  }
+  function mandatEnPlace(ibanFin) {
+    $("pr-mandat-bloc").hidden = true;
+    $("pr-confirmation-texte").textContent = "Votre accord est enregistré et le prélèvement automatique est en place.";
+    $("pr-mandat-ok-texte").textContent = `Les prélèvements se feront sur le compte se terminant par ${ibanFin || "…"}. Chaque mois, vous recevez d'abord la facture par email, avec le détail des appels passés.`;
+    $("pr-mandat-ok").hidden = false;
+  }
+  let mandatBranche = false;
+  async function brancherMandat() {
+    if (mandatBranche) return;
+    mandatBranche = true;
+    const dire = (t) => { $("pr-mandat-message").textContent = t; $("pr-mandat-message").hidden = !t; };
+    const bouton = $("pr-mandat-bouton");
+    const retourStripe = new URLSearchParams(window.location.search).get("mandat") || "";
+    try {
+      const etat = /^cs_(test|live)_/.test(retourStripe)
+        ? await appelPrelevement({ action: "confirmer", session_id: retourStripe })
+        : await appelPrelevement({ action: "etat" });
+      if (retourStripe) history.replaceState(null, "", `${window.location.pathname}?p=${jeton}`);
+      if (etat.mandat === "actif") return mandatEnPlace(etat.iban_fin);
+      if (retourStripe) dire("La validation du mandat n'est pas encore confirmée par la banque. Réessayez dans un instant, ou cliquez à nouveau sur le bouton.");
+    } catch (e) {
+      dire(e.message);
+    }
+    $("pr-mandat-bloc").hidden = false;
+    bouton.addEventListener("click", async () => {
+      bouton.disabled = true;
+      bouton.textContent = "Ouverture de la page sécurisée…";
+      dire("");
+      try {
+        const r = await appelPrelevement({ action: "mandat" });
+        if (r.mandat === "actif") return mandatEnPlace(r.iban_fin);
+        if (r.url && /^https:\/\/checkout\.stripe\.com\//.test(r.url)) { window.location.href = r.url; return; }
+        throw new Error("La page de prélèvement n'a pas pu s'ouvrir.");
+      } catch (e) {
+        dire(e.message);
+        bouton.disabled = false;
+        bouton.textContent = "Mettre en place le prélèvement";
+      }
+    });
   }
 
   async function charger() {
@@ -90,7 +146,8 @@
         `${pluriel(p.appels_par_mois, "appel", "appels")} par mois et par apprenant`,
       ].join(" · ");
       if (p.paiement === "mensuel") {
-        $("pr-mensuel").textContent = `soit ${euros(Number(p.montant_total) / p.duree_mois)} par mois pendant ${pluriel(p.duree_mois, "mois", "mois")}`;
+        $("pr-ht").textContent = "HT (estimation)";
+        $("pr-mensuel").textContent = `À ${euros(p.prix_appel)} HT l'appel : vous ne payez que les appels réellement passés, par prélèvement mensuel.`;
         $("pr-mensuel").hidden = false;
       }
     }

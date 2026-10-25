@@ -92,6 +92,20 @@
         <p id="pr-securite" class="op-securite" hidden>Paiement sécurisé par prélèvement sur RIB ou par carte bancaire.</p>
       </section>
 
+      <section id="pr-mandat-bloc" class="op-bloc op-devis" aria-labelledby="pr-mandat-titre" hidden>
+        <h2 id="pr-mandat-titre">Prélèvement automatique</h2>
+        <p class="op-texte">Chaque mois, vous ne payez que les appels réellement passés le mois précédent. Vous recevez la facture par email, puis le montant est prélevé automatiquement quelques jours plus tard.</p>
+        <p class="op-texte">Pour cela, indiquez une seule fois l'IBAN de votre organisme sur la page sécurisée de notre prestataire de paiement, Stripe, et validez le mandat de prélèvement SEPA. <strong>Rien n'est prélevé à cette étape.</strong></p>
+        <button type="button" id="pr-mandat-bouton" class="bouton op-bouton">Mettre en place le prélèvement</button>
+        <p id="pr-mandat-message" class="op-retour" role="status" hidden></p>
+        <p class="op-securite">Vous pouvez révoquer le mandat à tout moment auprès de votre banque.</p>
+      </section>
+
+      <section id="pr-mandat-ok" class="op-bloc op-prix" hidden>
+        <h2>Prélèvement en place ✓</h2>
+        <p id="pr-mandat-ok-texte" class="op-texte"></p>
+      </section>
+
       <footer class="op-pied">
         <p><strong>Fil Rouge Apprenants</strong> · Émilie Rachas</p>
         <p><a href="mailto:contact.filrouge.apprenant@gmail.com">contact.filrouge.apprenant@gmail.com</a> · <a href="tel:+33617755617">06 17 75 56 17</a></p>

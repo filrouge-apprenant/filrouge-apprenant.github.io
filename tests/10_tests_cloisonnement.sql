@@ -1208,5 +1208,50 @@ select tests.doit_etre_refuse(
   'demande pas encore préparée : ne peut pas être acceptée');
 rollback;
 
+\echo '== 26. Prélèvement SEPA : mandat, suivi protégé, contrat à l''acceptation'
+begin;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+set local role authenticated;
+insert into public.organismes (id, nom) values ('c0000000-0000-4000-8000-000000000009', 'Centre Prélèvement');
+insert into public.organismes_suivi_commercial (organisme_id, etape, contact_email) values ('c0000000-0000-4000-8000-000000000009', 'prospect', 'compta@prelev.test');
+insert into public.propositions (organisme_id, statut, type_offre, nb_apprenants, duree_mois, appels_par_mois, prix_appel, montant_total, paiement, titre)
+values ('c0000000-0000-4000-8000-000000000009', 'envoyee', 'standard', 40, 6, 1, 15, 3600, 'mensuel', 'Suivi 40 apprenants');
+select jeton as jeton_p from public.propositions where organisme_id = 'c0000000-0000-4000-8000-000000000009' \gset
+reset role;
+set local role anon;
+select organisme from public.accepter_proposition(:'jeton_p', 'Paul Compta', 'Directeur', 'compta@prelev.test');
+reset role;
+select tests.verifier(
+  (select tarif_fixe = 15 and mode_paiement = 'prelevement' and email_facturation = 'compta@prelev.test' and date_debut = prive.aujourdhui()
+     from public.contrats where organisme_id = 'c0000000-0000-4000-8000-000000000009'),
+  'offre payante acceptée : contrat créé (prix de l''appel accepté, prélèvement)');
+insert into public.appels (apprenant_id, organisme_id, resultat, date_appel)
+select id, organisme_id, 'joint', now() from public.apprenants limit 0;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+set local role authenticated;
+insert into public.echeances (organisme_id, mois, reference, nb_appels, tarif_unitaire, montant, date_emission, date_echeance, prelevement_statut, prelevement_id)
+values ('c0000000-0000-4000-8000-000000000009', '2026-09-01', 'FRA-TEST-1', 10, 15, 150, current_date, current_date + 30, 'reussi', 'pi_faux');
+select tests.verifier(
+  (select prelevement_statut is null and prelevement_id is null from public.echeances where reference = 'FRA-TEST-1'),
+  'écran : ne peut pas inscrire un faux prélèvement');
+select tests.verifier((select count(*) from public.mandats_sepa) = 0, 'administratrice : lit les mandats (aucun pour l''instant)');
+select tests.doit_etre_refuse(
+  $$insert into public.mandats_sepa (organisme_id, statut) values ('c0000000-0000-4000-8000-000000000009', 'actif')$$,
+  'écran : ne peut pas créer un mandat lui-même');
+reset role;
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+update public.echeances set prelevement_statut = 'en_cours', prelevement_id = 'pi_vrai' where reference = 'FRA-TEST-1';
+reset role;
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+set local role authenticated;
+update public.echeances set montant = 999, nb_appels = 99 where reference = 'FRA-TEST-1';
+select tests.verifier(
+  (select prelevement_statut = 'en_cours' and montant = 150 and nb_appels = 10 from public.echeances where reference = 'FRA-TEST-1'),
+  'prélèvement en cours : montant figé, suivi conservé');
+select tests.session('22222222-2222-4222-8222-222222222222');
+select tests.verifier((select count(*) from public.mandats_sepa) = 0, 'client : ne lit aucun mandat');
+rollback;
+
 \echo
 \echo 'TOUS LES TESTS SONT PASSÉS'
