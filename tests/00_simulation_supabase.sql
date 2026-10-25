@@ -50,6 +50,16 @@ $$;
 
 grant execute on function auth.jwt() to anon, authenticated, service_role;
 
+-- auth.role() : rôle de la session (claim « role » du jeton, comme Supabase).
+create function auth.role()
+returns text
+language sql
+stable
+as $$
+  select coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role', current_user::text)
+$$;
+grant execute on function auth.role() to anon, authenticated, service_role;
+
 -- Supabase donne par défaut des droits à anon et authenticated sur les
 -- nouvelles tables : on reproduit ce comportement pour tester qu'on les retire.
 alter default privileges in schema public grant all on tables to anon, authenticated, service_role;

@@ -4,20 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="only light">
-  <!-- Page publique de vente (offre pilote). Aucun script extérieur ;
-       le paiement se fait sur la page sécurisée de Stripe (lien dans config.js). -->
+  <!-- Page publique de vente : essai gratuit de 15 jours et demande de devis.
+       Aucun script extérieur ; la demande part vers la fonction serveur « tunnel-vente ». -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://cafcevtehuywovvsllvp.supabase.co; base-uri 'self'; form-action 'self'">
   <meta http-equiv="Cache-Control" content="no-cache">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <title>Offre pilote — Suivi téléphonique de vos apprenants | Fil Rouge Apprenants</title>
-  <meta name="description" content="Offre pilote réservée à 2 organismes de formation : 2 mois de suivi téléphonique de 20 apprenants jusqu'à l'examen, avec les preuves Qualiopi. 400 € HT, soit 10 € l'appel au lieu de 20 €.">
+  <title>Essai gratuit 15 jours — Suivi téléphonique de vos apprenants | Fil Rouge Apprenants</title>
+  <meta name="description" content="Essai gratuit de 15 jours pour les organismes de formation : j'appelle jusqu'à 20 de vos apprenants, vous suivez tout en direct et vous gardez les preuves pour Qualiopi. Sans engagement.">
   <link rel="icon" href="logo/icone.svg" type="image/svg+xml">
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="logo/apple-touch-icon.png">
   <meta property="og:site_name" content="Fil Rouge Apprenants">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Offre pilote — suivi téléphonique de vos apprenants jusqu'à l'examen">
-  <meta property="og:description" content="Offre pilote réservée à 2 organismes de formation : 2 mois de suivi téléphonique de 20 apprenants jusqu'à l'examen, avec les preuves Qualiopi. 400 € HT, soit 10 € l'appel au lieu de 20 €.">
+  <meta property="og:title" content="Essai gratuit 15 jours — suivi téléphonique de vos apprenants jusqu'à l'examen">
+  <meta property="og:description" content="Essai gratuit de 15 jours pour les organismes de formation : j'appelle jusqu'à 20 de vos apprenants, vous suivez tout en direct et vous gardez les preuves pour Qualiopi. Sans engagement.">
   <meta property="og:image" content="https://filrouge-apprenant.github.io/logo/partage.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -44,10 +44,10 @@
   <main class="op-page">
 
     <section class="op-haut">
-      <p class="op-surtitre">Offre pilote · 2 places</p>
+      <p class="op-surtitre">Essai gratuit · 15 jours · sans engagement</p>
       <h1>Vos apprenants vont jusqu'à l'examen.<br>Vous avez les preuves pour Qualiopi.</h1>
-      <p class="op-chapo">J'appelle vos apprenants chaque mois, avant qu'ils décrochent : point sur leur progression, objectifs, relance, aide pour l'inscription à l'examen. Vous suivez tout en direct.</p>
-      <a class="bouton op-bouton" href="#reserver">Voir l'offre pilote</a>
+      <p class="op-chapo">J'appelle vos apprenants avant qu'ils décrochent : point sur leur progression, objectifs, relance, aide pour l'inscription à l'examen. Vous suivez tout en direct. Essayez gratuitement pendant 15 jours.</p>
+      <a class="bouton op-bouton" href="#demande">Demander mon essai gratuit</a>
     </section>
 
     <section class="op-bloc" aria-labelledby="op-inclus">
@@ -62,23 +62,22 @@
       </ul>
     </section>
 
-    <section class="op-bloc op-prix" id="reserver" aria-labelledby="op-tarif">
-      <h2 id="op-tarif">Tarif pilote</h2>
-      <p class="op-montant">400 € <span>HT</span></p>
-      <p class="op-detail">20 apprenants · 2 mois · 1 appel par mois chacun</p>
-      <p class="op-remise">soit <strong>10 € l'appel</strong> au lieu de 20 €</p>
-      <a class="bouton op-bouton op-lien-paiement" href="#reserver">Réserver et payer en ligne</a>
-      <p class="op-securite">Paiement sécurisé par prélèvement sur RIB ou par carte bancaire. Vous acceptez les conditions de prestation sur la page de paiement.</p>
-      <p class="op-indispo" hidden>Le paiement en ligne ouvre très bientôt. Le bouton ci-dessus vous permet de réserver votre place par email dès maintenant.</p>
+    <section class="op-bloc op-prix" aria-labelledby="op-essai">
+      <h2 id="op-essai">L'essai gratuit</h2>
+      <p class="op-montant">0 € <span>pendant 15 jours</span></p>
+      <p class="op-detail">Jusqu'à 20 apprenants · 1 appel chacun · votre espace en ligne</p>
+      <p class="op-remise">Sans engagement, sans carte bancaire</p>
+      <a class="bouton op-bouton" href="#demande">Demander mon essai gratuit</a>
+      <p class="op-securite">Une seule fois par organisme de formation.</p>
     </section>
 
     <section class="op-bloc" aria-labelledby="op-etapes">
       <h2 id="op-etapes">Comment ça se passe</h2>
       <ol class="op-etapes">
-        <li><strong>Vous réservez</strong> en ligne en 2 minutes.</li>
-        <li><strong>Sous 7 jours</strong>, on échange 30 minutes sur vos formations et vos apprenants.</li>
-        <li><strong>Mois 1 et 2</strong> : les appels, votre espace en ligne, un rapport chaque mois.</li>
-        <li><strong>Fin du pilote</strong> : bilan chiffré de 30 minutes. Vous décidez librement de continuer.</li>
+        <li><strong>Vous demandez l'essai</strong> en 2 minutes, ci-dessous.</li>
+        <li><strong>Sous 48 h</strong>, je vous appelle : vos formations, vos apprenants, le fichier à me transmettre.</li>
+        <li><strong>Pendant 15 jours</strong> : les appels, votre espace en ligne avec chaque compte rendu.</li>
+        <li><strong>Fin de l'essai</strong> : bilan chiffré de 30 minutes. Vous décidez librement de continuer.</li>
       </ol>
     </section>
 
@@ -93,14 +92,19 @@
           <tr><td>Plus de 150</td><td>12 €</td></tr>
         </tbody>
       </table>
-      <p class="op-petit">En échange du tarif pilote : un témoignage de quelques lignes si vous êtes satisfait, et l'autorisation de citer les résultats chiffrés (anonymement si vous préférez).</p>
+      <p class="op-petit">Le nombre d'appels s'adapte à la durée de vos formations : CAP sur 12 mois, titre professionnel sur 6 mois, formation courte.</p>
     </section>
 
-    <section class="op-bloc op-devis" id="devis" aria-labelledby="op-surmesure">
-      <h2 id="op-surmesure">Plus de 20 apprenants, ou un besoin particulier ?</h2>
-      <p>CAP sur 12 mois, titre professionnel sur 6 mois, formation courte : le nombre d'appels s'adapte à la durée de la formation. Décrivez votre besoin, je vous envoie une proposition sur mesure sous 48 h.</p>
+    <section class="op-bloc op-devis" id="demande" aria-labelledby="op-demande">
+      <h2 id="op-demande">Votre demande</h2>
+      <p>Essai gratuit ou proposition sur mesure : je vous réponds sous 48 h.</p>
 
       <form id="devis-formulaire" class="op-formulaire" novalidate>
+        <fieldset class="op-choix">
+          <legend>Vous souhaitez</legend>
+          <label class="op-choix-option"><input type="radio" name="type" value="essai" checked> <span><strong>L'essai gratuit de 15 jours</strong><br><small>Jusqu'à 20 apprenants, sans engagement</small></span></label>
+          <label class="op-choix-option"><input type="radio" name="type" value="devis"> <span><strong>Un devis sur mesure</strong><br><small>Plus de 20 apprenants ou un besoin particulier</small></span></label>
+        </fieldset>
         <label><span>Organisme de formation <span class="op-requis">obligatoire</span></span>
           <input name="organisme" autocomplete="organization" maxlength="150" required></label>
         <div class="op-deux">
@@ -125,14 +129,14 @@
           <textarea name="message" rows="4" maxlength="3000" placeholder="Durée des formations, financement (CPF…), ce qui vous préoccupe…"></textarea></label>
         <!-- Champ piège invisible : ne pas remplir -->
         <div class="op-piege" aria-hidden="true"><label>Site web <input name="site" tabindex="-1" autocomplete="off"></label></div>
-        <p class="op-petit">Vos coordonnées servent uniquement à vous répondre au sujet de cette demande.</p>
+        <p class="op-petit">Vos coordonnées servent uniquement à vous répondre au sujet de cette demande. Vous recevez un accusé de réception par email.</p>
         <p id="devis-message" class="op-retour" role="status" hidden></p>
-        <button type="submit" class="bouton op-bouton">Demander un devis</button>
+        <button type="submit" class="bouton op-bouton">Envoyer ma demande</button>
       </form>
 
       <div id="devis-merci" class="op-merci" hidden>
         <h3>Merci, votre demande est bien reçue.</h3>
-        <p>Je reviens vers vous sous 48 h avec une proposition adaptée à vos formations.</p>
+        <p id="devis-merci-texte">Je vous appelle sous 48 h. Un accusé de réception vient de partir dans votre boîte email.</p>
       </div>
     </section>
 

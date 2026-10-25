@@ -1148,5 +1148,65 @@ set local role authenticated;
 select tests.verifier((select count(*) from public.echeances) = 0, 'administratrice sans double authentification : rien');
 rollback;
 
+\echo '== 25. Tunnel de vente : essai gratuit, tarif dégressif, acceptation en ligne'
+begin;
+set local role anon;
+select public.demander_essai_ou_devis('Centre Essai Test', 'Julie Martin', 'Directrice', 'julie@essai.test', '0600000000', 35, 'CAP AEPE', 'On veut tester', null, 'essai');
+select public.demander_essai_ou_devis('Centre Devis Test', 'Paul Durand', null, 'paul@devis.test', null, 60, null, null);
+select public.demander_devis('Ancien Formulaire', 'Léo Petit', null, 'leo@ancien.test', null, 30, null, null);
+select public.demander_essai_ou_devis('Petit Centre', 'Anne Roy', null, 'anne@petit.test', null, 8, null, null, null, 'devis');
+select public.demander_essai_ou_devis('Grand Centre', 'Marc Blanc', null, 'marc@grand.test', null, 400, null, null, null, 'devis');
+select tests.doit_etre_refuse($$select * from public.propositions$$, 'visiteur : ne lit pas les propositions');
+select tests.doit_etre_refuse(
+  $$select public.demander_essai_ou_devis('Centre Essai Test', 'Julie Martin', null, 'julie@essai.test', null, 10, null, null, null, 'essai')$$,
+  'essai gratuit : une seule fois par organisme');
+reset role;
+
+select tests.verifier(
+  (select type_offre = 'essai' and montant_total = 0 and nb_apprenants = 20 and duree_jours = 15 and statut = 'demande'
+     from public.propositions p join public.organismes o on o.id = p.organisme_id where o.nom = 'Centre Essai Test'),
+  'demande d''essai : proposition gratuite de 15 jours, plafonnée à 20 apprenants');
+select tests.verifier(
+  (select prix_appel = 15 and montant_total = 60 * 6 * 15 and paiement = 'mensuel'
+     from public.propositions p join public.organismes o on o.id = p.organisme_id where o.nom = 'Centre Devis Test'),
+  'devis 60 apprenants (type par défaut) : 15 € l''appel, total calculé');
+select tests.verifier(
+  (select prix_appel = 20 from public.propositions p join public.organismes o on o.id = p.organisme_id where o.nom = 'Petit Centre')
+  and (select prix_appel = 12 from public.propositions p join public.organismes o on o.id = p.organisme_id where o.nom = 'Grand Centre'),
+  'tarif dégressif : 20 € sous 20 apprenants, 12 € au-delà de 150');
+
+-- Préparée puis envoyée par l'administratrice, acceptée par le client
+update public.propositions set statut = 'envoyee' where organisme_id = (select id from public.organismes where nom = 'Centre Essai Test');
+select jeton as jeton_essai from public.propositions where organisme_id = (select id from public.organismes where nom = 'Centre Essai Test') \gset
+set local role anon;
+select tests.verifier(
+  (select statut = 'envoyee' and type_offre = 'essai' and contact_nom = 'Julie Martin' from public.proposition_client(:'jeton_essai')),
+  'page client : lit sa proposition par son lien');
+select tests.verifier(
+  (select type_offre = 'essai' from public.accepter_proposition(:'jeton_essai', 'Julie Martin', 'Directrice', 'julie@essai.test')),
+  'client : accepte la proposition en ligne');
+select tests.doit_etre_refuse(
+  format('select public.accepter_proposition(%L, ''Julie'', null, ''julie@essai.test'')', :'jeton_essai'),
+  'proposition déjà acceptée : refus d''une seconde acceptation');
+select tests.doit_etre_refuse(
+  format('select public.accepter_proposition(%L, ''Julie'', null, ''pas-un-email'')', gen_random_uuid()),
+  'acceptation : email invalide ou lien inconnu refusé');
+reset role;
+select tests.verifier(
+  (select p.accepte_le is not null and p.accepte_nom = 'Julie Martin' and s.etape = 'test_gratuit'
+     from public.propositions p join public.organismes_suivi_commercial s on s.organisme_id = p.organisme_id
+     where p.jeton = :'jeton_essai'),
+  'après acceptation : proposition « acceptée », fiche en « Test gratuit »');
+select tests.verifier(
+  (select count(*) from public.echanges_commerciaux e join public.organismes o on o.id = e.organisme_id
+     where o.nom = 'Centre Essai Test' and e.resume like 'Essai gratuit accepté en ligne par Julie Martin%') = 1,
+  'après acceptation : noté dans l''historique des échanges');
+select jeton as jeton_demande from public.propositions where organisme_id = (select id from public.organismes where nom = 'Petit Centre') \gset
+set local role anon;
+select tests.doit_etre_refuse(
+  format('select public.accepter_proposition(%L, ''Anne Roy'', null, ''anne@petit.test'')', :'jeton_demande'),
+  'demande pas encore préparée : ne peut pas être acceptée');
+rollback;
+
 \echo
 \echo 'TOUS LES TESTS SONT PASSÉS'

@@ -859,7 +859,7 @@
       sb.from("organismes_suivi_commercial").select("organisme_id, etape, prochaine_relance"),
       sb.from("vue_relances_examen").select("id").not("etape_relance", "is", null).eq("relance_faite", false),
       chargerImpayes(),
-      sb.from("propositions").select("id", { count: "exact", head: true }).eq("statut", "demande"),
+      sb.from("propositions").select("id", { count: "exact", head: true }).or("statut.eq.demande,and(statut.eq.envoyee,accepte_le.not.is.null)"),
     ]);
     const nbDemandesDevis = demandesDevis && !demandesDevis.error ? demandesDevis.count || 0 : 0;
     const totalImpayes = [...impayes.values()].reduce((t, m) => t + m, 0);
@@ -893,8 +893,8 @@
 
         nbDemandesDevis
           ? h("p", { class: "message message-action" },
-              h("strong", {}, pluriel(nbDemandesDevis, "nouvelle demande de devis", "nouvelles demandes de devis")),
-              " reçue(s) depuis le site. ",
+              h("strong", {}, pluriel(nbDemandesDevis, "demande à traiter", "demandes à traiter")),
+              " : essai gratuit, devis ou proposition acceptée en ligne. ",
               lienInterne("devis", "Les voir"))
           : null,
 
@@ -1122,7 +1122,7 @@
       sb.from("apprenants").select("statut").eq("organisme_id", id),
       sb.rpc("acces_organisme", { p_organisme: id }),
       chargerImpayes(id),
-      sb.from("propositions").select("id", { count: "exact", head: true }).eq("organisme_id", id).eq("statut", "demande"),
+      sb.from("propositions").select("id", { count: "exact", head: true }).eq("organisme_id", id).or("statut.eq.demande,and(statut.eq.envoyee,accepte_le.not.is.null)"),
     ]);
     const montantImpaye = impayesOrg.get(id) || 0;
     const nbDemandes = demandesOrg && !demandesOrg.error ? demandesOrg.count || 0 : 0;
@@ -4080,7 +4080,7 @@
       sb.from("satisfaction").select("id", { count: "exact", head: true }).not("repondu_le", "is", null).is("lu_le", null),
       sb.rpc("comptes_acces"),
       sb.from("vue_echeances").select("id", { count: "exact", head: true }).not("relance_due", "is", null),
-      sb.from("propositions").select("id", { count: "exact", head: true }).eq("statut", "demande"),
+      sb.from("propositions").select("id", { count: "exact", head: true }).or("statut.eq.demande,and(statut.eq.envoyee,accepte_le.not.is.null)"),
     ]);
     if (orgs.error || appr.error || urgents.error) return;
     const total = new Map();
@@ -4472,10 +4472,20 @@
   const STATUT_PROPOSITION = {
     demande: ["rouge", "Nouvelle demande"],
     brouillon: ["neutre", "Brouillon"],
-    envoyee: ["orange", "Envoyée, en attente de paiement"],
+    envoyee: ["orange", "Envoyée, en attente d'accord"],
+    acceptee: ["vert", "Acceptée en ligne"],
     payee: ["vert", "Payée"],
     refusee: ["neutre", "Refusée"],
   };
+  // Statut affiché : une proposition acceptée en ligne (accepte_le) mais pas encore payée.
+  function statutPropo(p) {
+    if (p.accepte_le && p.statut !== "payee" && p.statut !== "refusee") {
+      return p.type_offre === "essai" ? ["vert", "Essai accepté : à démarrer"] : ["vert", "Acceptée en ligne"];
+    }
+    return STATUT_PROPOSITION[p.statut] || ["neutre", p.statut];
+  }
+  // Tarif dégressif à l'appel (même règle que la base : prive.prix_appel_degressif).
+  function prixDegressif(nb) { return nb < 20 ? 20 : nb <= 150 ? 15 : 12; }
   const PAIEMENTS = { unique: "En une fois", mensuel: "Chaque mois (mensualités)" };
 
   function lienPagePropo(p) {
@@ -4498,17 +4508,31 @@
       nouvelle.addEventListener("click", async () => {
         occupe(nouvelle, true, "Création…");
         const { error: e } = await sb.from("propositions").insert({
-          organisme_id: org.id, statut: "brouillon", nb_apprenants: 20, duree_mois: 2, appels_par_mois: 1, prix_appel: 20, montant_total: 800,
+          organisme_id: org.id, statut: "brouillon", type_offre: "standard", nb_apprenants: 20, duree_mois: 6, appels_par_mois: 1,
+          prix_appel: prixDegressif(20), montant_total: 20 * 6 * prixDegressif(20), paiement: "mensuel",
         });
         occupe(nouvelle, false);
         if (e) return signaler(zoneNouvelle, "erreur", texteErreur(e));
-        charger("Proposition créée : complète-la ci-dessous.");
+        charger("Proposition créée au tarif dégressif : complète-la ci-dessous.");
+      });
+      const aDejaEssai = data.some((x) => x.type_offre === "essai");
+      const nouvelEssai = aDejaEssai ? null : h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit" }, "+ Essai gratuit 15 jours");
+      if (nouvelEssai) nouvelEssai.addEventListener("click", async () => {
+        occupe(nouvelEssai, true, "Création…");
+        const { error: e } = await sb.from("propositions").insert({
+          organisme_id: org.id, statut: "brouillon", type_offre: "essai", titre: "Essai gratuit de 15 jours",
+          description: "Jusqu'à 20 apprenants appelés une fois chacun pendant 15 jours : point sur la progression, objectifs, relance, aide pour l'inscription à l'examen. Votre espace en ligne avec le compte rendu de chaque appel, puis un bilan chiffré de 30 minutes. Sans engagement : vous décidez ensuite librement de continuer.",
+          nb_apprenants: 20, duree_mois: 1, duree_jours: 15, appels_par_mois: 1, prix_appel: 0, montant_total: 0, paiement: "unique",
+        });
+        occupe(nouvelEssai, false);
+        if (e) return signaler(zoneNouvelle, "erreur", texteErreur(e));
+        charger("Essai gratuit créé : envoie-le au centre pour qu'il l'accepte en ligne.");
       });
       zone.replaceChildren(
         info ? message("info", info) : "",
         h("div", { class: "section-titre" }, h("h2", {}, "Propositions et paiement"), h("p", {}, pluriel(data.length, "proposition", "propositions"))),
-        h("p", { class: "aide" }, "Chaque proposition a son tarif, sa page à envoyer au client et son lien de paiement (prélèvement ou carte). Modifie ce que tu veux, puis recrée le lien : l'ancien ne fonctionne plus."),
-        h("div", { class: "actions-ligne" }, nouvelle), zoneNouvelle,
+        h("p", { class: "aide" }, "Chaque proposition a sa page à envoyer au client : il l'accepte en ligne, tu es prévenue par email. Pour une offre payante, crée le lien de paiement (prélèvement ou carte) : il s'affiche au client dès qu'il a accepté."),
+        h("div", { class: "actions-ligne" }, nouvelle, nouvelEssai), zoneNouvelle,
         data.length ? data.map((p) => carteProposition(p, org, suivi, charger)) : message("info", "Aucune proposition pour cet organisme."));
     }
     charger();
@@ -4528,6 +4552,14 @@
     const mot = champTexte(`pr-mot-${p.id}`, "Petit mot au client (facultatif)", p.message_client, { multiligne: true });
     const resume = h("p", { class: "propo-resume" });
 
+    // Tarif dégressif : le prix suit le nombre d'apprenants tant qu'il n'a pas été changé à la main.
+    let prixManuel = Number(p.prix_appel) !== prixDegressif(Number(p.nb_apprenants));
+    prix.champ.addEventListener("input", () => { prixManuel = true; });
+    nb.champ.addEventListener("input", () => {
+      if (!prixManuel) prix.champ.value = nombreFr(prixDegressif(Math.max(1, Math.round(lireNombre(nb.champ)))));
+    });
+    const aideTarif = h("p", { class: "aide" }, "Tarif dégressif : 20 € l'appel sous 20 apprenants, 15 € de 20 à 150, 12 € au-delà. ",
+      (() => { const b = h("button", { type: "button", class: "bouton-lien" }, "Revenir au tarif dégressif"); b.addEventListener("click", () => { prixManuel = false; prix.champ.value = nombreFr(prixDegressif(Math.max(1, Math.round(lireNombre(nb.champ))))); calculer(); }); return b; })());
     const calculer = () => {
       const t = lireNombre(nb.champ) * lireNombre(duree.champ) * lireNombre(appels.champ) * lireNombre(prix.champ);
       total.champ.value = nombreFr(Math.round(t * 100) / 100);
@@ -4541,12 +4573,20 @@
         ? `${euros(t)} HT au total, soit ${euros(Math.round((t / d) * 100) / 100)} par mois pendant ${pluriel(d, "mois", "mois")}.`
         : `${euros(t)} HT, payé en une fois${nbAppels ? ` (${pluriel(Math.round(nbAppels), "appel", "appels")}, soit ${euros(t / nbAppels)} l'appel)` : ""}.`;
     };
-    [nb, duree, appels, prix].forEach((c) => c.champ.addEventListener("input", calculer));
+    const essai = p.type_offre === "essai";
+    if (!essai) [nb, duree, appels, prix].forEach((c) => c.champ.addEventListener("input", calculer));
     [total.champ, paiement.champ].forEach((c) => c.addEventListener("input", majResume));
     paiement.champ.addEventListener("change", majResume);
-    majResume();
+    if (essai) resume.textContent = `Gratuit · ${pluriel(p.duree_jours || 15, "jour", "jours")} · jusqu'à ${pluriel(p.nb_apprenants, "apprenant", "apprenants")}, 1 appel chacun. Une seule fois par organisme.`;
+    else majResume();
 
-    const valeurs = () => ({
+    const valeurs = () => essai ? ({
+      titre: titre.champ.value.trim() || "Essai gratuit de 15 jours",
+      nb_apprenants: Math.min(20, Math.max(1, Math.round(lireNombre(nb.champ)))),
+      description: description.champ.value.trim() || null,
+      message_client: mot.champ.value.trim() || null,
+      ...(p.statut === "demande" ? { statut: "brouillon" } : {}),
+    }) : ({
       titre: titre.champ.value.trim() || "Suivi téléphonique de vos apprenants",
       nb_apprenants: Math.max(1, Math.round(lireNombre(nb.champ))),
       duree_mois: Math.min(36, Math.max(1, Math.round(lireNombre(duree.champ)))),
@@ -4596,12 +4636,14 @@
       const r = await enregistrer();
       if (r.error) return signaler(zoneMsg, "erreur", texteErreur(r.error));
       const prenom = suivi.contact_nom ? " " + suivi.contact_nom.split(" ")[0] : "";
-      const texte = `Bonjour${prenom},\n\nComme convenu, voici ma proposition pour le suivi de vos apprenants : ${p.titre}.\n\n${pluriel(p.nb_apprenants, "apprenant", "apprenants")}, ${pluriel(p.duree_mois, "mois", "mois")}, ${nombreFr(p.appels_par_mois)} appel(s) par mois et par apprenant.\nMontant : ${euros(p.montant_total)} HT${p.paiement === "mensuel" ? `, soit ${euros(p.montant_total / p.duree_mois)} par mois` : ""}.\n\nVous trouverez le détail et le paiement en ligne (prélèvement ou carte) ici :\n${pageClient}\n\nJe reste disponible pour en parler.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants\n06 17 75 56 17`;
+      const texte = essai
+        ? `Bonjour${prenom},\n\nComme convenu, voici votre essai gratuit de 15 jours : j'appelle jusqu'à ${pluriel(p.nb_apprenants, "apprenant", "apprenants")} une fois chacun, vous suivez chaque compte rendu dans votre espace en ligne, puis nous faisons un bilan chiffré ensemble. Sans engagement.\n\nPour lancer l'essai, il suffit de l'accepter en ligne (1 minute) :\n${pageClient}\n\nJe reste disponible pour en parler.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants\n06 17 75 56 17`
+        : `Bonjour${prenom},\n\nComme convenu, voici ma proposition pour le suivi de vos apprenants : ${p.titre}.\n\n${pluriel(p.nb_apprenants, "apprenant", "apprenants")}, ${pluriel(p.duree_mois, "mois", "mois")}, ${nombreFr(p.appels_par_mois)} appel(s) par mois et par apprenant, à ${euros(p.prix_appel)} HT l'appel.\nMontant : ${euros(p.montant_total)} HT${p.paiement === "mensuel" ? `, soit ${euros(p.montant_total / p.duree_mois)} par mois` : ""}.\n\nVous pouvez consulter le détail et l'accepter en ligne ici${p.stripe_lien_url ? " (le paiement par prélèvement ou carte vous sera proposé juste après)" : ""} :\n${pageClient}\n\nJe reste disponible pour en parler.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants\n06 17 75 56 17`;
       const boite = (window.FIL_ROUGE_CONFIG || {}).emailFilRouge || "";
-      window.open(window.FilRougeContact.lienGmail(suivi.contact_email, `Votre proposition — Fil Rouge Apprenants`, texte, boite), "_blank", "noopener");
+      window.open(window.FilRougeContact.lienGmail(suivi.contact_email, essai ? "Votre essai gratuit de 15 jours — Fil Rouge Apprenants" : "Votre proposition — Fil Rouge Apprenants", texte, boite), "_blank", "noopener");
       if (p.statut !== "envoyee" && p.statut !== "payee") {
         await sb.from("propositions").update({ statut: "envoyee", envoyee_le: new Date().toISOString() }).eq("id", p.id);
-        await insererEchange({ organisme_id: org.id, date_echange: aujourdhui(), canal: "email", resume: `Proposition envoyée : ${p.titre}, ${euros(p.montant_total)} HT.`, auteur_id: etat.profil.id });
+        await insererEchange({ organisme_id: org.id, date_echange: aujourdhui(), canal: "email", resume: essai ? `Essai gratuit envoyé : ${p.titre}.` : `Proposition envoyée : ${p.titre}, ${euros(p.montant_total)} HT.`, auteur_id: etat.profil.id });
       }
       recharger("Email ouvert dans Gmail. La proposition est notée « envoyée ».");
     });
@@ -4624,12 +4666,20 @@
     });
 
     const lienAJour = p.stripe_lien_url && Number(p.stripe_lien_montant) === Number(p.montant_total) && p.stripe_lien_paiement === p.paiement;
-    const [couleur, libelle] = STATUT_PROPOSITION[p.statut] || ["neutre", p.statut];
+    const [couleur, libelle] = statutPropo(p);
 
-    return h("section", { class: `carte carte-large pile-serree propo${p.statut === "demande" ? " propo-demande" : ""}` },
+    return h("section", { class: `carte carte-large pile-serree propo${p.statut === "demande" || (p.accepte_le && p.statut !== "payee") ? " propo-demande" : ""}` },
       h("div", { class: "propo-tete" },
         h("strong", {}, p.titre),
+        essai ? pastille("vert", "Essai gratuit") : null,
         pastille(couleur, libelle)),
+      p.accepte_le
+        ? h("div", { class: "propo-demande-bloc" },
+            h("p", { class: "surtitre" }, `Acceptée en ligne le ${dateHeureComplete(p.accepte_le)}`),
+            h("p", {}, [p.accepte_nom, p.accepte_fonction, p.accepte_email].filter(Boolean).join(" · ")),
+            h("p", { class: "aide" }, essai ? "Prochaine étape : appeler le centre pour récupérer le fichier des apprenants."
+              : p.statut === "payee" ? "Réglée." : p.stripe_lien_url ? "Le lien de paiement lui est proposé sur sa page." : "Crée le lien de paiement : il apparaîtra aussitôt sur sa page."))
+        : null,
       p.demande_le
         ? h("div", { class: "propo-demande-bloc" },
             h("p", { class: "surtitre" }, `Demande reçue le ${dateHeureComplete(p.demande_le)}`),
@@ -4637,24 +4687,25 @@
             p.demande_message ? h("p", { class: "texte-libre" }, p.demande_message) : null)
         : null,
       titre.bloc,
-      h("div", { class: "deux-colonnes" }, nb.bloc, duree.bloc),
-      h("div", { class: "deux-colonnes" }, appels.bloc, prix.bloc),
-      h("div", { class: "deux-colonnes" }, total.bloc, paiement.bloc),
+      essai ? nb.bloc : h("div", { class: "deux-colonnes" }, nb.bloc, duree.bloc),
+      essai ? null : h("div", { class: "deux-colonnes" }, appels.bloc, prix.bloc),
+      essai ? null : aideTarif,
+      essai ? null : h("div", { class: "deux-colonnes" }, total.bloc, paiement.bloc),
       resume,
       description.bloc,
       mot.bloc,
       zoneMsg,
-      h("div", { class: "actions-ligne" }, bEnregistrer, p.statut !== "payee" ? bLien : null, bEnvoyer),
-      p.stripe_lien_url
+      h("div", { class: "actions-ligne" }, bEnregistrer, p.statut !== "payee" && !essai ? bLien : null, bEnvoyer),
+      essai ? null : p.stripe_lien_url
         ? h("p", { class: lienAJour ? "aide" : "message message-impaye" },
             lienAJour ? "Lien de paiement : " : "Le montant ou le mode de paiement a changé : recrée le lien. Ancien lien : ",
             h("a", { href: p.stripe_lien_url, target: "_blank", rel: "noopener" }, p.stripe_lien_url))
-        : h("p", { class: "aide" }, "Pas encore de lien de paiement."),
+        : essai ? null : h("p", { class: "aide" }, "Pas encore de lien de paiement."),
       h("p", { class: "aide" }, "Page à envoyer au client : ", h("a", { href: pageClient, target: "_blank", rel: "noopener" }, "voir la page"), " · ",
         (() => { const b = h("button", { type: "button", class: "bouton-lien" }, "copier le lien"); b.addEventListener("click", async () => { try { await navigator.clipboard.writeText(pageClient); b.textContent = "lien copié ✓"; } catch (e) { window.prompt("Lien à copier :", pageClient); } }); return b; })()),
       p.paiement === "mensuel" ? h("p", { class: "aide" }, `Paiement mensuel : pense à arrêter l'abonnement dans Stripe après ${pluriel(p.duree_mois, "mensualité", "mensualités")}.`) : null,
       h("div", { class: "actions-secondaires" },
-        p.statut !== "payee" ? statutBouton("Marquer payée", "payee", { payee_le: new Date().toISOString() }) : statutBouton("Annuler « payée »", "envoyee", { payee_le: null }),
+        essai ? null : p.statut !== "payee" ? statutBouton("Marquer payée", "payee", { payee_le: new Date().toISOString() }) : statutBouton("Annuler « payée »", "envoyee", { payee_le: null }),
         p.statut !== "refusee" && p.statut !== "payee" ? statutBouton("Refusée", "refusee") : null,
         bSupprimer));
   }
@@ -4663,28 +4714,33 @@
   async function ecranDevis() {
     afficher(h("p", { class: "chargement" }, "Chargement des demandes…"));
     const { data, error } = await sb.from("propositions")
-      .select("id, organisme_id, statut, demande_le, demande_nb_apprenants, demande_formations, demande_message, montant_total, titre, organismes ( nom, organismes_suivi_commercial ( contact_nom, contact_email, contact_telephone ) )")
-      .not("demande_le", "is", null)
-      .order("demande_le", { ascending: false });
+      .select("id, organisme_id, statut, type_offre, accepte_le, accepte_nom, demande_le, demande_nb_apprenants, demande_formations, demande_message, montant_total, titre, cree_le, organismes ( nom, organismes_suivi_commercial ( contact_nom, contact_email, contact_telephone ) )")
+      .or("demande_le.not.is.null,accepte_le.not.is.null")
+      .order("cree_le", { ascending: false });
     if (error) return afficher(message("erreur", texteErreur(error)));
     const ligne = (p) => {
       const o = p.organismes || {};
       const s = o.organismes_suivi_commercial || {};
-      const [couleur, libelle] = STATUT_PROPOSITION[p.statut] || ["neutre", p.statut];
+      const [couleur, libelle] = statutPropo(p);
       return h("li", { class: "ligne" },
         h("span", { class: "ligne-titre" }, lienInterne(`organisme/${p.organisme_id}/proposition`, o.nom || "Organisme")),
-        h("span", { class: "pastilles" }, pastille(couleur, libelle)),
-        h("span", { class: "ligne-detail" }, [dateHeureComplete(p.demande_le), s.contact_nom, s.contact_email, s.contact_telephone,
+        h("span", { class: "pastilles" }, pastille(p.type_offre === "essai" ? "vert" : "neutre", p.type_offre === "essai" ? "Essai gratuit" : "Devis"), pastille(couleur, libelle)),
+        p.accepte_le ? h("span", { class: "ligne-detail" }, `Acceptée en ligne le ${dateHeureComplete(p.accepte_le)}${p.accepte_nom ? ` par ${p.accepte_nom}` : ""}`) : null,
+        h("span", { class: "ligne-detail" }, [p.demande_le ? `Demande du ${dateHeureComplete(p.demande_le)}` : null, s.contact_nom, s.contact_email, s.contact_telephone,
           p.demande_nb_apprenants ? pluriel(p.demande_nb_apprenants, "apprenant", "apprenants") : null, p.demande_formations].filter(Boolean).join(" · ")),
         p.demande_message ? h("span", { class: "ligne-detail texte-libre" }, p.demande_message) : null);
     };
     const aTraiter = data.filter((p) => p.statut === "demande");
-    const autres = data.filter((p) => p.statut !== "demande");
+    const aDemarrer = data.filter((p) => p.accepte_le && p.statut === "envoyee");
+    const autres = data.filter((p) => !aTraiter.includes(p) && !aDemarrer.includes(p));
     afficher(h("div", { class: "pile" },
       h("div", {}, h("p", { class: "surtitre" }, "Tunnel de vente"), h("h1", {}, "Demandes de devis"),
-        h("p", { class: "chapo" }, "Les demandes envoyées depuis la page Offre pilote. Chaque demande crée la fiche de l'organisme ; ouvre-la pour préparer la proposition et le lien de paiement.")),
-      h("section", {}, h("div", { class: "section-titre" }, h("h2", {}, "À traiter"), h("p", {}, String(aTraiter.length))),
+        h("p", { class: "chapo" }, "Les demandes d'essai gratuit et de devis envoyées depuis le site. Chaque demande crée la fiche de l'organisme avec une proposition pré-remplie (tarif dégressif). Vérifie-la, envoie-la : le centre l'accepte en ligne et tu es prévenue par email."),
+        h("div", { class: "actions-ligne" }, h("a", { class: "bouton bouton-secondaire bouton-petit", href: "offre-pilote.html", target: "_blank", rel: "noopener" }, "Voir la page publique"))),
+      h("section", {}, h("div", { class: "section-titre" }, h("h2", {}, "Nouvelles demandes"), h("p", {}, String(aTraiter.length))),
         aTraiter.length ? h("ul", { class: "liste" }, aTraiter.map(ligne)) : message("info", "Aucune nouvelle demande.")),
+      aDemarrer.length ? h("section", {}, h("div", { class: "section-titre" }, h("h2", {}, "Acceptées en ligne : à démarrer"), h("p", {}, String(aDemarrer.length))),
+        h("ul", { class: "liste" }, aDemarrer.map(ligne))) : null,
       autres.length ? h("section", {}, h("div", { class: "section-titre" }, h("h2", {}, "Déjà traitées")), h("ul", { class: "liste" }, autres.map(ligne))) : null));
   }
 

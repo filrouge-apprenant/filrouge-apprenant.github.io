@@ -57,18 +57,39 @@
 
       <section class="op-bloc op-prix" aria-labelledby="pr-tarif">
         <h2 id="pr-tarif">Votre offre</h2>
-        <p class="op-montant"><span id="pr-montant"></span> <span>HT</span></p>
+        <p class="op-montant"><span id="pr-montant"></span> <span id="pr-ht">HT</span></p>
         <p id="pr-detail" class="op-detail"></p>
         <p id="pr-mensuel" class="op-remise" hidden></p>
-        <a id="pr-payer" class="bouton op-bouton" href="#" hidden>Accepter et payer en ligne</a>
-        <p id="pr-securite" class="op-securite" hidden>Paiement sécurisé par prélèvement sur RIB ou par carte bancaire.</p>
         <p id="pr-payee" class="op-detail" hidden>Cette proposition est réglée. Merci !</p>
-        <p id="pr-sans-lien" class="op-securite" hidden>Le paiement en ligne sera ajouté très bientôt. Pour accepter, répondez simplement à mon email.</p>
       </section>
 
       <section id="pr-inclus-bloc" class="op-bloc" aria-labelledby="pr-inclus" hidden>
         <h2 id="pr-inclus">Ce qui est inclus</h2>
         <p id="pr-description" class="op-texte"></p>
+      </section>
+
+      <section id="pr-accord-bloc" class="op-bloc op-devis" aria-labelledby="pr-accord-titre" hidden>
+        <h2 id="pr-accord-titre">Accepter la proposition</h2>
+        <form id="pr-accord" class="op-formulaire" novalidate>
+          <div class="op-deux">
+            <label><span>Votre nom <span class="op-requis">obligatoire</span></span>
+              <input name="nom" autocomplete="name" maxlength="120" required></label>
+            <label>Votre fonction
+              <input name="fonction" autocomplete="organization-title" maxlength="120"></label>
+          </div>
+          <label><span>Email <span class="op-requis">obligatoire</span></span>
+            <input name="email" type="email" inputmode="email" autocomplete="email" maxlength="200" required></label>
+          <label class="op-case"><input type="checkbox" name="accord"> <span id="pr-accord-texte">J'ai lu cette proposition et je l'accepte au nom de mon organisme.</span></label>
+          <p id="pr-accord-message" class="op-retour" role="status" hidden></p>
+          <button type="submit" class="bouton op-bouton" id="pr-accepter">J'accepte</button>
+        </form>
+      </section>
+
+      <section id="pr-confirmation" class="op-bloc op-prix" hidden>
+        <h2>Merci, votre accord est bien enregistré</h2>
+        <p id="pr-confirmation-texte" class="op-texte"></p>
+        <a id="pr-payer" class="bouton op-bouton" href="#" hidden>Régler en ligne</a>
+        <p id="pr-securite" class="op-securite" hidden>Paiement sécurisé par prélèvement sur RIB ou par carte bancaire.</p>
       </section>
 
       <footer class="op-pied">
