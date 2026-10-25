@@ -65,8 +65,19 @@ function gabarit(lignesHtml: string, bouton?: { texte: string; lien: string }) {
 }
 const p = (s: string) => `<p style="margin:0 0 12px;">${s}</p>`;
 
-// Clé Brevo : nom en majuscules ou en minuscules (les deux sont acceptés).
-const cleBrevo = () => (Deno.env.get("BREVO_API_KEY") || Deno.env.get("brevo_api_key") || "").trim();
+// Clé Brevo : BREVO_API_KEY (ou brevo_api_key) ; à défaut, n'importe quel secret
+// dont la valeur est une clé API Brevo (commence par « xkeysib- »).
+function trouverCleBrevo(): { nom: string; cle: string } | null {
+  for (const nom of ["BREVO_API_KEY", "brevo_api_key"]) {
+    const v = (Deno.env.get(nom) || "").trim();
+    if (v) return { nom, cle: v };
+  }
+  for (const [nom, v] of Object.entries(Deno.env.toObject())) {
+    if (String(v).trim().startsWith("xkeysib-")) return { nom, cle: String(v).trim() };
+  }
+  return null;
+}
+const cleBrevo = () => trouverCleBrevo()?.cle ?? "";
 
 async function envoyer(email: { a: string; nom?: string; objet: string; html: string; repondreA?: string }) {
   const cle = cleBrevo();
@@ -223,35 +234,10 @@ Deno.serve(async (req: Request) => {
     return reponse(origine, 200, { ok: true, type_offre: a.type_offre, lien_paiement: essai ? null : lien, emails });
   }
 
-  // ---------------------------------------------------------------------------
-  // Diagnostic : la clé Brevo est-elle là et valable ? (aucune donnée sensible renvoyée)
-  // ---------------------------------------------------------------------------
+  // Diagnostic minimal : la clé Brevo est-elle enregistrée ? (oui / non, rien d'autre)
   if (d.action === "diagnostic") {
     const cle = cleBrevo();
-    const expediteur = (Deno.env.get("EMAIL_EXPEDITEUR") || BOITE).toLowerCase();
-    if (!cle) {
-      // Noms (jamais les valeurs) des secrets qui ressemblent à une clé email : aide à repérer une faute de frappe.
-      const proches = Object.keys(Deno.env.toObject()).filter((n) => /brevo|sendinblue|sib|mail|api_?key/i.test(n) && !/^SUPABASE_/.test(n));
-      return reponse(origine, 200, { cle_presente: false, secrets_proches: proches });
-    }
-    const h = { "api-key": cle, Accept: "application/json" };
-    const compte = await fetch("https://api.brevo.com/v3/account", { headers: h }).catch(() => null);
-    let expediteurValide: boolean | null = null;
-    if (compte?.ok) {
-      const r = await fetch("https://api.brevo.com/v3/senders", { headers: h }).catch(() => null);
-      if (r?.ok) {
-        const corps = await r.json().catch(() => ({}));
-        expediteurValide = (corps.senders ?? []).some((x: { email?: string; active?: boolean }) =>
-          String(x.email ?? "").toLowerCase() === expediteur && x.active !== false);
-      }
-    }
-    return reponse(origine, 200, {
-      cle_presente: true,
-      cle_format_api: cle.startsWith("xkeysib-"),
-      cle_acceptee: compte?.ok === true,
-      statut_brevo: compte?.status ?? null,
-      expediteur_valide: expediteurValide,
-    });
+    return reponse(origine, 200, { cle_presente: !!cle, cle_format_api: cle.startsWith("xkeysib-") });
   }
 
   return reponse(origine, 400, { erreur: "Demande non valable." });
