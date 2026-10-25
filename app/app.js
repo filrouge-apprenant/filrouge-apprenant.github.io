@@ -2504,7 +2504,6 @@
 
   function ligneHistorique(appel, options) {
     const { peutSupprimer, apresSuppression } = options;
-    const noteInterne = appel.notes_internes && appel.notes_internes.contenu;
     let suppression = null;
     if (peutSupprimer) {
       const zone = h("div");
@@ -2522,25 +2521,18 @@
       });
       suppression = h("div", { class: "ligne-detail" }, h("div", { class: "actions-secondaires" }, demander, confirmer, annuler), zone);
     }
+    // Historique d'appels : seulement la date, l'heure et le statut.
+    // Le commentaire de l'appel reste dans « Notes internes » et le fil de commentaires ;
+    // le compte rendu pour l'organisme, dans son onglet.
     return h("li", { class: "ligne ligne-echange" }, ...[
       h("span", { class: "ligne-titre" }, dateHeureComplete(appel.date_appel)),
       h("span", { class: "pastilles" },
-        pastille("neutre", LIBELLE_CANAL_APPEL[appel.canal] || appel.canal),
+        appel.canal && appel.canal !== "telephone" ? pastille("neutre", LIBELLE_CANAL_APPEL[appel.canal] || appel.canal) : null,
         appel.statuts && appel.statuts.length
           ? appel.statuts.map((x) => pastille(COULEUR_STATUT_APPEL[x] || "neutre", LIBELLE_STATUT_APPEL[x] || x))
           : appel.resultat === "messagerie" && NOTE_MESSAGE_ENVOYE[appel.canal]
             ? pastille("vert", "Message envoyé")
             : pastille(COULEUR_RESULTAT_APPEL[appel.resultat] || "neutre", LIBELLE_RESULTAT_APPEL[appel.resultat] || appel.resultat)),
-      appel.note_client ? h("span", { class: "ligne-detail texte-libre" }, appel.note_client) : null,
-      appel.prochaine_action || appel.date_prochaine_action
-        ? h("span", { class: "ligne-detail" }, "Suite : ", [appel.prochaine_action, appel.date_prochaine_action ? `le ${dateLisible(appel.date_prochaine_action)}` : null].filter(Boolean).join(" "))
-        : null,
-      noteInterne ? h("div", { class: "ligne-detail note-interne" }, h("strong", {}, "Commentaire (interne) · "), noteInterne, " ",
-        peutSupprimer ? boutonEffacer(async () => {
-          const r = await sb.from("notes_internes").delete().eq("appel_id", appel.id);
-          if (!r.error) apresSuppression();
-          return r;
-        }, "Effacer la note") : null) : null,
       suppression,
     ].filter(Boolean));
   }
@@ -3073,6 +3065,13 @@
 
     // --- Notes internes : écrites ici ou lors d'un appel ; elles vont aussi dans le fil de commentaires ---
     const notesInternes = (commentaires.data || []).filter((c) => c.source === "note_interne");
+    // Commentaires d'appel (script ou onglet Statut) : ils ne s'affichent plus dans
+    // l'historique d'appels, on les retrouve ici, avec les notes internes.
+    const textesNotes = new Set(notesInternes.map((c) => String(c.contenu || "").trim()));
+    const commentairesAppels = (appels.data || [])
+      .filter((ap) => ap.notes_internes && ap.notes_internes.contenu && !textesNotes.has(String(ap.notes_internes.contenu).trim()))
+      .map((ap) => ({ appel: ap, cree_le: ap.date_appel, contenu: ap.notes_internes.contenu }));
+    const elementsInternes = [...notesInternes, ...commentairesAppels].sort((x, y) => String(y.cree_le).localeCompare(String(x.cree_le)));
     const panneauInternes = h("section", { class: "pile-serree" },
       h("div", { class: "section-titre" }, h("h2", {}, "Notes internes"), h("p", {}, "🔒 Équipe Fil Rouge uniquement")),
       peutNoter ? (() => {
@@ -3092,17 +3091,25 @@
         });
         return form;
       })() : null,
-      notesInternes.length
-        ? h("ol", { class: "commentaires-liste" }, notesInternes.map((c) => h("li", { class: "commentaire commentaire-note_interne" },
-            h("div", { class: "commentaire-tete" }, h("span", { class: "commentaire-source" }, "🔒 Note interne"), h("span", { class: "commentaire-date" }, dateHeureComplete(c.cree_le))),
+      elementsInternes.length
+        ? h("ol", { class: "commentaires-liste" }, elementsInternes.map((c) => h("li", { class: "commentaire commentaire-note_interne" },
+            h("div", { class: "commentaire-tete" },
+              h("span", { class: "commentaire-source" }, c.appel ? "📞 Commentaire d'appel" : "🔒 Note interne"),
+              h("span", { class: "commentaire-date" }, dateHeureComplete(c.cree_le))),
             h("p", { class: "commentaire-texte" }, c.contenu),
             h("div", { class: "commentaire-pied" },
               c.auteur_nom ? h("span", { class: "commentaire-auteur" }, c.auteur_nom) : h("span"),
-              boutonEffacer(async () => {
-                const r = await sb.from("commentaires").delete().eq("id", c.id);
-                if (!r.error) rafraichir("Note interne effacée.");
-                return r;
-              })))))
+              c.appel
+                ? (estAdmin ? boutonEffacer(async () => {
+                    const r = await sb.from("notes_internes").delete().eq("appel_id", c.appel.id);
+                    if (!r.error) rafraichir("Commentaire d'appel effacé.");
+                    return r;
+                  }, "Effacer le commentaire") : null)
+                : boutonEffacer(async () => {
+                    const r = await sb.from("commentaires").delete().eq("id", c.id);
+                    if (!r.error) rafraichir("Note interne effacée.");
+                    return r;
+                  })))))
         : message("info", "Aucune note interne pour l'instant."));
 
     // --- Compte rendu pour l'organisme : ce que voit le client ---
@@ -3219,7 +3226,7 @@
     const listeOnglets = peutNoter
       ? [["fiche", "Fiche", panneauFiche],
          ["historique", `Historique d'appels${nb(appels.data.length)}`, panneauHistorique],
-         ["internes", `Notes internes${nb(notesInternes.length)}`, panneauInternes],
+         ["internes", `Notes internes${nb(elementsInternes.length)}`, panneauInternes],
          ["compte-rendu", "Compte rendu organisme", panneauCompteRendu],
          ["coaching", "Coaching", panneauCoaching],
          ["statut", "Statut", panneauStatut]]

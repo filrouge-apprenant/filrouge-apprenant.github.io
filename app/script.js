@@ -670,7 +670,7 @@
           texteCR,
           zone,
           h("div", { class: "actions-ligne" }, boutonEnregistrer, boutonHistorique),
-          h("p", { class: "aide" }, "« Enregistrer l'appel » le range dans l'historique et le publie dans les commentaires. « Historique seulement » le range sans le publier."),
+          h("p", { class: "aide" }, "L'historique d'appels garde la date, l'heure et le statut. Le commentaire va dans l'onglet « Notes internes » de la fiche. « Enregistrer l'appel » le publie aussi dans le fil de commentaires, « Historique seulement » non."),
         ];
       }
 
