@@ -1387,3 +1387,17 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 @media (max-width: 640px) {
   .scr-option { flex: 1 1 calc(50% - 0.45rem); }
 }
+
+/* ---------- Scripts de vente (#/scripts-vente) ---------- */
+.sv-script { display: flex; flex-direction: column; gap: 0.6rem; max-width: 46rem; }
+.sv-partie { border: 1px solid var(--filet); border-radius: var(--rayon); background: var(--fond); }
+.sv-partie > summary { cursor: pointer; padding: 0.9rem 1.1rem; font-weight: 700; color: var(--violet); list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.sv-partie > summary::-webkit-details-marker { display: none; }
+.sv-partie > summary::after { content: "+"; font-size: 1.2rem; color: var(--violet-moyen); }
+.sv-partie[open] > summary::after { content: "–"; }
+.sv-partie[open] > summary { border-bottom: 1px solid var(--filet); }
+.sv-corps { padding: 1rem 1.1rem 1.1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+.sv-dire { margin: 0; padding: 0.7rem 0.9rem; border-left: 3px solid var(--violet); background: var(--fond-doux); line-height: 1.55; }
+.sv-conseil { margin: 0; font-size: 0.9rem; color: var(--texte-doux); font-style: italic; }
+.sv-liste, .sv-questions { margin: 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: 0.45rem; line-height: 1.5; }
+.sv-questions li::marker { color: var(--violet); font-weight: 700; }

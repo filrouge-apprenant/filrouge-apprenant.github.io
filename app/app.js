@@ -769,6 +769,7 @@
     if (morceaux[0] === "satisfaction") return { nom: "satisfaction", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "entrainement") return { nom: "entrainement", morceaux: morceaux.slice(1).filter((m) => m === "nouveau" || /^[a-z]+$/.test(m) || UUID.test(m)) };
     if (morceaux[0] === "script") return { nom: "script", morceaux: morceaux.slice(1).filter((m) => UUID.test(m)) };
+    if (morceaux[0] === "scripts-vente") return { nom: "scripts-vente", morceaux: morceaux.slice(1).filter((m) => ["demarchage", "objections"].includes(m) || UUID.test(m)) };
     if (morceaux[0] === "coaching") return { nom: "coaching", type: morceaux[1] || "stage", id: UUID.test(morceaux[2] || "") ? morceaux[2] : null };
     return { nom: "accueil" };
   }
@@ -797,6 +798,7 @@
     if (route.nom === "coaching") return ecranCoaching(route.type, route.id);
     if (route.nom === "entrainement") return entrainement().route(route.morceaux);
     if (route.nom === "script") return scriptAppel().route(route.morceaux);
+    if (route.nom === "scripts-vente") return scriptsVente().route(route.morceaux);
     if (route.nom === "satisfaction") return ecranSatisfaction(route.id);
     if (route.nom === "impayes") return ecranImpayes();
     if (route.nom === "devis") return ecranDevis();
@@ -855,6 +857,13 @@
       });
     }
     return moduleScript;
+  }
+
+  // Scripts de vente (scripts-vente.js) : démarchage des organismes et objections.
+  let moduleScriptsVente = null;
+  function scriptsVente() {
+    if (!moduleScriptsVente) moduleScriptsVente = window.FilRougeScriptsVente({ sb, h, afficher });
+    return moduleScriptsVente;
   }
 
   window.addEventListener("hashchange", () => {
@@ -1021,7 +1030,9 @@
           h("div", {},
             h("p", { class: "surtitre" }, "Prospection"),
             h("h1", {}, "Vos organismes")),
-          h("a", { href: "#/nouveau", class: "bouton bouton-petit" }, "+ Ajouter")),
+          h("div", { class: "actions-ligne" },
+            h("a", { href: "#/scripts-vente", class: "bouton bouton-secondaire bouton-petit" }, "📋 Scripts de vente"),
+            h("a", { href: "#/nouveau", class: "bouton bouton-petit" }, "+ Ajouter"))),
 
         aRelancer.length
           ? h("section", {},
@@ -1295,7 +1306,9 @@
       h("div", { class: "carte carte-large pile-serree" },
         h("div", { class: "actions-ligne" },
           s.contact_telephone ? h("a", { class: "bouton", href: `tel:${s.contact_telephone.replace(/[^\d+]/g, "")}` }, `📞 Appeler · ${s.contact_telephone}`) : null,
-          lienGmail ? h("a", { class: "bouton bouton-secondaire", href: lienGmail, target: "_blank", rel: "noopener" }, "📧 Email (Gmail Fil Rouge)") : null),
+          lienGmail ? h("a", { class: "bouton bouton-secondaire", href: lienGmail, target: "_blank", rel: "noopener" }, "📧 Email (Gmail Fil Rouge)") : null,
+          !estClient ? h("a", { class: "bouton bouton-secondaire", href: `#/scripts-vente/demarchage/${id}` }, "📋 Script de démarchage") : null,
+          !estClient ? h("a", { class: "bouton bouton-secondaire", href: `#/scripts-vente/objections/${id}` }, "💬 Objections") : null),
         !s.contact_telephone && !s.contact_email ? h("p", { class: "aide" }, "Pas de téléphone ni d'email : complète le contact dans l'onglet Suivi commercial.") : null,
         h("p", { class: "aide" }, "Après l'échange, note-le dans le bandeau « Échanges » à droite.")));
 
@@ -4165,6 +4178,7 @@
         lien("entrainement", "Entraînement aux appels")),
       groupe("prospects", "Prospects", [
         lien("prospection", "Tous les centres à démarcher"),
+        lien("scripts-vente", "Scripts de vente"),
         lien("nouveau", "Ajouter un centre"),
         d.prospects.length ? h("div", { class: "menu-liste" }, d.prospects.map((o) => lien(`organisme/${o.id}`, o.nom))) : vide("Aucun centre en cours."),
       ]),
