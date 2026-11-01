@@ -1254,4 +1254,35 @@ select tests.verifier((select count(*) from public.mandats_sepa) = 0, 'client : 
 rollback;
 
 \echo
+\echo '\n== Modèles d''emails (1er novembre 2026)'
+begin;
+select tests.verifier((select count(*) from public.modeles_email where tentative is not null) = 8, '8 modèles de relance, numérotés de 1 à 8');
+select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
+set local role authenticated;
+select tests.verifier((select count(*) from public.modeles_email) >= 25, 'administratrice : lit tous les modèles');
+update public.modeles_email set objet = 'Objet modifié' where tentative = 1;
+select tests.verifier((select objet = 'Objet modifié' from public.modeles_email where tentative = 1), 'administratrice : modifie un modèle');
+insert into public.modeles_email (categorie, titre, objet, texte) values ('Ma catégorie', 'Mon modèle', 'Objet', 'Bonjour {prenom}');
+select tests.verifier((select count(*) from public.modeles_email where categorie = 'Ma catégorie') = 1, 'administratrice : crée un modèle et une catégorie');
+select tests.doit_etre_refuse(
+  $$insert into public.modeles_email (categorie, titre, objet, texte, tentative) values ('X', 'Doublon', 'O', 'T', 1)$$,
+  'deux modèles actifs pour la même tentative : refusé');
+update public.modeles_email set actif = false where titre = 'Mon modèle';
+reset role;
+select tests.session('44444444-4444-4444-8444-444444444444');
+set local role authenticated;
+select tests.verifier((select count(*) from public.modeles_email where not actif) = 0, 'appelante : ne lit que les modèles actifs');
+select tests.verifier((select count(*) from public.modeles_email) >= 25, 'appelante : lit les modèles actifs');
+update public.modeles_email set objet = 'Piratage' where tentative = 2;
+reset role;
+select tests.verifier((select objet <> 'Piratage' from public.modeles_email where tentative = 2), 'appelante : ne peut pas modifier un modèle');
+select tests.session('22222222-2222-4222-8222-222222222222');
+set local role authenticated;
+select tests.verifier((select count(*) from public.modeles_email) = 0, 'client : ne voit aucun modèle');
+reset role;
+set local role anon;
+select tests.doit_etre_refuse($$select count(*) from public.modeles_email$$, 'visiteur anonyme : refusé');
+rollback;
+
+\echo
 \echo 'TOUS LES TESTS SONT PASSÉS'

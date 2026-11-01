@@ -279,7 +279,7 @@
       afficher(h("p", { class: "chargement" }, "Chargement du script…"));
       const [apprenant, dernierAppel, moi] = await Promise.all([
         sb.from("apprenants")
-          .select("id, organisme_id, prenom, nom, identifiant_externe, telephone, parcours, avancement_pct, derniere_connexion, date_dernier_contact, date_entree_formation, date_sortie_formation, date_examen, statut, organismes ( nom )")
+          .select("id, organisme_id, prenom, nom, identifiant_externe, telephone, email, parcours, avancement_pct, derniere_connexion, date_dernier_contact, date_entree_formation, date_sortie_formation, date_examen, statut, organismes ( nom )")
           .eq("id", id).maybeSingle(),
         sb.from("appels").select("date_appel, prochaine_action, date_prochaine_action, statuts")
           .eq("apprenant_id", id).contains("statuts", ["joint"]).order("date_appel", { ascending: false }).limit(1),
@@ -644,9 +644,12 @@
           }
           ecrireBrouillon(id, null);
           arreterChrono();
+          // Appel sans réponse : email de relance de la tentative du mois (app.js, modèles d'emails).
+          const infoRelance = outils.apresAppel ? await outils.apresAppel(a, commun.p_statuts).catch(() => null) : null;
           occupe(bouton, false);
           afficher(h("div", { class: "pile" },
             message("info", publier ? "Appel enregistré et publié dans les commentaires. Le compteur repart à zéro." : "Appel rangé dans l'historique. Le compteur repart à zéro."),
+            infoRelance ? message("info", infoRelance) : null,
             h("div", { class: "actions-ligne" },
               h("a", { class: "bouton", href: `#/apprenant/${a.id}` }, "Voir la fiche"),
               h("a", { class: "bouton bouton-secondaire", href: "#/script" }, "Appeler un autre apprenant"))));

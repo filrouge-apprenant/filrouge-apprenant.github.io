@@ -158,7 +158,79 @@
     return "point_mois";
   }
 
-  const api = { MODELES, numeroInternational, lienWhatsApp, lienSms, lienEmail, lienGmail, remplir, modeleConseille, dateEnLettres };
+  // ---------------------------------------------------------------------------
+  // Modèles d'emails de la base (table modeles_email, page « Modèles d'emails »).
+  // Variables : {prenom} {moi} {organisme} {formation} {avancement}
+  // {date_examen} {date_rdv} {signature}. Une variable sans valeur est laissée
+  // telle quelle et listée dans « manquants » : l'écran demande de la compléter.
+  // ---------------------------------------------------------------------------
+  const VARIABLES_EMAIL = [
+    ["prenom", "Prénom de l'apprenant"],
+    ["moi", "Votre prénom"],
+    ["organisme", "Nom de l'organisme de formation"],
+    ["formation", "Nom de la formation (« votre formation » si inconnu)"],
+    ["avancement", "Phrase sur l'avancement (« Vous êtes à 45 % de votre formation. »)"],
+    ["date_examen", "Date de l'examen en lettres (« le 12 mars »)"],
+    ["date_rdv", "Date du rendez-vous : à écrire au moment de l'envoi"],
+    ["signature", "Votre signature (prénom, conseillère de suivi, organisme)"],
+  ];
+
+  // contexte : { prenom, moi, organisme, formation, avancement_pct, date_examen, date_rdv }
+  function valeursEmail(contexte) {
+    const c = contexte || {};
+    const pct = c.avancement_pct === null || c.avancement_pct === undefined || c.avancement_pct === "" ? null : Math.round(Number(c.avancement_pct));
+    const moi = (c.moi || "").trim();
+    const organisme = (c.organisme || "").trim();
+    const v = {
+      prenom: (c.prenom || "").trim(),
+      moi: moi || "votre conseillère",
+      organisme: organisme || "votre organisme de formation",
+      formation: (c.formation || "").trim() ? `votre formation « ${c.formation.trim()} »` : "votre formation",
+      avancement: Number.isFinite(pct) ? `Vous êtes à ${pct} % de votre formation. ` : "",
+      date_examen: c.date_examen ? dateEnLettres(c.date_examen) : null,
+      date_rdv: (c.date_rdv || "").trim() || null,
+      signature: [moi || "Votre conseillère", `Conseillère de suivi${organisme ? ` pour ${organisme}` : ""}`, "Fil Rouge Apprenants"].join("\n"),
+    };
+    return v;
+  }
+
+  function remplirModeleEmail(modele, contexte) {
+    const v = valeursEmail(contexte);
+    const manquants = new Set();
+    const remplace = (s) => String(s || "")
+      .replace(/\{(\w+)\}/g, (tout, cle) => {
+        if (!(cle in v)) return tout;
+        if (v[cle] === null) { manquants.add(cle); return tout; }
+        return v[cle];
+      })
+      .replace(/^Bonjour ,/m, "Bonjour,")
+      .replace(/[ \t]+\n/g, "\n");
+    // Une phrase d'avancement vide ne laisse pas de ligne vide en trop.
+    const texte = remplace(modele && modele.texte).replace(/\n{4,}/g, "\n\n\n").trim();
+    return { objet: remplace(modele && modele.objet).trim(), texte, manquants: [...manquants] };
+  }
+
+  // Variables encore entre accolades (non remplacées) : envoi à bloquer.
+  function variablesRestantes(texte) {
+    return [...new Set((String(texte || "").match(/\{(\w+)\}/g) || []).map((x) => x.slice(1, -1)))];
+  }
+
+  // Numéro de la tentative de relance du mois : appels téléphoniques du mois
+  // civil (heure de Paris) sans contact abouti. 0 si l'apprenant a déjà été
+  // joint ce mois-ci (plus de relance automatique). Plafonné à 8.
+  function tentativeDuMois(appels, maintenant) {
+    const mois = (d) => new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit" }).format(new Date(d));
+    const ceMois = mois(maintenant || new Date());
+    const duMois = (appels || []).filter((a) => a && a.date_appel && mois(a.date_appel) === ceMois);
+    if (duMois.some((a) => a.resultat === "joint" || (a.statuts || []).includes("joint"))) return 0;
+    const n = duMois.filter((a) => (a.canal || "telephone") === "telephone").length;
+    return Math.min(n, 8);
+  }
+
+  const api = {
+    MODELES, VARIABLES_EMAIL, numeroInternational, lienWhatsApp, lienSms, lienEmail, lienGmail, remplir, modeleConseille, dateEnLettres,
+    remplirModeleEmail, variablesRestantes, tentativeDuMois,
+  };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else racine.FilRougeContact = api;
 })(typeof window !== "undefined" ? window : globalThis);

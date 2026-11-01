@@ -769,6 +769,7 @@
     if (morceaux[0] === "satisfaction") return { nom: "satisfaction", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "entrainement") return { nom: "entrainement", morceaux: morceaux.slice(1).filter((m) => m === "nouveau" || /^[a-z]+$/.test(m) || UUID.test(m)) };
     if (morceaux[0] === "script") return { nom: "script", morceaux: morceaux.slice(1).filter((m) => UUID.test(m)) };
+    if (morceaux[0] === "modeles-email") return { nom: "modeles-email", morceaux: morceaux.slice(1) };
     if (morceaux[0] === "scripts-vente") return { nom: "scripts-vente", morceaux: morceaux.slice(1).filter((m) => ["demarchage", "objections"].includes(m) || UUID.test(m)) };
     if (morceaux[0] === "coaching") return { nom: "coaching", type: morceaux[1] || "stage", id: UUID.test(morceaux[2] || "") ? morceaux[2] : null };
     return { nom: "accueil" };
@@ -799,6 +800,7 @@
     if (route.nom === "entrainement") return entrainement().route(route.morceaux);
     if (route.nom === "script") return scriptAppel().route(route.morceaux);
     if (route.nom === "scripts-vente") return scriptsVente().route(route.morceaux);
+    if (route.nom === "modeles-email") return modelesEmail().route(route.morceaux);
     if (route.nom === "satisfaction") return ecranSatisfaction(route.id);
     if (route.nom === "impayes") return ecranImpayes();
     if (route.nom === "devis") return ecranDevis();
@@ -852,11 +854,21 @@
     if (!moduleScript) {
       moduleScript = window.FilRougeScript({
         sb, h, afficher, message, texteErreur, signaler, occupe, pastille, aujourdhui, ajouterJours, dateLisible, nomApprenant,
+        apresAppel: (a, statuts) => relanceApresAppel(a, statuts, (texte) => ecranApprenant(a.id, texte)),
         role: () => etat.profil?.role,
         monId: () => etat.profil?.id,
       });
     }
     return moduleScript;
+  }
+
+  // Modèles d'emails (modeles-email.js) : menus déroulants, page d'édition, envoi Brevo.
+  let moduleModelesEmail = null;
+  function modelesEmail() {
+    if (!moduleModelesEmail) {
+      moduleModelesEmail = window.FilRougeModelesEmail({ sb, h, afficher, message, texteErreur, champTexte, champChoix, signaler, occupe, pastille });
+    }
+    return moduleModelesEmail;
   }
 
   // Scripts de vente (scripts-vente.js) : démarchage des organismes et objections.
@@ -2506,9 +2518,10 @@
             p_prochaine_action: suite.champ.value,
             p_date_prochaine_action: dateSuite.champ.value || null,
           });
+      if (error) { occupe(b, false); return signaler(zone, "erreur", texteErreur(error)); }
+      const infoRelance = options.relance === false ? null : await relanceApresAppel(apprenant, choisis, options.rafraichir);
       occupe(b, false);
-      if (error) return signaler(zone, "erreur", texteErreur(error));
-      apresEnregistrement(publier);
+      apresEnregistrement(publier, infoRelance);
     }
     formulaire.addEventListener("submit", (evenement) => { evenement.preventDefault(); envoyer(true, bouton); });
     boutonHistorique.addEventListener("click", () => envoyer(false, boutonHistorique));
@@ -2559,40 +2572,123 @@
   // ---------------------------------------------------------------------------
   const NOTE_MESSAGE_ENVOYE = { whatsapp: "Message WhatsApp envoyé", sms: "SMS envoyé", email: "Email envoyé" };
 
-  // Fenêtre « Écrire un email » : s'ouvre sur la fiche, texte prêt et modifiable.
-  // « Envoyer avec Gmail » ouvre la fenêtre de rédaction de la boîte Fil Rouge,
-  // déjà remplie : il ne reste qu'à cliquer « Envoyer » dans Gmail.
-  function fenetreEmail(a, { objet = "", texte = "", modele = null, apresEnvoi } = {}) {
+  // Contexte des variables d'email ({prenom}, {organisme}…) pour un apprenant.
+  function contexteEmail(a) {
+    const moi = (etat.profil?.nom_affiche || "").trim().split(" ")[0] || (etat.profil?.role === "admin" ? "Émilie" : "");
+    return { prenom: a.prenom, moi, organisme: a.organismes?.nom, formation: a.parcours, avancement_pct: a.avancement_pct, date_examen: a.date_examen };
+  }
+
+  // Ajoute un email envoyé à l'historique (preuve de suivi Qualiopi).
+  function noterEmailEnvoye(a, note) {
+    return sb.rpc("noter_appel", {
+      p_apprenant: a.id, p_resultat: "messagerie", p_canal: "email", p_date_appel: new Date().toISOString(),
+      p_note_client: note, p_note_interne: "", p_prochaine_action: "", p_date_prochaine_action: null,
+    });
+  }
+
+  // Après un envoi par Gmail (on ne sait pas s'il est vraiment parti) : on demande.
+  function confirmerEmailEnvoye(a, note, apres) {
+    const zone = h("div");
+    const oui = h("button", { type: "button", class: "bouton" }, "Oui, l'ajouter à l'historique");
+    const non = h("button", { type: "button", class: "bouton bouton-secondaire" }, "Non, pas envoyé");
+    const dialogue = h("dialog", { class: "dialogue", "aria-label": "Email envoyé ?" },
+      h("div", { class: "pile pile-serree" }, h("h2", {}, "Email envoyé ?"),
+        h("p", {}, "Si vous avez cliqué « Envoyer » dans Gmail, ajoutez-le à l'historique de l'élève."),
+        h("div", { class: "actions-ligne" }, oui, non), zone));
+    const fin = () => { dialogue.close(); dialogue.remove(); };
+    non.addEventListener("click", fin);
+    dialogue.addEventListener("cancel", () => setTimeout(() => dialogue.remove(), 0));
+    oui.addEventListener("click", async () => {
+      occupe(oui, true, "Enregistrement…");
+      const { error } = await noterEmailEnvoye(a, note);
+      occupe(oui, false);
+      if (error) return signaler(zone, "erreur", texteErreur(error));
+      fin();
+      if (apres) apres("Email ajouté à l'historique.");
+    });
+    document.body.append(dialogue);
+    dialogue.showModal();
+  }
+
+  // Fenêtre « Écrire un email » : deux menus déroulants (catégorie, puis email),
+  // texte prêt et modifiable. Avec l'envoi automatique (Brevo), « Envoyer » part
+  // directement de la plateforme ; sinon, la fenêtre de Gmail s'ouvre déjà remplie.
+  //   options.modeleId : modèle choisi au départ ; options.titre : libellé de l'historique ;
+  //   options.apres(texte) : appelé une fois l'email noté dans l'historique.
+  function fenetreEmail(a, { objet = "", texte = "", modeleId = null, titre = null, apres } = {}) {
     const C = window.FilRougeContact;
+    const M = modelesEmail();
     const boite = (window.FIL_ROUGE_CONFIG || {}).emailFilRouge || "";
     const estAdmin = etat.profil?.role === "admin";
-    const moi = (etat.profil?.nom_affiche || "").trim().split(" ")[0] || (estAdmin ? "Émilie" : "");
-    const contexte = { prenom: a.prenom, moi, organisme: a.organismes?.nom, date_examen: a.date_examen, avancement_pct: a.avancement_pct };
+    const contexte = contexteEmail(a);
+    let titreModele = titre;
 
-    const choixModeles = { "": "— Message libre —", ...Object.fromEntries(Object.entries(C.MODELES).map(([cle, m]) => [cle, m.titre])) };
-    const choix = champChoix("email-modele", "Message tout prêt", choixModeles, modele || "");
     const champObjet = champTexte("email-objet", "Objet", objet);
     const champTexteEmail = champTexte("email-texte", "Message", texte, { multiligne: true });
-    champTexteEmail.champ.rows = 10;
-    choix.champ.addEventListener("change", () => {
-      if (!choix.champ.value) return;
-      const r = C.remplir(choix.champ.value, contexte);
-      champObjet.champ.value = r.objet || champObjet.champ.value;
-      champTexteEmail.champ.value = r.texte;
+    champTexteEmail.champ.rows = 12;
+    const champRdv = champTexte("email-date-rdv", "Date du rendez-vous à écrire dans l'email", "", { placeholder: "Ex. : mardi 18 novembre à 18 h" });
+    const blocRdv = h("div", { hidden: true }, champRdv.bloc);
+    const majVariables = () => { blocRdv.hidden = !C.variablesRestantes(champObjet.champ.value + champTexteEmail.champ.value).includes("date_rdv"); };
+    champRdv.champ.addEventListener("change", () => {
+      const v = champRdv.champ.value.trim();
+      if (!v) return;
+      champObjet.champ.value = champObjet.champ.value.replaceAll("{date_rdv}", v);
+      champTexteEmail.champ.value = champTexteEmail.champ.value.replaceAll("{date_rdv}", v);
+      majVariables();
+      signaler(zone);
     });
+    champTexteEmail.champ.addEventListener("input", majVariables);
+
+    function appliquer(m) {
+      titreModele = m ? m.titre : null;
+      if (!m) return;
+      const r = C.remplirModeleEmail(m, { ...contexte, date_rdv: champRdv.champ.value });
+      champObjet.champ.value = r.objet;
+      champTexteEmail.champ.value = r.texte;
+      majVariables();
+    }
+
+    // Les menus arrivent dès que les modèles sont chargés.
+    const zoneMenus = h("div", {}, h("p", { class: "aide" }, "Chargement des modèles…"));
+    M.charger().then((liste) => {
+      if (!liste.filter((m) => m.actif).length) throw new Error("vide");
+      const menus = M.menus(liste, "email", appliquer, { libre: true, initial: modeleId });
+      zoneMenus.replaceChildren(menus.bloc);
+    }).catch(() => {
+      // Secours : anciens messages tout prêts (contact.js).
+      const choix = champChoix("email-modele", "Message tout prêt", { "": "— Message libre —", ...Object.fromEntries(Object.entries(C.MODELES).map(([cle, m]) => [cle, m.titre])) }, "");
+      choix.champ.addEventListener("change", () => {
+        if (!choix.champ.value) return;
+        const r = C.remplir(choix.champ.value, contexte);
+        champObjet.champ.value = r.objet;
+        champTexteEmail.champ.value = r.texte;
+        titreModele = C.MODELES[choix.champ.value].titre;
+      });
+      zoneMenus.replaceChildren(choix.bloc);
+    });
+    majVariables();
 
     const zone = h("div");
     // Administratrice : Gmail Fil Rouge. Appelante : sa propre messagerie (elle n'a pas la boîte Fil Rouge).
     const viaGmail = estAdmin && boite;
     const envoyer = h("button", { type: "submit", class: "bouton" }, viaGmail ? "Envoyer avec Gmail Fil Rouge" : "Ouvrir ma messagerie");
-    const autre = viaGmail ? h("button", { type: "button", class: "bouton-lien" }, "Utiliser une autre messagerie") : null;
+    const autre = h("button", { type: "button", class: "bouton-lien" }, viaGmail ? "Utiliser une autre messagerie" : "Ouvrir ma messagerie");
+    autre.hidden = !viaGmail;
     const fermer = h("button", { type: "button", class: "bouton bouton-secondaire" }, "Annuler");
+    let parServeur = false;
+    M.brevoActif().then((oui) => {
+      if (!oui) return;
+      parServeur = true;
+      envoyer.textContent = "Envoyer";
+      autre.textContent = viaGmail ? "Envoyer plutôt avec Gmail" : "Envoyer plutôt avec ma messagerie";
+      autre.hidden = false;
+    });
 
     const formulaire = h("form", { class: "formulaire", method: "dialog", novalidate: true },
       h("div", { class: "email-entete" },
         viaGmail ? h("p", {}, h("span", { class: "compteur-libelle" }, "De : "), boite) : null,
         h("p", {}, h("span", { class: "compteur-libelle" }, "À : "), `${nomApprenant(a)} <${a.email}>`)),
-      choix.bloc, champObjet.bloc, champTexteEmail.bloc, zone,
+      zoneMenus, champObjet.bloc, champTexteEmail.bloc, blocRdv, zone,
       h("div", { class: "actions-ligne" }, envoyer, fermer),
       autre);
     const dialogue = h("dialog", { class: "dialogue", "aria-label": "Écrire un email" },
@@ -2605,24 +2701,85 @@
     fermer.addEventListener("click", fin);
     dialogue.addEventListener("cancel", () => setTimeout(() => dialogue.remove(), 0));
 
+    const note = () => `Email envoyé${titreModele ? ` : ${titreModele}` : ""}.`;
+    function verifier() {
+      if (!champObjet.champ.value.trim()) return signaler(zone, "erreur", "Indiquez un objet."), false;
+      if (!champTexteEmail.champ.value.trim()) return signaler(zone, "erreur", "Le message est vide."), false;
+      const restantes = C.variablesRestantes(champObjet.champ.value + champTexteEmail.champ.value);
+      if (restantes.length) {
+        return signaler(zone, "erreur", restantes.includes("date_rdv")
+          ? "Écrivez la date du rendez-vous dans le champ prévu, sous le message."
+          : `À compléter avant l'envoi : {${restantes.join("}, {")}}.`), false;
+      }
+      if (!C.lienEmail(a.email, "", "")) return signaler(zone, "erreur", "L'adresse email de l'apprenant n'est pas valable."), false;
+      return true;
+    }
     function ouvrir(lien, nouvelOnglet) {
-      if (!champObjet.champ.value.trim()) return signaler(zone, "erreur", "Indiquez un objet.");
-      if (!champTexteEmail.champ.value.trim()) return signaler(zone, "erreur", "Le message est vide.");
-      if (!lien) return signaler(zone, "erreur", "L'adresse email de l'apprenant n'est pas valide.");
       if (nouvelOnglet) window.open(lien, "_blank", "noopener"); else window.location.href = lien;
       fin();
-      if (apresEnvoi) setTimeout(apresEnvoi, 300);
+      setTimeout(() => confirmerEmailEnvoye(a, note(), apres), 400);
     }
-    formulaire.addEventListener("submit", (evenement) => {
+    const lienMessagerie = () => C.lienEmail(a.email, champObjet.champ.value, champTexteEmail.champ.value);
+    const lienBoite = () => (viaGmail ? C.lienGmail(a.email, champObjet.champ.value, champTexteEmail.champ.value, boite) : lienMessagerie());
+
+    formulaire.addEventListener("submit", async (evenement) => {
       evenement.preventDefault();
-      const o = champObjet.champ.value, t = champTexteEmail.champ.value;
-      ouvrir(viaGmail ? C.lienGmail(a.email, o, t, boite) : C.lienEmail(a.email, o, t), !!viaGmail);
+      if (!verifier()) return;
+      if (!parServeur) return ouvrir(lienBoite(), !!viaGmail);
+      occupe(envoyer, true, "Envoi…");
+      const r = await M.envoyerParServeur(a.id, champObjet.champ.value.trim(), champTexteEmail.champ.value.trim());
+      if (!r.ok) {
+        occupe(envoyer, false);
+        return signaler(zone, "erreur", `${r.erreur || "L'envoi automatique a échoué."} Utilisez « ${autre.textContent} » en attendant.`);
+      }
+      const { error } = await noterEmailEnvoye(a, note());
+      occupe(envoyer, false);
+      fin();
+      if (apres) apres(error ? `Email envoyé, mais pas ajouté à l'historique : ${texteErreur(error)}` : "Email envoyé et ajouté à l'historique.");
     });
-    if (autre) autre.addEventListener("click", () => ouvrir(C.lienEmail(a.email, champObjet.champ.value, champTexteEmail.champ.value), false));
+    autre.addEventListener("click", () => { if (verifier()) ouvrir(parServeur ? lienBoite() : lienMessagerie(), parServeur && !!viaGmail); });
 
     document.body.append(dialogue);
     dialogue.showModal();
     champTexteEmail.champ.focus();
+  }
+
+  // Relance après un appel sans réponse (répondeur, pas de réponse, message
+  // vocal impossible) : l'email qui porte le numéro de la tentative du mois
+  // (1 à 8, page « Modèles d'emails ») part tout seul si l'envoi automatique
+  // est actif ; sinon il s'ouvre tout prêt. Rien si l'élève a été joint·e ce mois-ci.
+  // Renvoie une phrase à afficher sur la fiche, ou null.
+  async function relanceApresAppel(a, statuts, rafraichir) {
+    const SANS_REPONSE = ["repondeur", "messagerie_impossible", "injoignable"];
+    if (statuts.includes("joint") || !statuts.some((s) => SANS_REPONSE.includes(s))) return null;
+    const C = window.FilRougeContact;
+    const M = modelesEmail();
+    if (!C.lienEmail(a.email, "", "")) return "Pas d'email de relance : aucune adresse email valable sur la fiche.";
+    try {
+      const depuis = new Date(Date.now() - 33 * 86400000).toISOString();
+      const [liste, appelsMois] = await Promise.all([
+        M.charger(),
+        sb.from("appels").select("date_appel, resultat, statuts, canal").eq("apprenant_id", a.id).gte("date_appel", depuis),
+      ]);
+      if (appelsMois.error) return null;
+      const n = C.tentativeDuMois(appelsMois.data);
+      const modele = n ? M.modeleDeTentative(liste, n) : null;
+      if (!modele) return null;
+      const r = C.remplirModeleEmail(modele, contexteEmail(a));
+      const titre = `relance n° ${n} (${modele.titre})`;
+      if (!r.manquants.length && M.relanceAutoActive() && await M.brevoActif()) {
+        const envoi = await M.envoyerParServeur(a.id, r.objet, r.texte);
+        if (envoi.ok) {
+          await noterEmailEnvoye(a, `Email de ${titre} envoyé.`);
+          return `Email de relance n° ${n} envoyé automatiquement à ${a.prenom || "l'élève"}.`;
+        }
+      }
+      // Sans envoi automatique (ou en cas d'échec) : la fenêtre s'ouvre, prête.
+      setTimeout(() => fenetreEmail(a, { objet: r.objet, texte: r.texte, modeleId: modele.id, titre: `Email de ${titre}`, apres: rafraichir }), 500);
+      return `Tentative n° ${n} ce mois-ci : l'email de relance est prêt, relisez-le puis envoyez.`;
+    } catch {
+      return null;
+    }
   }
 
   function blocContacter(a, rafraichir) {
@@ -2697,8 +2854,8 @@
     whatsapp.addEventListener("click", () => setTimeout(() => proposerHistorique("whatsapp"), 300));
     sms.addEventListener("click", () => setTimeout(() => proposerHistorique("sms"), 300));
     email.addEventListener("click", () => fenetreEmail(a, {
-      objet, texte: texte.champ.value, modele: modele.champ.value,
-      apresEnvoi: () => proposerHistorique("email"),
+      objet, texte: texte.champ.value, titre: C.MODELES[modele.champ.value]?.titre || null,
+      apres: rafraichir,
     }));
 
     const manque = !a.telephone && !a.email ? "Pas de numéro de téléphone ni d'adresse email sur la fiche."
@@ -3219,9 +3376,9 @@
           h("div", { class: "message message-info entr-invitation" },
             h("span", {}, "Préférez un appel guidé ? Le script vous fait cliquer les réponses et rédige le commentaire."),
             h("a", { class: "bouton bouton-petit", href: `#/script/${a.id}` }, "Appeler avec le script")),
-          h("div", { class: "carte carte-large" }, formulaireAppel(a, (publie) => rafraichir(publie
+          h("div", { class: "carte carte-large" }, formulaireAppel(a, (publie, relance) => rafraichir([publie
             ? "Appel enregistré et publié dans les commentaires. Le compteur repart à zéro."
-            : "Appel rangé dans l'historique (non publié). Le compteur repart à zéro."), { sansNotes: true })),
+            : "Appel rangé dans l'historique (non publié). Le compteur repart à zéro.", relance].filter(Boolean).join(" ")), { sansNotes: true, rafraichir })),
           h("div", { class: "section-titre" }, h("h2", {}, "Historique"), h("p", {}, pluriel(appels.data.length, "contact", "contacts"))),
           appels.data.length
             ? h("ul", { class: "liste" }, appels.data.map(ligneHisto))
@@ -4175,6 +4332,7 @@
         lien("impayes", "Impayés", d.impayes ? nombre(d.impayes, true) : null),
         lien("devis", "Demandes de devis", d.devis ? nombre(d.devis, true) : null),
         lien("script", "Script d'appel"),
+        lien("modeles-email", "Modèles d'emails"),
         lien("entrainement", "Entraînement aux appels")),
       groupe("prospects", "Prospects", [
         lien("prospection", "Tous les centres à démarcher"),

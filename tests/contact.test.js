@@ -65,4 +65,40 @@ test("email via Gmail Fil Rouge : fenêtre de rédaction déjà remplie", () => 
   assert.equal(C.lienGmail("pas-une-adresse", "x", "y"), null);
 });
 
+// --- Modèles d'emails de la base (1er novembre 2026) ---
+const MODELE_T3 = { objet: "Où en êtes-vous ?", texte: "Bonjour {prenom},\n\nPoint sur {formation}. {avancement}\n\n{signature}" };
+test("modèle de la base : variables remplacées", () => {
+  const r = C.remplirModeleEmail(MODELE_T3, { prenom: "Léo", moi: "Émilie", organisme: "Académie Horizon", formation: "CAP Cuisine", avancement_pct: 44.6 });
+  assert.match(r.texte, /^Bonjour Léo,/);
+  assert.match(r.texte, /votre formation « CAP Cuisine »\. Vous êtes à 45 % de votre formation\./);
+  assert.match(r.texte, /Émilie\nConseillère de suivi pour Académie Horizon\nFil Rouge Apprenants$/);
+  assert.deepEqual(r.manquants, []);
+});
+test("modèle de la base : sans données, texte propre et sans accolades", () => {
+  const r = C.remplirModeleEmail(MODELE_T3, {});
+  assert.match(r.texte, /^Bonjour,/);
+  assert.match(r.texte, /Point sur votre formation\./);
+  assert.deepEqual(C.variablesRestantes(r.texte), []);
+});
+test("date du rendez-vous à compléter : signalée, puis remplie", () => {
+  const m = { objet: "Rendez-vous", texte: "Je vous appelle {date_rdv}." };
+  assert.deepEqual(C.remplirModeleEmail(m, {}).manquants, ["date_rdv"]);
+  assert.deepEqual(C.variablesRestantes(C.remplirModeleEmail(m, {}).texte), ["date_rdv"]);
+  assert.equal(C.remplirModeleEmail(m, { date_rdv: "mardi à 18 h" }).texte, "Je vous appelle mardi à 18 h.");
+});
+test("numéro de tentative du mois", () => {
+  const now = new Date("2026-11-20T10:00:00Z");
+  const appels = [
+    { date_appel: "2026-11-03T09:00:00Z", resultat: "messagerie", canal: "telephone" },
+    { date_appel: "2026-11-03T09:05:00Z", resultat: "messagerie", canal: "email" },
+    { date_appel: "2026-11-10T09:00:00Z", resultat: "injoignable", canal: "telephone" },
+    { date_appel: "2026-10-28T09:00:00Z", resultat: "joint", canal: "telephone" },
+  ];
+  assert.equal(C.tentativeDuMois(appels, now), 2, "2 appels du mois, l'email et le mois dernier ne comptent pas");
+  assert.equal(C.tentativeDuMois([...appels, { date_appel: "2026-11-15T09:00:00Z", resultat: "joint", canal: "telephone" }], now), 0, "joint ce mois-ci : plus de relance");
+  const beaucoup = Array.from({ length: 11 }, (_, i) => ({ date_appel: `2026-11-${String(i + 1).padStart(2, "0")}T09:00:00Z`, resultat: "injoignable", canal: "telephone" }));
+  assert.equal(C.tentativeDuMois(beaucoup, now), 8, "plafonné à 8");
+  assert.equal(C.tentativeDuMois([{ date_appel: "2026-10-31T23:30:00Z", resultat: "injoignable", canal: "telephone" }], now), 1, "31 oct. 23 h 30 UTC = 1er nov. à Paris");
+});
+
 console.log(`\n${n} tests passés`);

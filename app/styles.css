@@ -1401,3 +1401,9 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 .sv-conseil { margin: 0; font-size: 0.9rem; color: var(--texte-doux); font-style: italic; }
 .sv-liste, .sv-questions { margin: 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: 0.45rem; line-height: 1.5; }
 .sv-questions li::marker { color: var(--violet); font-weight: 700; }
+
+/* Modèles d'emails (#/modeles-email) : formulaire et aperçu côte à côte sur grand écran */
+.deux-colonnes-larges { align-items: start; }
+@media (max-width: 60rem) { .deux-colonnes-larges { grid-template-columns: minmax(0, 1fr); } }
+.entete-page { margin-bottom: 1rem; }
+.relance-proposee { border-left: 3px solid var(--rouge, #c1121f); }

@@ -22,6 +22,7 @@ Le cahier des charges complet est dans le document « Plateforme Fil Rouge — C
 | 12. Assiduité et export sans nom | Écran « Qui rappeler » : chaque apprenant classé à risque / à surveiller / assidu·e (dernière connexion, retard sur le rythme attendu, fin de formation dépassée, appels sans réponse ; calcul dans `assiduite.js`, sans IA), filtres par niveau, à risque en tête de liste ; bouton « Export sans nom (pour analyse) » : fichier Excel sans nom, téléphone, email ni date de naissance, chaque apprenant sous un code (A-XXXXXX) affiché aussi dans la plateforme | Terminée |
 | 13. Entraînement aux appels | Onglet « Entraînement aux appels » (`entrainement.js`) : l'appelante appelle un apprenant fictif joué par l'IA (Mistral, formule gratuite), à voix haute (micro et voix du navigateur, Chrome) ou par écrit ; chrono ; en raccrochant, note sur 20 selon la grille Fil Rouge (6 critères) avec conseils. Émilie voit les résultats de toutes les appelantes et crée ses scénarios (le personnage caché n'est jamais visible par l'appelante). Fonction serveur `simulation-appel` (clé `MISTRAL_API_KEY` en secret Supabase, gratuite ; Claude possible avec `ANTHROPIC_API_KEY` ; 25 appels/jour/personne) | Terminée (clé IA à installer) |
 | 14. Script d'appel guidé | Page « Script d'appel » (`script.js`, `#/script` et `#/script/<apprenant>`) : un bouton par étape (avant l'appel, ouverture, ce qui se passe, dernier travail, méthode, organisation, encourager, objectif et rappel), un bouton par situation fréquente, réponses à cliquer (QCM) et champs libres, chrono. À la fin : « Générer le commentaire » ou « Garder les réponses seulement », texte modifiable, rappel à 1 mois par défaut, compte rendu organisme optionnel (sans éléments personnels). Enregistré via `enregistrer_appel_script` ; réponses conservées dans `appels_script` (jamais visibles par un client) pour mesurer l'effet du script. Brouillon gardé dans le navigateur | Terminée |
+| 15. Modèles d'emails et relances automatiques | Page « Modèles d'emails » (`modeles-email.js`, `#/modeles-email`) : 26 emails tout prêts rangés en catégories (relances, rendez-vous, progression, examen, démarches, soutien), choisis par deux menus déroulants (catégorie, puis email), modifiables, avec variables ({prenom}, {organisme}, {formation}, {avancement}, {date_examen}, {date_rdv}, {signature}) et aperçu. Un modèle peut être la relance n° 1 à 8 : après un appel sans réponse (répondeur, pas de réponse, message vocal impossible), noté depuis la fiche ou le script d'appel, l'email de la tentative du mois part tout seul (fonction serveur `envoyer-email`, Brevo) puis s'ajoute à l'historique ; plus de relance une fois l'élève joint·e dans le mois. Sans clé Brevo, l'email s'ouvre tout prêt dans Gmail. Table `modeles_email` (administratrice : tout ; appelante : lecture des modèles actifs ; client : rien) | Terminée |
 | 7. Sécurité et mise en ligne | Plan Pro, nom de domaine, hébergement | À faire |
 
 ## Contenu du dossier
@@ -50,6 +51,8 @@ tests/
   lancer_tests.sh                 Lance tout dans une base jetable
   import.test.js                  17 tests de lecture des fichiers CSV (node tests/import.test.js)
   assiduite.test.js               11 tests du classement d'assiduité et de l'export sans nom (node tests/assiduite.test.js)
+  contact.test.js                 Messages et modèles d'emails, numéro de tentative du mois (node tests/contact.test.js)
+  ecran_modeles_email.py          21 vérifications à l'écran (Chrome) sur une fausse base : menus, édition, relances 1-2-3, script d'appel, téléphone
 ```
 
 ## Les tables
@@ -63,6 +66,7 @@ tests/
 | `appels` | Note d'appel écrite pour le client | Admin ; le client lit les siennes ; l'appelante écrit les siennes |
 | `notes_internes` | Ce qui ne doit pas remonter à l'organisme | Admin ; l'appelante pour ses propres appels. Jamais un client |
 | `journal` | Qui a créé, modifié, supprimé quoi et quand | Admin uniquement, écrit automatiquement |
+| `modeles_email` | Emails tout prêts par catégorie, numéro de relance automatique (1 à 8) | Admin ; l'appelante lit les modèles actifs. Jamais un client |
 | `vue_qui_rappeler` | Apprenants actifs, jours sans contact, couleur | Selon les droits ci-dessus |
 | `vue_relances_examen` | Examens à venir, étape J-30 / J-7 / J-1, relance faite ou non | Selon les droits ci-dessus |
 | `vue_taux_examen` | Présents, absents, réussis et taux, par organisme et mois d'inscription | Selon les droits ci-dessus |
@@ -135,3 +139,12 @@ Le fichier `tests/00_simulation_supabase.sql` ne sert qu'aux tests locaux : Supa
 - Aucune donnée réelle avant la signature d'un contrat de sous-traitance RGPD avec le client.
 - Notes d'appel factuelles ; ce qui est personnel va dans la note interne.
 - Toute nouvelle table : activer le cloisonnement (`enable row level security`) et ajouter ses tests.
+
+## Modèles d'emails et relances automatiques (1er novembre 2026)
+
+- **Où** : menu « Modèles d'emails » (administratrice). Deux menus déroulants : la catégorie, puis l'email. Le formulaire permet de modifier la catégorie (ou d'en créer une en tapant un nouveau nom), le nom, l'objet, le message, et de le désactiver ou le supprimer. Aperçu en direct sur une élève fictive.
+- **Sur la fiche élève** : bouton « 📧 Email » → mêmes deux menus, texte modifiable. Si le modèle contient `{date_rdv}`, un champ « Date du rendez-vous » apparaît ; l'envoi est bloqué tant qu'il reste une variable entre accolades.
+- **Relance automatique** : la règle de facturation (1er novembre 2026) prévoit jusqu'à 8 tentatives par mois, chacune suivie d'un email. À chaque appel téléphonique sans réponse du mois civil (heure de Paris), le modèle qui porte ce numéro de tentative part. Les emails ne comptent pas comme tentatives. Dès qu'un appel du mois est « Joint·e », plus de relance ce mois-là. Au-delà de 8 appels, c'est la relance n° 8 qui repart.
+- **Envoi** : fonction serveur `envoyer-email` (`supabase/functions/envoyer-email`). Elle lit l'apprenant avec les droits de la personne connectée (cloisonnement), refuse les comptes clients, prend l'adresse dans la base (jamais dans la demande) et envoie par Brevo (secret `BREVO_API_KEY`, le même que « tunnel-vente »). Expéditeur : `EMAIL_EXPEDITEUR` ou la boîte Fil Rouge ; les réponses arrivent dans la boîte Fil Rouge. Sans clé, la plateforme bascule sur Gmail (un clic) et demande ensuite si l'email est parti.
+- **Historique** : chaque email envoyé est ajouté à l'historique de l'élève (canal Email, « Message laissé »), preuve de suivi Qualiopi.
+- **Désactiver l'envoi automatique pour un ordinateur** : `localStorage["filrouge-relance-auto"] = "non"` (la fenêtre s'ouvre alors toujours pour relecture).
