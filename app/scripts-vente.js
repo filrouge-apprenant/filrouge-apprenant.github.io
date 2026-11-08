@@ -43,7 +43,8 @@
         { dire: "C'est au sujet de l'abandon des apprenants en formation à distance. Qui est le mieux placé pour en parler ?" },
       ] },
       { titre: "L'accroche (20 secondes)", blocs: [
-        { dire: "Bonjour {contact}, Émilie Rachas, de Fil Rouge Apprenants. Je vous appelle parce que j'accompagne les apprenants à distance par téléphone, jusqu'à leur examen, pour éviter qu'ils décrochent. Je vous prends deux minutes, c'est bon pour vous ?" },
+        { dire: "Bonjour {contact}, Émilie Rachas, de Fil Rouge Apprenants. Je vous appelle au sujet des apprenants qui décrochent en formation à distance. Je vous prends 30 secondes pour vous expliquer pourquoi je pense à votre organisme, et vous me dites si ça vous parle ?" },
+        { conseil: "Remplace « votre organisme » par son nom. Puis, en une phrase, un détail précis sur lui (ses formations, leur durée) et une seule question : « Aujourd'hui, comment vous repérez un apprenant qui commence à décrocher ? » Ne dis jamais « je me permets de vous présenter »." },
       ] },
       { titre: "Les questions de découverte", blocs: [
         { questions: [
