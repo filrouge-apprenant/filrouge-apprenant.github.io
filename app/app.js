@@ -793,6 +793,61 @@
     return `https://www.pappers.fr/recherche?q=${encodeURIComponent(propre)}`;
   }
 
+  // --- Qualification BANT d'un prospect (Budget, Autorité, Besoin, Timing) ---
+  // Chaque critère : "oui", "non" ou null (pas encore vérifié). Le verdict suit
+  // la règle de la formation : 3 sur 4 = rendez-vous ; besoin sans décideur =
+  // faire entrer le décideur ; sinon relancer à une date fixée avec le prospect.
+  const CRITERES_BANT = [
+    ["bant_budget", "Budget", "Il peut payer", "Aujourd'hui, le suivi des apprenants, ça représente quel budget ou quel temps chez vous ?"],
+    ["bant_autorite", "Autorité", "Tu parles à quelqu'un qui décide", "En dehors de vous, qui d'autre participe à ce genre de décision ?"],
+    ["bant_besoin", "Besoin", "Il a vraiment le problème", "Sur 100 inscrits, combien vont au bout ?"],
+    ["bant_timing", "Timing", "Il veut agir bientôt", "C'est un sujet que vous voulez régler avant votre prochain audit Qualiopi ?"],
+  ];
+  function verdictBant(s) {
+    const v = CRITERES_BANT.map(([cle]) => s[cle] || null);
+    const oui = v.filter((x) => x === "oui").length;
+    const connus = v.filter(Boolean).length;
+    if (!connus) return { couleur: "neutre", court: "BANT à faire", texte: "Pas encore qualifié", conseil: "Pendant l'appel, vérifie les 4 critères. Le budget se demande en dernier, une fois le problème reconnu." };
+    if (s.bant_besoin === "oui" && s.bant_autorite === "non") return { couleur: "orange", court: `BANT ${oui}/4 · décideur`, texte: "Faire entrer le décideur", conseil: "Le besoin est là, il manque la personne qui signe. Propose un échange à trois : « Vous qui vivez le problème, vous saurez l'expliquer mieux que moi. »" };
+    if (oui >= 3) return { couleur: "vert", court: `BANT ${oui}/4 · RDV`, texte: `Proposer un rendez-vous (${oui}/4)`, conseil: "Propose deux créneaux précis, jamais « quand vous voulez »." };
+    if (s.bant_besoin === "non") return { couleur: "rouge", court: `BANT ${oui}/4 · pas de besoin`, texte: "Pas de besoin aujourd'hui", conseil: "Note-le sans insister et prévois une relance dans 6 mois." };
+    return { couleur: "orange", court: `BANT ${oui}/4 · relancer`, texte: `Relancer plus tard (${oui}/4)`, conseil: "Ne lâche pas : fixe avec lui la date où vous vous reparlez, et envoie-lui d'ici là une chose utile, sans rien vendre." };
+  }
+  function blocBant(id, s) {
+    const zone = h("div");
+    const section = h("section", { "aria-label": "Qualification BANT" });
+    const dessiner = () => {
+      const v = verdictBant(s);
+      section.replaceChildren(
+        h("div", { class: "section-titre" }, h("h2", {}, "Qualification (BANT)"), h("p", {}, s.bant_maj ? `mise à jour le ${dateLisible(s.bant_maj)}` : "3 critères sur 4 = rendez-vous")),
+        h("div", { class: "carte carte-large pile-serree" },
+          h("p", {}, pastille(v.couleur, v.texte)),
+          h("p", { class: "aide" }, v.conseil),
+          h("ul", { class: "liste" }, CRITERES_BANT.map(([cle, nom, sens, question]) => {
+            const choix = (valeur, texte) => h("button", {
+              type: "button", class: "puce", "aria-pressed": (s[cle] || null) === valeur ? "true" : "false",
+              style: (s[cle] || null) === valeur ? "border-color: var(--violet); color: var(--violet); font-weight: 700;" : null,
+              onclick: async () => {
+                const avant = s[cle];
+                s[cle] = valeur;
+                const maj = { [cle]: valeur, bant_maj: aujourdhui() };
+                const { error } = await sb.from("organismes_suivi_commercial").upsert({ organisme_id: id, ...maj });
+                if (error) { s[cle] = avant; dessiner(); return signaler(zone, "erreur", texteErreur(error)); }
+                s.bant_maj = maj.bant_maj;
+                dessiner();
+              },
+            }, texte);
+            return h("li", { class: "ligne" },
+              h("span", { class: "ligne-titre" }, `${nom} — ${sens}`),
+              h("span", { class: "pastilles" }, choix("oui", "✓ Oui"), choix("non", "✗ Non"), choix(null, "? Pas encore")),
+              h("span", { class: "ligne-detail" }, `À demander : « ${question} »`));
+          })),
+          zone));
+    };
+    dessiner();
+    return section;
+  }
+
   function lienInterne(chemin, ...enfants) {
     return h("a", { href: `#/${chemin}`, class: "lien-interne" }, ...enfants);
   }
@@ -1014,7 +1069,7 @@
 
     const { data, error } = await sb
       .from("organismes")
-      .select("id, nom, organismes_suivi_commercial ( etape, contact_nom, contact_fonction, prochaine_relance, site_web, siren )")
+      .select("id, nom, organismes_suivi_commercial ( etape, contact_nom, contact_fonction, prochaine_relance, site_web, siren, bant_budget, bant_autorite, bant_besoin, bant_timing )")
       .order("nom");
     const impayes = await chargerImpayes();
     if (error) return afficher(navigationAdmin("prospection"), message("erreur", texteErreur(error)));
@@ -1040,7 +1095,8 @@
       const enRetard = l.prochaine_relance && l.prochaine_relance <= ajd && l.etape !== "perdu";
       return h("li", { class: "ligne" },
         h("span", { class: "ligne-titre" }, nomAvecImpaye(lienInterne(`organisme/${l.id}`, l.nom), impayes.get(l.id))),
-        h("span", { class: "pastilles" }, pastille(COULEUR_ETAPE[l.etape], LIBELLE_ETAPE_UNE[l.etape])),
+        h("span", { class: "pastilles" }, pastille(COULEUR_ETAPE[l.etape], LIBELLE_ETAPE_UNE[l.etape]),
+          l.etape !== "client" && (l.bant_budget || l.bant_autorite || l.bant_besoin || l.bant_timing) ? (() => { const v = verdictBant(l); return pastille(v.couleur, v.court); })() : null),
         h("span", { class: "ligne-detail" },
           [l.contact_nom, l.contact_fonction].filter(Boolean).join(" · ") || "Contact à identifier",
           l.site_web ? [" · ", h("a", { href: l.site_web, target: "_blank", rel: "noopener" }, "🌐 Site")] : null,
@@ -1367,7 +1423,8 @@
         h("div", { class: "compteur" }, h("span", { class: "compteur-valeur" }, String(echanges.data.length)), h("span", { class: "compteur-libelle" }, "échanges")),
         h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, dernierEchange ? dateLisible(dernierEchange.date_echange) : "—"), h("span", { class: "compteur-libelle" }, "dernier échange")),
         h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, derniereConnexion ? dateLisible(derniereConnexion.slice(0, 10)) : "—"), h("span", { class: "compteur-libelle" }, "dernière connexion client"))),
-      blocContacterOrg);
+      blocContacterOrg,
+      !estClient ? blocBant(id, s) : null);
 
     // --- Onglet Élèves ---
     const panneauEleves = h("section", { class: "pile-serree" },
