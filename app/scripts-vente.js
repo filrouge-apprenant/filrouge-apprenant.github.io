@@ -33,6 +33,7 @@
         { liste: [
           "Regarde le site du centre : formations à distance ? CAP, titres pro, CPF ? Certifié Qualiopi ?",
           "Note un détail précis (une formation, un chiffre, un avis).",
+          "Sur la fiche : bouton « 🏢 Pappers » pour sa taille et son chiffre d'affaires, avis Google pour repérer les plaintes sur le suivi.",
           "Cible : directeur, responsable pédagogique ou référent Qualiopi.",
         ] },
       ] },
@@ -46,12 +47,14 @@
       ] },
       { titre: "Les questions de découverte", blocs: [
         { questions: [
+          "Vos apprenants arrivent plutôt par le CPF, France Travail ou vos entreprises ?",
           "Aujourd'hui, comment se passe le suivi de vos apprenants entre deux cours ?",
           "Vous avez une idée du nombre d'apprenants qui abandonnent ou ne se présentent pas à l'examen ?",
           "Qui s'en occupe chez vous, et est-ce que cette personne a le temps de tous les appeler ?",
           "Pour Qualiopi, comment vous prouvez la prévention des ruptures de parcours ?",
           "Qu'est-ce que ça vous coûte, un apprenant qui lâche en cours de route ?",
         ] },
+        { conseil: "Selon la réponse à la 1re question : France Travail = chaque heure d'absence n'est pas payée, parle d'heures perdues. CPF = le risque se joue avant 80 % de progression, demande quand les apprenants décrochent. N'explique jamais la règle : vise ta question." },
         { conseil: "Écoute, puis reformule :" },
         { dire: "Si je comprends bien, vous avez… et ça vous pose problème pour…" },
       ] },

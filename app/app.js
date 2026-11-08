@@ -780,6 +780,18 @@
     else window.location.hash = `#/${chemin}`;
   }
 
+  // Site internet et Pappers d'un organisme (liens externes, nouvel onglet).
+  // Sans site enregistré : recherche Google du site officiel, à recopier ensuite
+  // dans l'onglet Suivi commercial.
+  function lienSiteWeb(siteWeb, nom) {
+    if (siteWeb && /^https?:\/\//i.test(siteWeb)) return { url: siteWeb, connu: true, texte: siteWeb.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, "") };
+    return { url: `https://www.google.com/search?q=${encodeURIComponent(`${nom} site officiel`)}`, connu: false, texte: "Chercher le site" };
+  }
+  function lienPappers(nom) {
+    const propre = String(nom || "").replace(/\(.*?\)/g, " ").replace(/\s+/g, " ").trim();
+    return `https://www.pappers.fr/recherche?q=${encodeURIComponent(propre)}`;
+  }
+
   function lienInterne(chemin, ...enfants) {
     return h("a", { href: `#/${chemin}`, class: "lien-interne" }, ...enfants);
   }
@@ -1001,7 +1013,7 @@
 
     const { data, error } = await sb
       .from("organismes")
-      .select("id, nom, organismes_suivi_commercial ( etape, contact_nom, contact_fonction, prochaine_relance )")
+      .select("id, nom, organismes_suivi_commercial ( etape, contact_nom, contact_fonction, prochaine_relance, site_web )")
       .order("nom");
     const impayes = await chargerImpayes();
     if (error) return afficher(navigationAdmin("prospection"), message("erreur", texteErreur(error)));
@@ -1030,6 +1042,8 @@
         h("span", { class: "pastilles" }, pastille(COULEUR_ETAPE[l.etape], LIBELLE_ETAPE_UNE[l.etape])),
         h("span", { class: "ligne-detail" },
           [l.contact_nom, l.contact_fonction].filter(Boolean).join(" · ") || "Contact à identifier",
+          l.site_web ? [" · ", h("a", { href: l.site_web, target: "_blank", rel: "noopener" }, "🌐 Site")] : null,
+          " · ", h("a", { href: lienPappers(l.nom), target: "_blank", rel: "noopener" }, "🏢 Pappers"),
           l.prochaine_relance
             ? h("span", { class: enRetard ? "relance relance-retard" : "relance" }, ` · Relance ${ecartJours(l.prochaine_relance)}`)
             : null));
@@ -1180,6 +1194,7 @@
     const fonction = champTexte("fiche-fonction", "Fonction", s.contact_fonction);
     const email = champTexte("fiche-email", "Email", s.contact_email, { type: "email", inputmode: "email" });
     const tel = champTexte("fiche-tel", "Téléphone", s.contact_telephone, { type: "tel", inputmode: "tel" });
+    const siteWeb = champTexte("fiche-site", "Site internet", s.site_web, { type: "url", inputmode: "url", placeholder: "https://…" });
     const relance = champTexte("fiche-relance", "Prochaine relance", s.prochaine_relance, { type: "date" });
     const formule = champChoix("fiche-formule", "Formule", FORMULES, s.formule || "");
     const debut = champTexte("fiche-debut", "Début du contrat", s.date_debut_contrat, { type: "date" });
@@ -1201,11 +1216,15 @@
       nom.bloc, etape.bloc, blocContrat,
       h("div", { class: "deux-colonnes" }, contact.bloc, fonction.bloc),
       h("div", { class: "deux-colonnes" }, email.bloc, tel.bloc),
+      siteWeb.bloc,
       relance.bloc, raccourcis, notes.bloc, zone, bouton);
 
     formulaire.addEventListener("submit", async (evenement) => {
       evenement.preventDefault();
       if (!nom.champ.value.trim()) return signaler(zone, "erreur", "Indiquez le nom de l'organisme.");
+      let site = siteWeb.champ.value.trim();
+      if (site && !/^https?:\/\//i.test(site)) site = `https://${site}`;
+      if (site && !/^https?:\/\/[^\s<>"]+\.[^\s<>"]+$/i.test(site)) return signaler(zone, "erreur", "Le site internet ne semble pas valide (ex. : https://www.exemple.fr).");
       signaler(zone);
       occupe(bouton, true, "Enregistrement…");
       const vide = (v) => (v && v.trim() ? v.trim() : null);
@@ -1219,6 +1238,7 @@
         contact_fonction: vide(fonction.champ.value),
         contact_email: vide(email.champ.value),
         contact_telephone: vide(tel.champ.value),
+        site_web: site || null,
         prochaine_relance: relance.champ.value || null,
         formule: etape.champ.value === "client" ? (formule.champ.value || null) : (s.formule || null),
         date_debut_contrat: etape.champ.value === "client" ? (debut.champ.value || null) : (s.date_debut_contrat || null),
@@ -1228,6 +1248,8 @@
       if (r2.error) return signaler(zone, "erreur", texteErreur(r2.error));
       org.data.nom = nom.champ.value.trim();
       titre.textContent = org.data.nom;
+      siteWeb.champ.value = site;
+      if ((s.site_web || "") !== site) { s.site_web = site || null; return ecranOrganisme(id); }
       signaler(zone, "info", "Enregistré.");
     });
 
@@ -1319,9 +1341,12 @@
         h("div", { class: "actions-ligne" },
           s.contact_telephone ? h("a", { class: "bouton", href: `tel:${s.contact_telephone.replace(/[^\d+]/g, "")}` }, `📞 Appeler · ${s.contact_telephone}`) : null,
           lienGmail ? h("a", { class: "bouton bouton-secondaire", href: lienGmail, target: "_blank", rel: "noopener" }, "📧 Email (Gmail Fil Rouge)") : null,
+          h("a", { class: "bouton bouton-secondaire", href: lienSiteWeb(s.site_web, org.data.nom).url, target: "_blank", rel: "noopener" }, s.site_web ? "🌐 Site internet" : "🔎 Chercher le site"),
+          h("a", { class: "bouton bouton-secondaire", href: lienPappers(org.data.nom), target: "_blank", rel: "noopener" }, "🏢 Pappers"),
           !estClient ? h("a", { class: "bouton bouton-secondaire", href: `#/scripts-vente/demarchage/${id}` }, "📋 Script de démarchage") : null,
           !estClient ? h("button", { type: "button", class: "bouton bouton-secondaire", onclick: () => ongletsOrg.choisir("objections") }, "💬 Traitement d'objection") : null),
         !s.contact_telephone && !s.contact_email ? h("p", { class: "aide" }, "Pas de téléphone ni d'email : complète le contact dans l'onglet Suivi commercial.") : null,
+        !s.site_web ? h("p", { class: "aide" }, "Site pas encore enregistré : trouve-le avec « Chercher le site », puis colle l'adresse dans l'onglet Suivi commercial.") : null,
         h("p", { class: "aide" }, "Après l'échange, note-le dans le bandeau « Échanges » à droite.")));
 
     // --- Onglet Fiche ---
@@ -1392,7 +1417,15 @@
         montantImpaye ? h("div", { class: "perso-case" }, badgeImpaye(montantImpaye)) : null,
         ligneContact("Fonction", s.contact_fonction),
         ligneContact("Email", s.contact_email, s.contact_email ? `mailto:${s.contact_email}` : null),
-        ligneContact("Téléphone", s.contact_telephone, s.contact_telephone ? `tel:${s.contact_telephone.replace(/[^\d+]/g, "")}` : null)),
+        ligneContact("Téléphone", s.contact_telephone, s.contact_telephone ? `tel:${s.contact_telephone.replace(/[^\d+]/g, "")}` : null),
+        h("div", { class: "perso-case" },
+          h("span", { class: "compteur-libelle" }, "Site internet"),
+          s.site_web
+            ? h("a", { class: "perso-valeur", href: s.site_web, target: "_blank", rel: "noopener" }, lienSiteWeb(s.site_web).texte)
+            : h("span", { class: "perso-valeur perso-vide" }, "à renseigner")),
+        h("div", { class: "perso-case" },
+          h("span", { class: "compteur-libelle" }, "Entreprise"),
+          h("a", { class: "perso-valeur", href: lienPappers(org.data.nom), target: "_blank", rel: "noopener" }, "Voir sur Pappers"))),
       s.notes ? h("p", { class: "perso-contraintes" }, s.notes) : null,
       h("p", { class: "aide" }, "À modifier dans l'onglet Suivi commercial."));
 
