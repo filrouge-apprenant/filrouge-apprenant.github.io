@@ -879,7 +879,7 @@
       fermer.addEventListener("click", () => dialogue.close());
 
       dialogue.replaceChildren(
-        h("div", { class: "obj-carte" },
+        h("div", { class: `obj-carte obj-cat-${o.cat}` },
           h("div", { class: "obj-carte-haut" },
             h("p", { class: "surtitre" }, (CATEGORIES.find((c) => c.cle === o.cat) || {}).titre || "Objection"),
             fermer),
@@ -890,7 +890,7 @@
           etape(3, "Répondre au vrai frein", o.repondre.map(dire)),
           angle ? h("div", { class: "obj-angle" }, h("strong", {}, `Avec ${minuscule(PROFILS[profil])} : `), r(angle)) : null,
           etape(4, "Relancer vers une date", dire(o.relancer)),
-          o.eviter ? h("p", { class: "obj-eviter" }, h("strong", {}, "À éviter : "), o.eviter) : null,
+          o.eviter ? h("p", { class: "obj-eviter" }, h("strong", {}, "⚠️ À éviter : "), o.eviter) : null,
           h("div", { class: "actions-ligne" }, ecouter, copier)));
       if (typeof dialogue.showModal === "function") dialogue.showModal();
       else dialogue.setAttribute("open", "");
@@ -899,7 +899,7 @@
 
     // --- Boutons ---
     const boutonObjection = (o, vedette) => {
-      const b = h("button", { type: "button", class: `obj-bouton${vedette ? " obj-bouton-vedette" : ""}`, "data-objection": o.id }, o.bouton);
+      const b = h("button", { type: "button", class: `obj-bouton obj-cat-${o.cat}${vedette ? " obj-bouton-vedette" : ""}`, "data-objection": o.id, title: (CATEGORIES.find((c) => c.cle === o.cat) || {}).titre }, o.bouton);
       b.addEventListener("click", () => ouvrir(o));
       return b;
     };
@@ -914,7 +914,7 @@
       const liste = OBJECTIONS.filter((o) => o.cat === c.cle);
       const boutons = liste.map((o) => boutonObjection(o, false));
       const section = h("section", { class: "obj-groupe" },
-        h("h3", { class: "obj-groupe-titre" }, c.titre),
+        h("h3", { class: `obj-groupe-titre obj-cat-${c.cle}` }, h("span", { class: "obj-pastille", "aria-hidden": "true" }), c.titre),
         h("div", { class: "obj-grille" }, boutons));
       return { section, liste, boutons };
     });
