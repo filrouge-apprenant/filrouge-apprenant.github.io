@@ -2,7 +2,7 @@
 // Fil Rouge Apprenants — Scripts de vente (#/scripts-vente), administratrice
 // =============================================================================
 //   #/scripts-vente                         script de démarchage des organismes
-//   #/scripts-vente/objections              traitement des objections
+//   #/scripts-vente/objections              traitement des objections (objections.js)
 //   #/scripts-vente/<onglet>/<organisme>    même chose, ouvert depuis la fiche
 //                                           d'un organisme : le nom du contact
 //                                           remplace « Madame X » dans les phrases.
@@ -74,67 +74,11 @@
     ],
   };
 
+  // Les objections sont dans objections.js (bibliothèque complète, un bouton par thème).
   const OBJECTIONS = {
     titre: "Traitement des objections",
-    chapo: "Ne réponds jamais du tac au tac : commence par creuser pour trouver le vrai frein.",
-    parties: [
-      { titre: "La méthode en 4 temps (pour toutes les objections)", blocs: [
-        { questions: [
-          "Accueillir : « Je comprends tout à fait. »",
-          "Creuser : une question pour trouver le vrai frein.",
-          "Répondre au vrai frein, court.",
-          "Relancer : une question qui fait avancer.",
-        ], consignes: true },
-      ] },
-      { titre: "« Je n'ai pas le temps. »", blocs: [
-        { dire: "Je comprends, je serai brève. Justement, c'est le temps qui manque souvent pour rappeler les apprenants, non ? Je vous propose 15 minutes cette semaine, ou je vous rappelle à un moment plus calme : plutôt matin ou fin de journée ?" },
-      ] },
-      { titre: "« Envoyez-moi une documentation. »", blocs: [
-        { dire: "Avec plaisir. Pour vous envoyer quelque chose d'utile, dites-moi : c'est plutôt l'abandon, la présence à l'examen ou Qualiopi qui vous préoccupe le plus ?" },
-        { conseil: "Laisse répondre, puis :" },
-        { dire: "Je vous l'envoie aujourd'hui et je vous rappelle jeudi pour en parler, ça vous va ?" },
-      ] },
-      { titre: "« C'est trop cher. »", blocs: [
-        { dire: "Je comprends. Trop cher par rapport à quoi ?" },
-        { conseil: "Laisse parler, puis :" },
-        { dire: "Un apprenant qui abandonne, c'est un financement perdu, souvent plusieurs centaines d'euros, voire plus. Un appel, c'est entre 12 et 20 €. Si on évite un seul abandon, le suivi est déjà remboursé. Et vous pouvez d'abord tester 15 jours gratuitement." },
-      ] },
-      { titre: "« On fait déjà le suivi en interne. »", blocs: [
-        { dire: "Très bien, c'est déjà une bonne chose. Comment ça se passe ? Vos équipes arrivent-elles à appeler tout le monde chaque mois ?" },
-        { conseil: "Puis :" },
-        { dire: "Je ne remplace pas vos équipes, je prends les appels qu'elles n'ont pas le temps de faire, et je vous laisse les comptes rendus." },
-      ] },
-      { titre: "« Nos apprenants sont autonomes, ils n'en ont pas besoin. »", blocs: [
-        { dire: "Tant mieux ! Et ceux qui ne se connectent plus depuis quelques semaines, comment les repérez-vous ? C'est justement eux que je vise : je les appelle avant qu'ils décrochent, pas après." },
-      ] },
-      { titre: "« Ce n'est pas moi qui décide. »", blocs: [
-        { dire: "Merci de me le dire. Qui prend ce genre de décision chez vous ? Est-ce que vous seriez d'accord pour qu'on lui présente ensemble ? Votre avis compte, vous connaissez les apprenants." },
-      ] },
-      { titre: "« Ça ne nous intéresse pas. »", blocs: [
-        { dire: "Je l'entends. Juste par curiosité, c'est parce que vous n'avez pas d'abandons, ou parce que le moment n'est pas le bon ?" },
-        { conseil: "Si ce n'est pas le moment :" },
-        { dire: "Je vous rappelle dans trois mois, avant la prochaine rentrée ?" },
-      ] },
-      { titre: "« Vous êtes seule, et si vous êtes absente ? »", blocs: [
-        { dire: "Bonne question. Je travaille avec des appelantes formées et tenues au secret, sur la même méthode et la même plateforme. Vos apprenants sont toujours suivis." },
-      ] },
-      { titre: "« Et nos données, le RGPD ? »", blocs: [
-        { dire: "Les données sont hébergées à Paris, chaque organisme ne voit que ses apprenants, et le contrat inclut un accord de sous-traitance RGPD. Je vous l'envoie si vous voulez le faire relire." },
-      ] },
-      { titre: "« On a déjà essayé, ça n'a pas marché. »", blocs: [
-        { dire: "Ah, intéressant. Qu'est-ce qui n'a pas marché, à votre avis ?" },
-        { conseil: "Puis montre la différence : appels réguliers, objectif fixé à chaque appel, comptes rendus visibles en direct." },
-      ] },
-      { titre: "Les réflexes à garder", blocs: [
-        { liste: [
-          "Souris en parlant : ça s'entend.",
-          "Silence après une question : laisse le client répondre.",
-          "Utilise ses mots à lui dans tes réponses.",
-          "Termine toujours par une prochaine étape datée.",
-          "Note chaque nouvelle objection entendue : elle pourra être ajoutée ici.",
-        ] },
-      ] },
-    ],
+    chapo: "Un bouton par objection : la réponse s'ouvre en 4 temps (accueillir, creuser, répondre, relancer).",
+    parties: [],
   };
 
   const ONGLETS = { demarchage: DEMARCHAGE, objections: OBJECTIONS };
@@ -211,17 +155,18 @@
       let org = null;
       if (orgId) {
         const { data } = await sb.from("organismes")
-          .select("id, nom, organismes_suivi_commercial ( contact_nom )")
+          .select("id, nom, organismes_suivi_commercial ( contact_nom, contact_fonction )")
           .eq("id", orgId).maybeSingle();
         if (data) {
           const s = Array.isArray(data.organismes_suivi_commercial) ? data.organismes_suivi_commercial[0] : data.organismes_suivi_commercial;
-          org = { id: data.id, nom: data.nom, contact: (s && s.contact_nom) || "" };
+          org = { id: data.id, nom: data.nom, contact: (s && s.contact_nom) || "", fonction: (s && s.contact_fonction) || "" };
         }
       }
       const suffixe = org ? `/${org.id}` : "";
       const onglet = (c, texte) =>
         h("a", { href: `#/scripts-vente/${c}${suffixe}`, class: "filtre", "aria-current": c === cle ? "true" : null }, texte);
 
+      const avecObjections = cle === "objections" && window.FilRougeObjections;
       const parties = script.parties.map((p, i) => dessinerPartie(p, i === 0, org && org.contact));
       const toutOuvrir = h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit" }, "Tout déplier");
       toutOuvrir.addEventListener("click", () => {
@@ -240,12 +185,15 @@
                   : h("a", { href: "#/prospection", class: "lien-interne" }, "← Prospection")),
               h("h1", {}, "Scripts de vente"),
               h("p", { class: "chapo" }, script.chapo)),
-            toutOuvrir),
+            avecObjections ? null : toutOuvrir),
           org && org.contact ? h("p", { class: "aide" }, `Les phrases sont adaptées pour ${org.contact} (${org.nom}).`) : null,
           h("div", { class: "filtres" },
             onglet("demarchage", "Démarchage"),
             onglet("objections", "Objections")),
-          h("section", { class: "sv-script", "aria-label": script.titre }, parties))
+          avecObjections
+            ? h("section", { class: "sv-script", "aria-label": script.titre },
+                window.FilRougeObjections.panneau({ h, contact: org && org.contact, fonction: org && org.fonction, organisme: org && org.nom, titre: "Toutes les objections" }))
+            : h("section", { class: "sv-script", "aria-label": script.titre }, parties))
       );
     }
 

@@ -1320,7 +1320,7 @@
           s.contact_telephone ? h("a", { class: "bouton", href: `tel:${s.contact_telephone.replace(/[^\d+]/g, "")}` }, `📞 Appeler · ${s.contact_telephone}`) : null,
           lienGmail ? h("a", { class: "bouton bouton-secondaire", href: lienGmail, target: "_blank", rel: "noopener" }, "📧 Email (Gmail Fil Rouge)") : null,
           !estClient ? h("a", { class: "bouton bouton-secondaire", href: `#/scripts-vente/demarchage/${id}` }, "📋 Script de démarchage") : null,
-          !estClient ? h("a", { class: "bouton bouton-secondaire", href: `#/scripts-vente/objections/${id}` }, "💬 Objections") : null),
+          !estClient ? h("button", { type: "button", class: "bouton bouton-secondaire", onclick: () => ongletsOrg.choisir("objections") }, "💬 Traitement d'objection") : null),
         !s.contact_telephone && !s.contact_email ? h("p", { class: "aide" }, "Pas de téléphone ni d'email : complète le contact dans l'onglet Suivi commercial.") : null,
         h("p", { class: "aide" }, "Après l'échange, note-le dans le bandeau « Échanges » à droite.")));
 
@@ -1428,12 +1428,18 @@
             })))))
         : h("p", { class: "aide" }, "Aucun échange pour l'instant."));
 
+    // --- Onglet « Objections » : un bouton par thème, réponse en un clic (objections.js) ---
+    const panneauObjections = window.FilRougeObjections
+      ? window.FilRougeObjections.panneau({ h, contact: s.contact_nom || "", fonction: s.contact_fonction || "", organisme: org.data.nom })
+      : h("p", { class: "aide" }, "Le module des objections n'a pas pu se charger. Recharge la page.");
+
     // --- Onglets en haut ---
     const memoOrg = etat.ongletOrganisme && etat.ongletOrganisme.id === id ? etat.ongletOrganisme : { id, onglet: lireRoute().onglet || "fiche" };
     etat.ongletOrganisme = memoOrg;
     const nb = (n) => (n ? ` (${n})` : "");
     const ongletsOrg = barreOnglets("organisme", [
       ["fiche", "Fiche", panneauFiche],
+      ["objections", "💬 Objections", panneauObjections],
       ["echanges", `Échanges${nb(echanges.data.length)}`, panneauEchanges],
       ["suivi", "Suivi commercial", panneauSuivi],
       ["eleves", `Élèves${nb(apprenantsCount)}`, panneauEleves],
@@ -4618,6 +4624,7 @@
       ? h("div", { class: `onglets-fiche onglets-${nom}` }, panneaux)
       : h("div", { class: `onglets-fiche onglets-${nom}` }, barre, panneaux);
     bloc.barre = barre;
+    bloc.choisir = (cle) => { choisir(cle); window.scrollTo(0, 0); };
     const depart = onglets.some(([c]) => c === actif) ? actif : onglets[0][0];
     onglets.forEach(([c], i) => {
       boutons[i].setAttribute("aria-selected", String(c === depart));
