@@ -1463,3 +1463,17 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 .obj-pastille { width: 0.8rem; height: 0.8rem; border-radius: 3px; background: var(--obj-c); flex: none; }
 .obj-carte .surtitre { color: var(--obj-c, var(--violet)); }
 .obj-carte .sv-dire { border-left-color: var(--obj-c, var(--violet)); background: var(--obj-f, var(--fond-doux)); }
+
+/* ---------- Bouton de passage vers la plateforme DP Abdel ----------
+   Couleurs de DP Abdel (bleu encre, safran) pour bien montrer que c'est un autre espace. */
+.bascule-plateforme {
+  display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.75rem 0.3rem 0.35rem;
+  border: 1.5px solid #15365c; border-radius: 999px; background: #fdf0d9; color: #15365c;
+  font-weight: 700; font-size: 0.88rem; text-decoration: none; white-space: nowrap;
+}
+.bascule-plateforme:hover { background: #f9dfae; }
+.bascule-pastille {
+  display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%;
+  background: #ffffff; border: 1.5px solid #e39b2d; font-family: Georgia, serif; font-size: 0.72rem; letter-spacing: 0;
+}
+@media (max-width: 40rem) { .bascule-plateforme .bascule-texte { display: none; } .bascule-plateforme { padding-right: 0.55rem; } }

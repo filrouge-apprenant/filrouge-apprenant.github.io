@@ -61,7 +61,7 @@
           }
           if (nom === "noter_appel") db.appels.push({ id: uuid(), apprenant_id: p.p_apprenant, date_appel: p.p_date_appel, statuts: [], resultat: p.p_resultat, canal: p.p_canal, note_client: p.p_note_client });
           sauver();
-          return Promise.resolve({ data: nom === "comptes_acces" ? [] : null, error: null });
+          return Promise.resolve({ data: nom === "comptes_acces" ? [] : nom === "abdel_suis_membre" ? true : null, error: null });
         },
         functions: {
           invoke(nom, { body }) {

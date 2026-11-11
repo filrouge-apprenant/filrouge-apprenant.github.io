@@ -265,3 +265,18 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   .marque-sous { font-size: 1.05rem; }
   .zone-compte { font-size: .82rem; }
 }
+
+/* ---------- Bouton de retour vers Fil Rouge Apprenants (aux couleurs de Fil Rouge) ---------- */
+.bascule-plateforme {
+  display: inline-flex; align-items: center; gap: .45rem; padding: .3rem .75rem .3rem .55rem;
+  border: 1.5px solid #c1121f; border-radius: 999px; background: #ffffff; color: #c1121f;
+  font-weight: 700; font-size: .88rem; text-decoration: none; white-space: nowrap;
+}
+.bascule-plateforme:hover { background: #fdf1f2; }
+.bascule-pastille { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; border: 1.5px solid #c1121f; font-family: Georgia, serif; font-size: .72rem; }
+@media (max-width: 40rem) { .bascule-plateforme .bascule-texte { display: none; } }
+@media (max-width: 30rem) {
+  .marque-sous { display: none; }
+  .marque-nom, .bouton-menu, .zone-compte .bouton-lien { white-space: nowrap; }
+  .zone-compte { gap: .5rem; }
+}
