@@ -217,7 +217,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 .carte-pipe select { margin-top: .4rem; font-size: .82rem; padding: .3rem .4rem; }
 
 /* ---------- Scripts ---------- */
-.script { border-left: 3px solid var(--safran); background: var(--sable); padding: .7rem .9rem; border-radius: 0 var(--rayon) var(--rayon) 0; }
+.script { border-left: 3px solid var(--safran); background: var(--sable); padding: .7rem .9rem; border-radius: 0 var(--rayon) var(--rayon) 0; white-space: pre-line; line-height: 1.5; }
 .script b { display: block; margin-bottom: .2rem; }
 
 /* ---------- Tableau simple ---------- */
