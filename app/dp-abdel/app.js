@@ -179,7 +179,14 @@
     S.prospects = {}; p.forEach(r => { S.prospects[r.id] = { ...r.data, id: r.id }; });
     S.ao = {}; a.forEach(r => { S.ao[r.id] = { ...r.data, id: r.id }; });
     const m = s.find(r => r.id === 'main'); S.params = { ...C.DEFAULT_SETTINGS, ...(m ? m.data : {}) };
+    S.chargeA = Date.now();
   }
+  /* Recharge les données quand on revient sur l'onglet : évite d'écraser ce que l'agent Contacts a écrit entre-temps. */
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible' || !S.pret || !S.chargeA || Date.now() - S.chargeA < 120000) return;
+    if (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+    try { await chargerTout(); rafraichir(); } catch (_) { /* hors ligne : on garde les données en mémoire */ }
+  });
   function messageErreur(err) {
     const m = (err && (err.message || err.code)) || '';
     if (/JWT|expired|401/i.test(m)) return 'Ta session a expiré : reconnecte-toi.';
@@ -569,7 +576,8 @@
         <div class="deux-colonnes">${champ(p, 'hoursSecu', 'Heures de sécurité par mois (estimation)', 'number', 'min="0" step="any"')}${champ(p, 'hoursNet', 'Heures de nettoyage par mois (estimation)', 'number', 'min="0" step="any"')}</div>
         <p class="aide">Pas de chiffre ? Utilise le <a href="#/calculateur">calculateur</a> : il remplit ce champ pour toi.</p>
         ${zone(p, 'need', 'Besoin identifié', 'Ex. : surveillance de nuit du dépôt, 2 agents de 19 h à 7 h, 7 j/7')}</div>
-      <div class="carte formulaire"><h3>Interlocuteurs</h3>
+      <div class="carte formulaire"><div class="entete"><h3>Interlocuteurs</h3>${boutonAgentContacts(p)}</div>
+        ${etatAgentContacts(p)}
         <div class="deux-colonnes">${champ(p, 'contacts.dirigeant', 'Dirigeant')}${champ(p, 'contacts.securite', 'Responsable sécurité')}${champ(p, 'contacts.achats', 'Responsable achats')}${champ(p, 'contacts.sg', 'Responsable services généraux')}${champ(p, 'contacts.site', 'Responsable de site')}</div>
         ${p.name ? `<div class="actions petit"><a href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(p.name + ' ' + (p.secu ? 'sécurité' : 'services généraux'))}" target="_blank" rel="noopener">Chercher le décideur sur LinkedIn ↗</a>
           <a href="https://www.google.com/maps/search/${encodeURIComponent(p.name + ' ' + (p.city || 'Bordeaux'))}" target="_blank" rel="noopener">Google Maps ↗</a>
@@ -580,6 +588,38 @@
         ${zone(p, 'notes', 'Notes commerciales')}
         ${caseC(p, 'optOut', 'Ne plus contacter (la personne s\'y est opposée)')}</div>
       <div class="actions"><button class="bouton bouton-danger bouton-petit" type="button" data-action="supprimer-prospect">Supprimer la fiche</button></div></div>`;
+  }
+
+  /* Agent Contacts : tâche planifiée Claude (jours ouvrés, 7 h 43) qui lit contactSearch.status = 'demande'
+     et les fiches jamais traitées, puis remplit les interlocuteurs avec leurs sources. */
+  function boutonAgentContacts(p) {
+    const cs = p.contactSearch || {};
+    if (p.optOut) return '';
+    if (cs.status === 'demande') return `<button class="bouton bouton-petit bouton-secondaire" type="button" data-action="agent-contacts-annuler">Annuler la demande</button>`;
+    return `<button class="bouton bouton-petit" type="button" data-action="agent-contacts">${cs.status ? 'Relancer la recherche' : 'Trouver le contact'}</button>`;
+  }
+  function etatAgentContacts(p) {
+    const cs = p.contactSearch;
+    if (p.optOut) return '<p class="aide">Opposition à la prospection : l\'agent ne cherche pas de contact pour cette fiche.</p>';
+    if (!cs || !cs.status) return '<p class="aide">L\'agent Contacts cherche qui appeler (registre, site, presse, offres d\'emploi, LinkedIn public) chaque jour ouvré vers 7 h 45. Clique sur « Trouver le contact » pour que cette fiche passe en priorité.</p>';
+    if (cs.status === 'demande') return `<p class="aide"><b>Recherche demandée le ${fd(cs.date)}.</b> L'agent la traitera à son prochain passage (jours ouvrés, vers 7 h 45).</p>`;
+    const sources = (cs.sources || []).filter(u => /^https?:\/\//i.test(u));
+    const liens = sources.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener">source ${i + 1} ↗</a>`).join(' · ');
+    const titre = cs.status === 'rien_trouve' ? 'Aucun contact fiable trouvé par l\'agent' : 'Contacts trouvés par l\'agent';
+    return `<p class="aide"><b>${titre}</b> le ${fd(cs.date)}${cs.confiance ? ' · fiabilité : ' + esc(cs.confiance) : ''}${liens ? '<br>' + liens : ''}<br>À vérifier au premier appel. Les détails sont dans « Notes commerciales ».</p>`;
+  }
+  async function demanderAgentContacts(annuler) {
+    const zoneF = document.getElementById('corps-fiche'); if (!zoneF) return;
+    const p = S.prospects[zoneF.dataset.id]; if (!p) return;
+    const d = clone(p);
+    if (annuler) {
+      const prec = d.contactSearch && d.contactSearch.previous;
+      if (prec) d.contactSearch = prec; else delete d.contactSearch;
+    } else {
+      const prec = d.contactSearch && d.contactSearch.status !== 'demande' ? d.contactSearch : null;
+      d.contactSearch = { status: 'demande', date: today(), at: nowISO(), ...(prec ? { previous: prec } : {}) };
+    }
+    if (await enregistrerProspect(d)) { notif(annuler ? 'Demande annulée' : 'Demande envoyée : l\'agent cherchera au prochain passage'); rafraichir(); }
   }
 
   function raisonsHtml(sc) {
@@ -604,6 +644,7 @@
         ${e.nextAction || e.nextDate ? `<div class="ligne-detail">Suite : ${esc(e.nextAction || '')} ${e.nextDate ? 'le ' + fd(e.nextDate) : ''}</div>` : ''}</div>`;
       if (e.type === 'status') return `<div><div class="evenement-date">${fdt(e.ts)} · Étape</div>${esc(C.STATUS_LABEL[e.from] || '—')} → <b>${esc(C.STATUS_LABEL[e.to])}</b></div>`;
       if (e.type === 'create') return `<div><div class="evenement-date">${fdt(e.ts)}</div>Fiche créée</div>`;
+      if (e.type === 'note') return `<div><div class="evenement-date">${fdt(e.ts)} · Note</div>${esc(e.text || e.note || '')}</div>`;
       if (e.type === 'calc') return `<div><div class="evenement-date">${fdt(e.ts)} · Chiffrage</div>${esc(e.note || '')}</div>`;
       return '';
     };
@@ -1050,6 +1091,8 @@
     if (act === 'ajouter-resultat') ajouterResultat(+a.dataset.i, a);
     if (act === 'rech-suite') lancerRecherche((S.recherche.data.page || 1) + 1);
     if (act === 'registre') completerRegistre(a);
+    if (act === 'agent-contacts') demanderAgentContacts(false);
+    if (act === 'agent-contacts-annuler') demanderAgentContacts(true);
     if (act === 'registre-choix') choisirRegistre(+a.dataset.i);
     if (act === 'supprimer-prospect') {
       const id = document.getElementById('corps-fiche').dataset.id; const p = S.prospects[id];
