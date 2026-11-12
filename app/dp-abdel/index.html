@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="only light">
+  <!-- Sécurité : code chargé uniquement depuis ce site et la bibliothèque officielle ;
+       la page ne parle qu'au projet Supabase. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://cafcevtehuywovvsllvp.supabase.co wss://cafcevtehuywovvsllvp.supabase.co; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
+  <title>DP Abdel · Prospection</title>
+  <link rel="icon" href="icone.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&display=swap">
+  <link rel="stylesheet" href="styles.css?v=__VERSION__">
+</head>
+<body>
+  <header class="bandeau">
+    <div class="bandeau-interieur">
+      <button id="bouton-menu" class="bouton-menu" type="button" aria-controls="menu-lateral" aria-expanded="false" hidden>☰ Menu</button>
+      <a class="marque" href="#/">
+        <span class="marque-nom">DP Abdel</span><span class="marque-sous">Prospection</span>
+        <!-- La signature : un coup de pinceau safran sous le nom. -->
+        <svg class="marque-trait" viewBox="0 0 200 16" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path d="M3 10.5 C 30 5.5, 70 4.2, 110 6.2 C 140 7.6, 170 6.4, 197 3.8" fill="none" stroke="#e39b2d" stroke-width="3.2" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+          <path d="M14 13 C 60 9.5, 120 9.8, 176 8.6" fill="none" stroke="#e39b2d" stroke-opacity=".45" stroke-width="1.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+        </svg>
+      </a>
+      <div id="zone-compte" class="zone-compte" hidden>
+        <!-- Retour vers Fil Rouge Apprenants (l'entreprise d'Émilie), aux couleurs de Fil Rouge. -->
+        <a class="bascule-plateforme" href="../#/"><span aria-hidden="true">←</span><span class="bascule-pastille" aria-hidden="true">FR</span><span class="bascule-texte">Fil Rouge Apprenants</span></a>
+        <span id="compte-libelle" class="compte-libelle"></span>
+        <button id="bouton-deconnexion" class="bouton-lien" type="button">Se déconnecter</button>
+      </div>
+    </div>
+  </header>
+  <div class="cadre">
+    <nav id="menu-lateral" class="menu-lateral" aria-label="Navigation" hidden></nav>
+    <main id="contenu" class="contenu" aria-live="polite"><div class="contenu-interieur"><p class="chargement">Chargement…</p></div></main>
+  </div>
+  <div id="voile" class="voile" hidden></div>
+  <footer class="pied"><p>DP Abdel · CRM de prospection sécurité privée et nettoyage · Bordeaux Métropole · données hébergées en France</p></footer>
+  <div id="notifs" class="notifs" aria-live="polite"></div>
+  <input type="file" id="fichier" accept=".csv,.xlsx,.xls,.json" hidden>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="config.js?v=__VERSION__"></script>
+  <script src="core.js?v=__VERSION__"></script>
+  <script src="data.js?v=__VERSION__"></script>
+  <script src="app.js?v=__VERSION__"></script>
+</body>
+</html>

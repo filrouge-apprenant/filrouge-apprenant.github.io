@@ -223,6 +223,7 @@
         return verifie ? ecranCodeApplication(verifie.id) : ecranInscriptionApplication(facteurs);
       }
       etat.profil = profil;
+      afficherLienDpAbdel();
       return routeAdmin();
     }
 
@@ -5779,8 +5780,23 @@
   // Déconnexion et démarrage
   // ---------------------------------------------------------------------------
 
+  // Bouton « Espace DP Abdel » : plateforme séparée d'un client (dossier dp-abdel).
+  // Affiché seulement si la base confirme que ce compte est membre du CRM DP Abdel.
+  async function afficherLienDpAbdel() {
+    const lien = document.getElementById("lien-dp-abdel");
+    if (!lien) return;
+    try {
+      const { data, error } = await sb.rpc("abdel_suis_membre");
+      lien.hidden = Boolean(error) || data !== true;
+    } catch (_) {
+      lien.hidden = true;
+    }
+  }
+
   boutonDeconnexion.addEventListener("click", async () => {
     await sb.auth.signOut();
+    const lienAbdel = document.getElementById("lien-dp-abdel");
+    if (lienAbdel) lienAbdel.hidden = true;
     zoneCompte.hidden = true;
     etat.profil = null;
     ecranEmail("Déconnexion effectuée. À bientôt.");
