@@ -180,6 +180,42 @@
     S.ao = {}; a.forEach(r => { S.ao[r.id] = { ...r.data, id: r.id }; });
     const m = s.find(r => r.id === 'main'); S.params = { ...C.DEFAULT_SETTINGS, ...(m ? m.data : {}) };
     S.chargeA = Date.now();
+    await chargerCorbeille();
+  }
+  /* Corbeille de l'agent Tri (fiches et appels d'offres périmés, gardés 30 jours). Facultative : si la table manque, on l'ignore. */
+  async function chargerCorbeille() {
+    try {
+      const { data, error } = await sb.from('abdel_corbeille').select('id,table_origine,id_origine,raison,supprime_le,purge_apres,data').order('supprime_le', { ascending: false }).limit(300);
+      S.corbeille = error ? [] : (data || []);
+    } catch (_) { S.corbeille = []; }
+  }
+  async function restaurerCorbeille(idCb) {
+    const it = (S.corbeille || []).find(x => x.id === idCb); if (!it) return;
+    const d = clone(it.data); delete d._cree_le;
+    if (it.table_origine === 'abdel_prospects') {
+      d.garder = true; // l'agent Tri ne la retirera plus
+      d.history = [...(d.history || []), { type: 'note', ts: nowISO(), text: 'Fiche restaurée depuis la corbeille (' + it.raison + ')' }];
+      d.updatedAt = nowISO();
+    }
+    if (!(await ecrire(it.table_origine, it.id_origine, d))) return;
+    if (it.table_origine === 'abdel_prospects') S.prospects[it.id_origine] = { ...d, id: it.id_origine };
+    else S.ao[it.id_origine] = { ...d, id: it.id_origine };
+    await effacer('abdel_corbeille', it.id);
+    S.corbeille = S.corbeille.filter(x => x.id !== idCb);
+    notif('Restauré : ' + (d.name || d.buyer || 'élément'));
+    rafraichir();
+  }
+  function blocCorbeille() {
+    const items = S.corbeille || [];
+    const ligne = it => {
+      const d = it.data || {};
+      const nom = it.table_origine === 'abdel_prospects' ? (d.name || 'Fiche') : (d.buyer || 'Appel d\'offres') + (d.object ? ' — ' + d.object : '');
+      return `<li class="ligne sans-score"><div><div class="ligne-titre">${esc(nom)}</div><div class="ligne-detail">${it.table_origine === 'abdel_prospects' ? 'Prospect' : 'Appel d\'offres'} · ${esc(it.raison)} · retiré le ${fd(it.supprime_le)} · effacé le ${fd(it.purge_apres)}</div></div>
+        <button class="bouton bouton-petit bouton-secondaire" type="button" data-action="restaurer-corbeille" data-id="${esc(it.id)}">Restaurer</button></li>`;
+    };
+    return `<section class="carte pile-serree"><h3>Corbeille du tri automatique</h3>
+      <p class="aide">Chaque matin, l'agent Tri retire les appels d'offres dont la date limite est passée et les prospects jamais appelés dont l'annonce est trop vieille (offre d'emploi : 30 jours ; chantier ou implantation : 60 jours). Ils restent ici 30 jours. Une fiche restaurée n'est plus jamais retirée automatiquement.</p>
+      ${items.length ? `<ul class="liste">${items.map(ligne).join('')}</ul>` : '<p class="aide">Corbeille vide.</p>'}</section>`;
   }
   /* Recharge les données quand on revient sur l'onglet : évite d'écraser ce que l'agent Contacts a écrit entre-temps. */
   document.addEventListener('visibilitychange', async () => {
@@ -979,6 +1015,7 @@
         <div class="actions"><button class="bouton" type="button" data-action="sauvegarde">Télécharger une sauvegarde complète</button><button class="bouton bouton-secondaire" type="button" data-action="exporter" data-quoi="all">Exporter en Excel</button>
           <button class="bouton bouton-secondaire" type="button" data-action="exporter-csv">Exporter en CSV</button><button class="bouton bouton-secondaire" type="button" data-action="importer">Importer (CSV, Excel ou sauvegarde)</button></div>
         <p class="aide">Import : les colonnes sont reconnues par leur nom (Entreprise, SIREN, Ville, Code postal, Téléphone, Email…). Les doublons (même SIREN, ou même nom et code postal) sont ignorés.</p></section>
+      ${blocCorbeille()}
       <section class="carte carte-sable pile-serree"><h3>RGPD et prospection B2B</h3><p class="petit">Téléphone : appeler les lignes professionnelles. Email : vers une adresse professionnelle, sur un sujet lié à la fonction de la personne, en disant qui écrit et avec un moyen simple de se désinscrire. Une personne qui refuse d'être recontactée : coche « Ne plus contacter » dans sa fiche. Les entreprises marquées « Opposition prospection » dans le registre ont refusé que leurs données servent au démarchage.</p></section></div>`;
   }
 
@@ -1099,6 +1136,7 @@
     if (act === 'ajouter-resultat') ajouterResultat(+a.dataset.i, a);
     if (act === 'rech-suite') lancerRecherche((S.recherche.data.page || 1) + 1);
     if (act === 'registre') completerRegistre(a);
+    if (act === 'restaurer-corbeille') restaurerCorbeille(a.dataset.id);
     if (act === 'agent-contacts') demanderAgentContacts(false);
     if (act === 'agent-contacts-annuler') demanderAgentContacts(true);
     if (act === 'registre-choix') choisirRegistre(+a.dataset.i);
