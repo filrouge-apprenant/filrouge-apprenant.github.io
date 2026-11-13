@@ -5780,8 +5780,8 @@
   // Déconnexion et démarrage
   // ---------------------------------------------------------------------------
 
-  // Bouton « Espace DP Abdel » : plateforme séparée d'un client (dossier dp-abdel).
-  // Affiché seulement si la base confirme que ce compte est membre du CRM DP Abdel.
+  // Bouton « Espace Abdel » : plateforme séparée d'un client (dossier dp-abdel).
+  // Affiché seulement si la base confirme que ce compte est membre du CRM Abdel.
   async function afficherLienDpAbdel() {
     const lien = document.getElementById("lien-dp-abdel");
     if (!lien) return;

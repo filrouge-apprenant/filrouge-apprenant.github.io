@@ -1,5 +1,5 @@
 /* =====================================================================
- * CRM DP Abdel — logique métier (sans interface)
+ * CRM Abdel — logique métier (sans interface)
  * Fonctions pures : scoring, calculs de contrats, statistiques.
  * Utilisable dans le navigateur (variables globales) et testable avec Node.
  * ===================================================================== */
@@ -105,12 +105,12 @@
   const DEFAULT_SETTINGS = {
     rateSecu: 27,
     rateNetClient: 24,   // le client fournit les produits
-    rateNetProduits: 27, // DP Abdel fournit les produits
+    rateNetProduits: 27, // Abdel fournit les produits
     costHourSecu: '',    // coût horaire chargé d'un agent (à renseigner)
     costHourNet: '',
     nightCostPct: 10,    // majorations de coût : indicatives, à confirmer avec la convention collective
     sundayCostPct: 10,
-    companyNet: 'DP Abdel (nettoyage)',
+    companyNet: 'Abdel (nettoyage)',
     companySecu: '',
     cnaps: '',
     userName: 'Émilie',

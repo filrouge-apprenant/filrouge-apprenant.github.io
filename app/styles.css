@@ -1464,8 +1464,8 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 .obj-carte .surtitre { color: var(--obj-c, var(--violet)); }
 .obj-carte .sv-dire { border-left-color: var(--obj-c, var(--violet)); background: var(--obj-f, var(--fond-doux)); }
 
-/* ---------- Bouton de passage vers la plateforme DP Abdel ----------
-   Couleurs de DP Abdel (bleu encre, safran) pour bien montrer que c'est un autre espace. */
+/* ---------- Bouton de passage vers la plateforme Abdel ----------
+   Couleurs de Abdel (bleu encre, safran) pour bien montrer que c'est un autre espace. */
 .bascule-plateforme {
   display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.75rem 0.3rem 0.35rem;
   border: 1.5px solid #15365c; border-radius: 999px; background: #fdf0d9; color: #15365c;

@@ -1,5 +1,5 @@
 /* =====================================================================
- * CRM DP Abdel — données de référence
+ * CRM Abdel — données de référence
  * Sites de prospection, cibles, communes, scripts et objections.
  * Niveaux d'intégration (affichés honnêtement dans l'interface) :
  *   connecteur : interrogé directement depuis le CRM
@@ -40,7 +40,7 @@
     { cat: 'A', name: 'achatpublic.com', url: 'https://www.achatpublic.com', act: 'SN', auto: 'lien',
       info: 'Agrégateur et plateforme de dématérialisation.', use: 'Complément de veille, utile pour les acheteurs hospitaliers et les bailleurs sociaux.' },
     { cat: 'A', name: 'Maximilien', url: 'https://marches.maximilien.fr', act: 'SN', auto: 'lien',
-      info: 'Plateforme des acheteurs publics d\'Île-de-France.', use: 'Hors zone : utile seulement si DP Abdel vise un jour l\'Île-de-France.' },
+      info: 'Plateforme des acheteurs publics d\'Île-de-France.', use: 'Hors zone : utile seulement si Abdel vise un jour l\'Île-de-France.' },
 
     // B. Annuaires
     { cat: 'B', name: 'Annuaire des Entreprises (État) — branché au CRM', url: 'https://annuaire-entreprises.data.gouv.fr', act: 'SN', auto: 'connecteur',
@@ -161,7 +161,7 @@
     ],
     net: [
       { t: 'Passer le standard', x: '« Bonjour, Émilie, je cherche la personne qui gère l\'entretien des locaux, c\'est bien M. / Mme … ? »' },
-      { t: 'Accroche (la note sur 10)', x: '« Bonjour M. …, Émilie de DP Abdel, entretien de locaux professionnels. Je vais faire court : si vous deviez noter votre prestataire de ménage actuel sur 10, vous lui mettriez combien ? »' },
+      { t: 'Accroche (la note sur 10)', x: '« Bonjour M. …, Émilie de Abdel, entretien de locaux professionnels. Je vais faire court : si vous deviez noter votre prestataire de ménage actuel sur 10, vous lui mettriez combien ? »' },
       { t: 'Découverte (fiche devis)', x: 'Type de locaux, surface, fréquence, heures souhaitées, horaires, produits fournis par qui, accès, date de démarrage.' },
       { t: 'Proposition de valeur', x: '« Avec nous, vous n\'avez plus à vérifier si le ménage a été fait : remplacement garanti et contrôle qualité. »' },
       { t: 'Conclusion', x: '« Je vous propose une visite de 15 minutes pour voir les surfaces et vous faire un devis juste. Mardi ou jeudi ? »' },

@@ -1,5 +1,5 @@
 /* =============================================================================
- * CRM DP Abdel — application
+ * CRM Abdel — application
  * Connexion par code reçu par email + double authentification (comme Fil Rouge).
  * Données : tables Supabase abdel_prospects, abdel_appels_offres, abdel_parametres
  * (une ligne = un document JSON). L'historique est rangé dans chaque fiche.
@@ -151,7 +151,7 @@
       return ecranMessage('Double authentification à activer', 'Pour protéger tes données, le CRM exige la double authentification. Active-la depuis Fil Rouge (même compte), puis reviens ici.');
     }
     const { data: membre, error } = await sb.rpc('abdel_suis_membre');
-    if (error || !membre) return ecranMessage('Accès non autorisé', 'Ce compte n\'a pas accès au CRM DP Abdel.');
+    if (error || !membre) return ecranMessage('Accès non autorisé', 'Ce compte n\'a pas accès au CRM Abdel.');
     S.email = session.session.user.email;
     try { await chargerTout(); } catch (e) { contenu.innerHTML = `<p class="message message-erreur">Lecture des données impossible : ${esc(e.message || e)}. Recharge la page.</p>`; return; }
     document.getElementById('zone-compte').hidden = false;
@@ -377,7 +377,7 @@
     const top = liste().filter(p => !C.CLOSED.includes(p.status) && !p.optOut)
       .sort((a, b) => C.score(b).total - C.score(a).total || C.monthlyValue(b, s) - C.monthlyValue(a, s)).slice(0, 8);
     return `<div class="pile">
-      ${tete('Tableau de bord', `Bonjour ${prenom()}`, 'Vue d\'ensemble de ta prospection pour DP Abdel. La sécurité passe en premier.')}
+      ${tete('Tableau de bord', `Bonjour ${prenom()}`, 'Vue d\'ensemble de ta prospection pour Abdel. La sécurité passe en premier.')}
       ${alertes.join('')}
       ${liste().length ? '' : `<p class="message message-encre"><b>Ta base est vide.</b> Commence par la <a href="#/recherche">recherche de prospects</a> (entreprises réelles de la métropole, données officielles), ou importe un fichier Excel depuis <a href="#/parametres">Paramètres</a>.</p>`}
       <section class="espace espace-secu"><div class="espace-tete"><h2>🛡 Sécurité privée</h2><span class="pastille p-encre">Priorité</span></div>${bloc('secu')}</section>
@@ -608,7 +608,7 @@
         ${reg ? `<p class="aide">Registre (${esc(reg.source)}, ${fd(reg.at)}) : NAF ${esc(reg.naf || '—')} · effectif ${esc(reg.effectif || 'non renseigné')}${reg.etablissements > 1 ? ' · ' + reg.etablissements + ' établissements ouverts' : ''}${reg.opposition ? ' · <b>opposition à la prospection</b>' : ''}</p>` : ''}
       </div>
       <div class="carte formulaire"><h3>Activité et volume</h3>
-        <div class="actions">${caseC(p, 'secu', 'Sécurité')}${caseC(p, 'net', 'Nettoyage')}${p.net ? caseC(p, 'netProduits', `Produits fournis par DP Abdel (${eur2(S.params.rateNetProduits)} /h au lieu de ${eur2(S.params.rateNetClient)})`) : ''}</div>
+        <div class="actions">${caseC(p, 'secu', 'Sécurité')}${caseC(p, 'net', 'Nettoyage')}${p.net ? caseC(p, 'netProduits', `Produits fournis par Abdel (${eur2(S.params.rateNetProduits)} /h au lieu de ${eur2(S.params.rateNetClient)})`) : ''}</div>
         <div class="deux-colonnes">${champ(p, 'hoursSecu', 'Heures de sécurité par mois (estimation)', 'number', 'min="0" step="any"')}${champ(p, 'hoursNet', 'Heures de nettoyage par mois (estimation)', 'number', 'min="0" step="any"')}</div>
         <p class="aide">Pas de chiffre ? Utilise le <a href="#/calculateur">calculateur</a> : il remplit ce champ pour toi.</p>
         ${zone(p, 'need', 'Besoin identifié', 'Ex. : surveillance de nuit du dépôt, 2 agents de 19 h à 7 h, 7 j/7')}</div>
@@ -870,7 +870,7 @@
       <div class="deux-colonnes">
         <div class="carte formulaire"><h3>Le besoin</h3>
           <div class="trois-colonnes">${ch('agents', 'Agents en même temps', '', 1)}${ch('hoursPerDay', 'Heures par jour', '', .5)}${ch('daysPerWeek', 'Jours par semaine', '', 1)}</div>
-          ${ch('rate', 'Tarif HT par heure (€)', c.act === 'net' ? `Indicatif : ${eur2(s.rateNetClient)} (produits du client) ou ${eur2(s.rateNetProduits)} (produits DP Abdel)` : `Indicatif : ${eur2(s.rateSecu)}`, .5)}
+          ${ch('rate', 'Tarif HT par heure (€)', c.act === 'net' ? `Indicatif : ${eur2(s.rateNetClient)} (produits du client) ou ${eur2(s.rateNetProduits)} (produits Abdel)` : `Indicatif : ${eur2(s.rateSecu)}`, .5)}
           <div class="deux-colonnes">${ch('nightShare', 'Part des heures de nuit (%)', '', 1)}${ch('sundayShare', 'Part dimanche et jours fériés (%)', '7 j/7 ≈ 14,3 %', .1)}</div>
           <div class="deux-colonnes">${ch('billNightPct', 'Majoration facturée la nuit (%)', '0 si le tarif est le même', 1)}${ch('billSundayPct', 'Majoration facturée le dimanche (%)', '', 1)}</div>
           <h3>Les coûts</h3>
@@ -1004,7 +1004,7 @@
     const c = (k, l, type, aide) => `<label>${l}<input type="${type || 'text'}" step="any" name="${k}" value="${esc(s[k])}">${aide ? `<span class="aide">${aide}</span>` : ''}</label>`;
     return `<div class="pile">${tete('Pilotage', 'Paramètres', 'Tarifs, coûts, informations de l\'entreprise et sauvegardes.')}
       <form class="pile-serree" id="f-parametres">
-        <div class="carte formulaire"><h3>Tarifs de vente (HT)</h3><div class="trois-colonnes">${c('rateSecu', 'Sécurité (€/h)', 'number')}${c('rateNetClient', 'Nettoyage, produits du client (€/h)', 'number')}${c('rateNetProduits', 'Nettoyage, produits DP Abdel (€/h)', 'number')}</div>
+        <div class="carte formulaire"><h3>Tarifs de vente (HT)</h3><div class="trois-colonnes">${c('rateSecu', 'Sécurité (€/h)', 'number')}${c('rateNetClient', 'Nettoyage, produits du client (€/h)', 'number')}${c('rateNetProduits', 'Nettoyage, produits Abdel (€/h)', 'number')}</div>
           <p class="aide">Ne jamais proposer un tarif inférieur sans l'accord d'Abdel.</p></div>
         <div class="carte formulaire"><h3>Coûts (pour la marge)</h3><div class="deux-colonnes">${c('costHourSecu', 'Coût horaire chargé, agent de sécurité (€)', 'number', 'À demander à Abdel')}${c('costHourNet', 'Coût horaire chargé, agent de propreté (€)', 'number', 'À demander à Abdel')}
           ${c('nightCostPct', 'Surcoût de nuit (%)', 'number', 'Indicatif, à confirmer')}${c('sundayCostPct', 'Surcoût du dimanche (%)', 'number', 'Indicatif, à confirmer')}</div></div>
@@ -1020,12 +1020,12 @@
   }
 
   const COLS = [['Entreprise', 'name'], ['SIREN', 'siren'], ['SIRET', 'siret'], ['Adresse', 'address'], ['Code postal', 'cp'], ['Ville', 'city'], ['Site internet', 'website'], ['Secteur', 'sector'], ['Taille', 'size'],
-    ['Sécurité', 'secu'], ['Nettoyage', 'net'], ['Produits fournis par DP Abdel', 'netProduits'], ['Dirigeant', 'contacts.dirigeant'], ['Responsable sécurité', 'contacts.securite'], ['Responsable achats', 'contacts.achats'],
+    ['Sécurité', 'secu'], ['Nettoyage', 'net'], ['Produits fournis par Abdel', 'netProduits'], ['Dirigeant', 'contacts.dirigeant'], ['Responsable sécurité', 'contacts.securite'], ['Responsable achats', 'contacts.achats'],
     ['Responsable services généraux', 'contacts.sg'], ['Responsable de site', 'contacts.site'], ['Téléphone', 'phone'], ['Email', 'email'], ['LinkedIn', 'linkedin'], ['Source', 'source'], ['Date de découverte', 'discoveredAt'],
     ['Besoin identifié', 'need'], ['Heures sécurité / mois', 'hoursSecu'], ['Heures nettoyage / mois', 'hoursNet'], ['Statut', 'status'], ['Prochaine action', 'nextAction'], ['Date de relance', 'nextDate'],
     ['Dernier appel', 'lastCallDate'], ['Nombre d\'appels', 'callCount'], ['Notes', 'notes'], ['Ne plus contacter', 'optOut']];
   const BOOL = ['secu', 'net', 'netProduits', 'optOut'];
-  const ALIAS = { nom: 'name', societe: 'name', 'raison sociale': 'name', denomination: 'name', tel: 'phone', telephone: 'phone', mail: 'email', 'e mail': 'email', cp: 'cp', commune: 'city', web: 'website', activite: 'sector' };
+  const ALIAS = { 'produits fournis par dp abdel': 'netProduits', nom: 'name', societe: 'name', 'raison sociale': 'name', denomination: 'name', tel: 'phone', telephone: 'phone', mail: 'email', 'e mail': 'email', cp: 'cp', commune: 'city', web: 'website', activite: 'sector' };
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9/ ]/g, ' ').replace(/\s+/g, ' ').trim();
   function lignesExport(arr) {
     return arr.map(p => {
@@ -1047,15 +1047,15 @@
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lignesExport(arr)), 'Prospects');
     if (aos().length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(aos().map(t => ({ Objet: t.object, Acheteur: t.buyer, Lieu: t.place, Type: t.type, 'Date limite': t.deadline, Durée: t.duration, Montant: t.amount, Heures: t.hours, Statut: AO_LIB[t.status], Lien: t.url, Documents: t.docs }))), 'Appels d\'offres');
-    telecharger(`DP-Abdel-prospects-${quoi === 'all' ? 'tous' : quoi === 'secu' ? 'securite' : 'nettoyage'}-${today()}.xlsx`, new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })]));
+    telecharger(`Abdel-prospects-${quoi === 'all' ? 'tous' : quoi === 'secu' ? 'securite' : 'nettoyage'}-${today()}.xlsx`, new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })]));
   }
   function exporterCsv() {
     const rows = lignesExport(liste()); if (!rows.length) return notif('Aucun prospect à exporter.', true);
     const h = Object.keys(rows[0]); const cel = v => { const s = String(v ?? ''); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    telecharger(`DP-Abdel-prospects-${today()}.csv`, '﻿' + [h.join(';'), ...rows.map(r => h.map(k => cel(r[k])).join(';'))].join('\n'), 'text/csv;charset=utf-8');
+    telecharger(`Abdel-prospects-${today()}.csv`, '﻿' + [h.join(';'), ...rows.map(r => h.map(k => cel(r[k])).join(';'))].join('\n'), 'text/csv;charset=utf-8');
   }
   async function sauvegarde() {
-    telecharger(`Sauvegarde-CRM-DP-Abdel-${today()}.json`, JSON.stringify({ app: 'CRM DP Abdel', version: 1, exportedAt: nowISO(), settings: S.params, prospects: liste(), tenders: aos() }, null, 1), 'application/json');
+    telecharger(`Sauvegarde-CRM-Abdel-${today()}.json`, JSON.stringify({ app: 'CRM Abdel', version: 1, exportedAt: nowISO(), settings: S.params, prospects: liste(), tenders: aos() }, null, 1), 'application/json');
     S.params.lastBackup = nowISO(); await ecrire('abdel_parametres', 'main', S.params); notif('Sauvegarde téléchargée'); rafraichir();
   }
   function lireCsv(texte) {

@@ -1,6 +1,6 @@
-# CRM DP Abdel
+# CRM Abdel
 
-Outil de prospection B2B (sécurité privée en priorité, nettoyage) d'Émilie pour DP Abdel, zone Bordeaux Métropole.
+Outil de prospection B2B (sécurité privée en priorité, nettoyage) d'Émilie pour Abdel, zone Bordeaux Métropole.
 
 - Adresse : https://filrouge-apprenant.github.io/dp-abdel/
 - Connexion : même compte que Fil Rouge (code par email + double authentification).
