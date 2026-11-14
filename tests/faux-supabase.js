@@ -32,7 +32,7 @@
       eq(c, v) { filtres.push((l) => l[c] === v); return q; },
       gte(c, v) { filtres.push((l) => String(l[c]) >= v); return q; },
       contains(c, v) { filtres.push((l) => v.every((x) => (l[c] || []).includes(x))); return q; },
-      order() { return q; }, not() { return q; }, is() { return q; }, or() { return q; }, limit() { return q; }, in() { return q; }, lt() { return q; }, neq() { return q; },
+      order() { return q; }, not() { return q; }, is() { return q; }, or() { return q; }, limit() { return q; }, range() { return q; }, in() { return q; }, lt() { return q; }, neq() { return q; },
       update(v) { action = "update"; valeurs = v; return q; },
       insert(v) { action = "insert"; valeurs = v; return q; },
       upsert(v) { action = "insert"; valeurs = v; db[table] = db[table] || []; return q; },

@@ -217,8 +217,23 @@
       <p class="aide">Chaque matin, l'agent Tri retire les appels d'offres dont la date limite est passée et les prospects jamais appelés dont l'annonce est trop vieille (offre d'emploi : 30 jours ; chantier ou implantation : 60 jours). Ils restent ici 30 jours. Une fiche restaurée n'est plus jamais retirée automatiquement.</p>
       ${items.length ? `<ul class="liste">${items.map(ligne).join('')}</ul>` : '<p class="aide">Corbeille vide.</p>'}</section>`;
   }
+  /* Retour d'un appel passé avec « Appeler » : ouvre le formulaire de la bonne fiche avec la durée pré-remplie. */
+  function retourAppel(ap) {
+    const minutes = Math.max(1, Math.round((Date.now() - ap.debut) / 60000));
+    const cible = `#/prospect/${encodeURIComponent(ap.id)}/suivi`;
+    const remplir = () => {
+      const f = document.getElementById('f-appel'); if (!f) return;
+      if (f.elements.duration && !f.elements.duration.value) f.elements.duration.value = minutes;
+      f.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    if (location.hash !== cible) { location.hash = cible; setTimeout(remplir, 400); } else remplir();
+    notif(`Appel terminé (environ ${minutes} min) : note le résultat.`);
+  }
   /* Recharge les données quand on revient sur l'onglet : évite d'écraser ce que l'agent Contacts a écrit entre-temps. */
   document.addEventListener('visibilitychange', async () => {
+    const ap = S.appelEnCours;
+    if (document.visibilityState === 'hidden') { if (ap) ap.parti = true; return; }
+    if (ap && ap.parti) { S.appelEnCours = null; return retourAppel(ap); }
     if (document.visibilityState !== 'visible' || !S.pret || !S.chargeA || Date.now() - S.chargeA < 120000) return;
     if (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
     try { await chargerTout(); rafraichir(); } catch (_) { /* hors ligne : on garde les données en mémoire */ }
@@ -694,7 +709,7 @@
   function fSuivi(p, enSession) {
     const hist = [...(p.history || [])].sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
     const ev = e => {
-      if (e.type === 'call') return `<div><div class="evenement-date">${fdt(e.ts)} · Appel</div><b>${esc(e.result)}</b>${e.contact ? ' avec ' + esc(e.contact) : ''}
+      if (e.type === 'call') return `<div><div class="evenement-date">${fdt(e.ts)} · Appel${e.duration ? ' · ' + e.duration + ' min' : ''}${e.recorded ? ' · 🎙 enregistré' : ''}</div><b>${esc(e.result)}</b>${e.contact ? ' avec ' + esc(e.contact) : ''}
         ${e.need ? `<div class="ligne-detail">Besoin : ${esc(e.need)}</div>` : ''}${e.objections ? `<div class="ligne-detail">Objections : ${esc(e.objections)}</div>` : ''}${e.note ? `<div class="ligne-detail">${esc(e.note)}</div>` : ''}
         ${e.nextAction || e.nextDate ? `<div class="ligne-detail">Suite : ${esc(e.nextAction || '')} ${e.nextDate ? 'le ' + fd(e.nextDate) : ''}</div>` : ''}</div>`;
       if (e.type === 'status') return `<div><div class="evenement-date">${fdt(e.ts)} · Étape</div>${esc(C.STATUS_LABEL[e.from] || '—')} → <b>${esc(C.STATUS_LABEL[e.to])}</b></div>`;
@@ -715,9 +730,12 @@
           <div class="deux-colonnes"><label>Prochaine action<input type="text" name="nextAction" placeholder="Rappeler, envoyer la plaquette…"></label>
             <label>Date de relance<input type="date" name="nextDate" value="${addDays(today(), 3)}"></label></div>
           ${datesRapides}
+          <div class="deux-colonnes"><label>Durée (minutes)<input type="number" name="duration" min="0" max="600" inputmode="numeric" placeholder="Remplie après l'appel"></label>
+            <label class="case"><input type="checkbox" name="recorded"> Appel enregistré sur mon téléphone</label></div>
+          <p class="aide">Après « Appeler », reviens sur le CRM : la fiche se rouvre ici avec la durée remplie. Pour enregistrer : appli Téléphone › Paramètres › Enregistrement des appels (préviens toujours ton interlocuteur).</p>
           <label>Note<textarea name="note"></textarea></label>
           <p class="aide">Date de relance obligatoire, sauf « Refus » ou « Pas de besoin ». L'étape avance toute seule (décideur joint, intéressé, rendez-vous, devis demandé).</p>
-          <div class="actions"><button class="bouton" type="submit">${enSession ? 'Enregistrer et suivant →' : 'Enregistrer l\'appel'}</button>${p.phone ? `<a class="bouton bouton-secondaire" href="tel:${esc(p.phone.replace(/\s/g, ''))}">☎ ${esc(p.phone)}</a>` : ''}</div></form>
+          <div class="actions"><button class="bouton" type="submit">${enSession ? 'Enregistrer et suivant →' : 'Enregistrer l\'appel'}</button>${p.phone ? `<a class="bouton bouton-secondaire" href="tel:${esc(p.phone.replace(/\s/g, ''))}" data-appel="${esc(p.id)}">☎ ${esc(p.phone)}</a>` : ''}</div></form>
         ${carteEmail(p)}
         <div class="carte formulaire"><h3>Étape et rendez-vous</h3>
           <label>Étape du pipeline<select data-champ="status">${C.STATUSES.map(x => opt(x[0], x[1], p.status)).join('')}</select></label>
@@ -917,7 +935,7 @@
         <div class="actions"><button class="bouton bouton-secondaire bouton-petit" type="button" data-action="aller-a" data-valeur="script-session">📜 Script</button><button class="bouton bouton-secondaire bouton-petit" type="button" data-action="session-passer">Passer →</button><button class="bouton-lien" type="button" data-action="session-fin">Terminer la session</button></div></div>
       <div class="barre-progression" role="progressbar" aria-valuenow="${progression}" aria-valuemin="0" aria-valuemax="100"><span class="barre-${Math.min(10, Math.round(progression / 10))}"></span></div>
       ${sg ? `<p class="message message-feu">🔥 <b>Nouveau signal du ${fd(sg.ts)} :</b> ${esc(sg.texte)}</p>` : ''}
-      <div class="actions">${p.phone ? `<a class="bouton bouton-appel" href="tel:${esc(p.phone.replace(/\s/g, ''))}">☎ Appeler ${esc(p.phone)}</a>` : `<a class="bouton bouton-secondaire" href="#/prospect/${encodeURIComponent(p.id)}/infos">Pas de numéro : compléter la fiche</a>`}
+      <div class="actions">${p.phone ? `<a class="bouton bouton-appel" href="tel:${esc(p.phone.replace(/\s/g, ''))}" data-appel="${esc(p.id)}">☎ Appeler ${esc(p.phone)}</a>` : `<a class="bouton bouton-secondaire" href="#/prospect/${encodeURIComponent(p.id)}/infos">Pas de numéro : compléter la fiche</a>`}
         <span class="aide"><b>Qui demander :</b> ${esc(nom || (p.contacts && Object.values(p.contacts).find(Boolean)) || 'le responsable du site (sécurité ou services généraux)')}</span></div>
     </div>`;
   }
@@ -992,7 +1010,7 @@
     const sansSuite = ['Refus', 'Pas de besoin'].includes(e.result);
     let d = clone(source);
     const ts = nowISO();
-    d.history = [...(d.history || []), { type: 'call', ts, date: today(), result: e.result, contact: e.contact || '', need: e.need || '', objections: e.objections || '', nextAction: e.nextAction || '', nextDate: sansSuite ? '' : e.nextDate, note: e.note || '' }];
+    d.history = [...(d.history || []), { type: 'call', ts, date: today(), result: e.result, contact: e.contact || '', need: e.need || '', objections: e.objections || '', nextAction: e.nextAction || '', nextDate: sansSuite ? '' : e.nextDate, note: e.note || '', duration: e.duration ? Math.max(0, Math.round(+e.duration)) : '', recorded: e.recorded === 'on' }];
     d.lastCallDate = today(); d.callCount = C.num(d.callCount) + 1;
     if (e.need && !d.need) d.need = e.need;
     if (e.nextAction) d.nextAction = e.nextAction;
@@ -1386,6 +1404,8 @@
   }
 
   document.addEventListener('click', async e => {
+    const lienAppel = e.target.closest('a[data-appel]');
+    if (lienAppel) { S.appelEnCours = { id: lienAppel.dataset.appel, debut: Date.now(), parti: false }; return; }
     const filtre = e.target.closest('button[data-filtre]');
     if (filtre) { const [k, f] = filtre.dataset.filtre.split('.'); S.filtres[k] = S.filtres[k] || {}; S.filtres[k][f] = filtre.dataset.valeur; if (k === 'rech') S.recherche = null; return rafraichir(); }
     const a = e.target.closest('[data-action]'); if (!a) return;
