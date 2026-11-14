@@ -390,3 +390,27 @@ details.carte > summary { cursor: pointer; font-weight: 700; }
 /* Script personnalisé : ce qui vient de la fiche appelée est surligné. */
 .script mark, .script-fiche mark { background: #fff1b8; color: inherit; padding: 0 .15em; border-radius: 3px; font-weight: 600; }
 .script-fiche p { margin: 0; }
+
+/* ---------- Panneau de notes de la fiche (tous les onglets) ---------- */
+.contenu-interieur:has(.fiche-avec-notes) { max-width: 90rem; }
+.fiche-principale { min-width: 0; }
+.panneau-notes { background: var(--fond); border: 1px solid var(--filet); border-radius: var(--rayon); padding: 1rem; display: flex; flex-direction: column; gap: .8rem; }
+.panneau-notes-tete { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
+.panneau-notes-tete h3 { margin: 0; }
+.panneau-notes textarea { width: 100%; resize: vertical; min-height: 6rem; }
+.notes-historique { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .55rem; overflow-y: auto; min-height: 0; }
+.note-ligne { border-left: 3px solid var(--filet); padding: .35rem .6rem; background: var(--sable); border-radius: 0 var(--rayon) var(--rayon) 0; font-size: .92rem; line-height: 1.4; overflow-wrap: anywhere; }
+.note-ligne.note-appel { border-left-color: var(--encre); }
+.notes-reduire { margin-left: auto; }
+@media (min-width: 75rem) {
+  .fiche-avec-notes { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1.5rem; align-items: start; }
+  .panneau-notes { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); }
+  .notes-reduire, .bouton-notes-mobile { display: none; }
+}
+@media (max-width: 74.99rem) {
+  .panneau-notes { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; max-height: 60vh; border-radius: 14px 14px 0 0; box-shadow: 0 -10px 40px rgba(16, 21, 31, .18); transform: translateY(105%); transition: transform 180ms ease; }
+  body.notes-ouvertes .panneau-notes { transform: none; }
+  body.notes-ouvertes .contenu { padding-bottom: 62vh; }
+  .bouton-notes-mobile { position: fixed; right: 16px; bottom: 16px; z-index: 19; box-shadow: 0 6px 20px rgba(16, 21, 31, .2); }
+  body.notes-ouvertes .bouton-notes-mobile { display: none; }
+}

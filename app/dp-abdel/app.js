@@ -613,14 +613,59 @@
     const onglets = [['suivi', 'Suivi et appels'], ['infos', 'Informations'], ['qualification', 'Qualification et score'], ['scripts', 'Scripts']];
     const enSession = sessionSur(id);
     const corps = { infos: fInfos, qualification: fQualif, suivi: fSuivi, scripts: fScripts }[onglet](p, enSession);
-    return `<div class="pile">${enSession ? bandeauSession(p) : ''}
+    return `<div class="fiche-avec-notes"><div class="pile fiche-principale">${enSession ? bandeauSession(p) : ''}
       <div class="entete"><div><p class="surtitre ${p.secu ? '' : 'menthe'}"><a class="bouton-lien" href="#/${p.secu ? 'securite' : 'nettoyage'}">${p.secu ? 'Prospects sécurité' : 'Prospects nettoyage'}</a></p><h1>${esc(p.name)}</h1>
         <p class="chapo">${[p.city, segLabel(p.sector), p.phone ? '☎ ' + esc(p.phone) : ''].filter(Boolean).join(' · ')}</p></div>
         <div class="actions"><span class="score ${sc.band.key}" title="${esc(sc.band.label)}">${sc.total}</span><div class="pastilles">${pastillesAct(p)}${pastilleStatut(p)}</div></div></div>
       <div class="compteurs trois">${compteur(eur(v), 'potentiel HT / mois', 'compteur-argent')}${compteur(nf(C.totalHours(p)) + ' h', 'volume estimé / mois', 'compteur-argent')}${compteur(p.nextDate ? fd(p.nextDate) : '—', 'prochaine relance', 'compteur-argent ' + (p.nextDate && p.nextDate < today() ? 'compteur-rouge' : ''))}</div>
       <nav class="onglets" aria-label="Rubriques de la fiche">${onglets.map(([k, l]) => `<a class="onglet" href="#/prospect/${encodeURIComponent(id)}/${k}"${onglet === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>
       <div id="corps-fiche" data-id="${esc(id)}">${corps}</div>
-      <p class="aide" id="etat-sauvegarde">Les modifications s'enregistrent toutes seules.</p></div>`;
+      <p class="aide" id="etat-sauvegarde">Les modifications s'enregistrent toutes seules.</p></div>${panneauNotes(p)}</div>`;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Panneau de notes : visible sur tous les onglets de la fiche         */
+  /* (à droite sur ordinateur, tiroir en bas sur téléphone).             */
+  /* Le brouillon est gardé sur l'appareil : rien n'est perdu si la page */
+  /* se recharge pendant l'appel.                                        */
+  /* ------------------------------------------------------------------ */
+  const CLE_BROUILLON = id => 'abdel-note-' + id;
+  function lireBrouillon(id) { try { return localStorage.getItem(CLE_BROUILLON(id)) || ''; } catch (_) { return ''; } }
+  function ecrireBrouillon(id, v) { try { if (v) localStorage.setItem(CLE_BROUILLON(id), v); else localStorage.removeItem(CLE_BROUILLON(id)); } catch (_) { } }
+  function panneauNotes(p) {
+    const evs = [...(p.history || [])].filter(e => ['call', 'note', 'calc'].includes(e.type)).sort((a, b) => (a.ts || '').localeCompare(b.ts || ''));
+    let n = 0;
+    const lignes = evs.map(e => {
+      if (e.type === 'call') {
+        n++;
+        const det = [e.contact && 'avec ' + e.contact, e.need && 'Besoin : ' + e.need, e.objections && 'Objections : ' + e.objections, e.note, (e.nextAction || e.nextDate) && 'Suite : ' + [e.nextAction, e.nextDate && 'le ' + fd(e.nextDate)].filter(Boolean).join(' ')].filter(Boolean);
+        return `<li class="note-ligne note-appel"><div class="evenement-date">Appel n° ${n} · ${fdt(e.ts)}${e.duration ? ' · ' + e.duration + ' min' : ''}</div><b>${esc(e.result)}</b>${det.map(x => `<div>${esc(x)}</div>`).join('')}</li>`;
+      }
+      return `<li class="note-ligne"><div class="evenement-date">${e.type === 'calc' ? 'Chiffrage' : 'Note'} · ${fdt(e.ts)}</div><div>${esc(e.text || e.note || '')}</div></li>`;
+    }).reverse();
+    const nbNotes = evs.filter(e => e.type === 'note').length;
+    return `<aside class="panneau-notes" id="panneau-notes" aria-label="Notes et historique">
+      <div class="panneau-notes-tete"><h3>📝 Notes</h3><span class="doux">${n} appel${n > 1 ? 's' : ''} · ${nbNotes} note${nbNotes > 1 ? 's' : ''}</span>
+        <button class="bouton-lien notes-reduire" type="button" data-action="notes-basculer">Réduire ▾</button></div>
+      <form id="f-note" class="pile-serree"><textarea name="text" id="note-brouillon" data-id="${esc(p.id)}" rows="4" placeholder="Note en direct pendant l'appel…">${esc(lireBrouillon(p.id))}</textarea>
+        <div class="actions"><button class="bouton bouton-petit" type="submit">Ajouter la note</button><span class="aide">Brouillon gardé automatiquement · Ctrl + Entrée</span></div></form>
+      <ol class="notes-historique">${lignes.join('') || '<li class="aide">Aucun appel ni note pour l\'instant.</li>'}</ol>
+    </aside>
+    <button class="bouton bouton-notes-mobile" type="button" data-action="notes-basculer">📝 Notes${n + nbNotes ? ' (' + (n + nbNotes) + ')' : ''}</button>`;
+  }
+  async function ajouterNote(form) {
+    const t = form.elements.text, id = t.dataset.id, texte = t.value.trim();
+    if (!texte) return notif('La note est vide.', true);
+    const d = clone(S.prospects[id]);
+    d.history = [...(d.history || []), { type: 'note', ts: nowISO(), text: texte }];
+    const b = form.querySelector('button[type=submit]'); occupe(b, true, 'Enregistrement…');
+    const ok = await enregistrerProspect(d);
+    occupe(b, false);
+    if (!ok) return;
+    ecrireBrouillon(id, '');
+    rafraichir();
+    const t2 = document.getElementById('note-brouillon'); if (t2) t2.focus();
+    notif('Note ajoutée.');
   }
   const champ = (p, chemin, libelle, type, attrs) => `<label>${libelle}<input type="${type || 'text'}" data-champ="${chemin}" value="${esc(getPath(p, chemin) ?? '')}" ${attrs || ''}></label>`;
   const zone = (p, chemin, libelle, ph) => `<label>${libelle}<textarea data-champ="${chemin}" placeholder="${esc(ph || '')}">${esc(getPath(p, chemin) ?? '')}</textarea></label>`;
@@ -1434,6 +1479,7 @@
     if (act === 'registre') completerRegistre(a);
     if (act.startsWith('email-')) actionEmail(act, a);
     if (act === 'session-demarrer' || act === 'session-nouvelle') { S.session = { file: fileSession((S.filtres.sess || {}).act), i: 0, faits: [], passes: 0, resultat: null }; if (!S.session.file.length) { S.session = null; return route(); } allerSession(); }
+    if (act === 'notes-basculer') { const o = document.body.classList.toggle('notes-ouvertes'); if (o) { const t = document.getElementById('note-brouillon'); if (t) t.focus(); } }
     if (act === 'aller-a') { const cible = document.getElementById(a.dataset.valeur); if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     if (act === 'date-rapide') { const champ = document.querySelector('#f-appel [name=nextDate]'); if (champ) champ.value = a.dataset.valeur; }
     if (act === 'session-passer') { S.session.i++; S.session.passes++; allerSession(); }
@@ -1482,6 +1528,9 @@
     }
   });
 
+  document.addEventListener('keydown', e => {
+    if (e.target.id === 'note-brouillon' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); e.target.form.requestSubmit(); }
+  });
   document.addEventListener('submit', async e => {
     const f = e.target;
     if (f.id === 'f-recherche') {
@@ -1491,6 +1540,7 @@
       lancerRecherche(1);
     }
     if (f.id === 'f-appel') { e.preventDefault(); noterAppel(f); }
+    if (f.id === 'f-note') { e.preventDefault(); ajouterNote(f); }
     if (f.id === 'f-nouveau') {
       e.preventDefault();
       const d = Object.fromEntries(new FormData(f).entries());
@@ -1526,6 +1576,7 @@
   let minuterieFiltre = null;
   document.addEventListener('input', e => {
     const t = e.target;
+    if (t.id === 'note-brouillon') { ecrireBrouillon(t.dataset.id, t.value); return; }
     if (t.dataset.calc && S.calc) { S.calc[t.dataset.calc] = t.value; if (t.dataset.calc !== 'pid') majCalc(); return; }
     if (t.dataset.filtre && t.dataset.direct) {
       const [k, f] = t.dataset.filtre.split('.'); S.filtres[k][f] = t.value;

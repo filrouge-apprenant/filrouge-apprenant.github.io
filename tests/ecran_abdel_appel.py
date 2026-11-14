@@ -78,6 +78,34 @@ async def main():
             ok("parler à Karim Exemple" in textes, "phrase du standard avec le nom")
             ok(await page.locator(".script mark").count() >= 3, "les éléments de la fiche sont surlignés")
             await page.screenshot(path=os.path.join(SORTIE, "abdel-script.png"), full_page=False)
+
+            # Panneau de notes, téléphone : bouton flottant, tiroir, note ajoutée, historique des appels
+            ok(await page.is_visible(".bouton-notes-mobile"), "téléphone : bouton « Notes » visible sur l'onglet Scripts")
+            await page.click(".bouton-notes-mobile")
+            await page.wait_for_timeout(300)
+            ok(await page.is_visible("#note-brouillon"), "le tiroir de notes s'ouvre")
+            ok("Appel n° 1" in await page.text_content(".notes-historique"), "l'historique des appels est dans le panneau")
+            await page.fill("#note-brouillon", "Rappeler après 14 h, parle d'un vol en octobre")
+            await page.reload()
+            await page.wait_for_selector("#note-brouillon", state="attached")
+            ok("vol en octobre" in await page.input_value("#note-brouillon"), "le brouillon survit au rechargement")
+            await page.evaluate("document.body.classList.add('notes-ouvertes')")
+            await page.click("#f-note button[type=submit]")
+            await page.wait_for_timeout(700)
+            ok("vol en octobre" in await page.text_content(".notes-historique"), "la note apparaît dans l'historique")
+            ok(await page.input_value("#note-brouillon") == "", "la zone est vidée après ajout")
+            await page.screenshot(path=os.path.join(SORTIE, "abdel-notes-tel.png"))
+
+            # Ordinateur : panneau à droite, visible sur chaque onglet
+            await page.set_viewport_size({"width": 1440, "height": 900})
+            for onglet in ["scripts", "infos", "qualification", "suivi"]:
+                await page.goto(f"http://127.0.0.1:8767/dp-abdel/index.html#/prospect/{PROSPECT}/{onglet}")
+                await page.wait_for_selector("#panneau-notes")
+                boite = await page.locator("#panneau-notes").bounding_box()
+                ok(boite and boite["x"] > 800 and await page.is_visible("#note-brouillon"), f"ordinateur : panneau à droite sur « {onglet} »")
+            await page.goto(f"http://127.0.0.1:8767/dp-abdel/index.html#/prospect/{PROSPECT}/scripts")
+            await page.wait_for_selector("#panneau-notes")
+            await page.screenshot(path=os.path.join(SORTIE, "abdel-notes-ordi.png"))
             ok(not erreurs, "aucune erreur JavaScript" + (f" : {erreurs}" if erreurs else ""))
             await nav.close()
     finally:
