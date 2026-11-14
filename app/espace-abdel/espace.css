@@ -297,17 +297,17 @@ input:focus, select:focus, textarea:focus { border-color: var(--om); box-shadow:
 .onglet[aria-current="page"] { color: var(--om-fonce); box-shadow: inset 0 2px 0 var(--om); }
 .onglet .badge { background: var(--om-fonce); }
 
-/* Arabesques fines derrière les contrats signés (motif léger, ne gêne pas la lecture) */
-.chiffres.arabesques, .carte.arabesques, .bloc.arabesques { background-color: #fff; background-image: url("arabesques.svg"); background-size: 220px 220px; background-repeat: repeat; }
-.chiffres.arabesques .chiffre { background: rgba(255, 255, 255, .55); }
-.carte.arabesques .carte-montant { border-top-color: rgba(194, 163, 107, .45); }
-
-/* Arabesques partout (14/11, soir) : remplacent les rayures droites, sur le fond et dans toutes les cartes. */
-body { background-color: #f5fafd; background-image: url("arabesques-fond.svg"); background-size: 260px 260px; background-attachment: fixed; }
-.haut {
-  background: url("arabesques-blanc.svg") 0 0 / 180px 180px repeat,
-    linear-gradient(120deg, var(--om) 0%, #1f9bd4 55%, var(--om-fonce) 100%);
+/* Ornements dorés (14/11, soir) : arabesques arrondies et irrégulières dans les 4 coins de l’écran,
+   et deux longues courbes qui traversent la page. Plus de motif répété dans les cartes. */
+body {
+  background-color: #f6fafd;
+  background-image: url("coin-hg.svg"), url("coin-hd.svg"), url("coin-bg.svg"), url("coin-bd.svg"), url("courbes.svg");
+  background-position: left top, right top, left bottom, right bottom, center;
+  background-repeat: no-repeat;
+  background-size: clamp(170px, 30vw, 340px) auto, clamp(170px, 30vw, 340px) auto, clamp(170px, 30vw, 340px) auto, clamp(170px, 30vw, 340px) auto, 100% 100%;
+  background-attachment: fixed;
 }
-.carte, .bloc, .chiffres, .vide, .action { background-color: #fff; background-image: url("arabesques.svg"); background-size: 220px 220px; }
-.chiffres .chiffre { background: rgba(255, 255, 255, .55); }
-.vide { background-color: rgba(255, 255, 255, .9); }
+.haut { background: linear-gradient(120deg, var(--om) 0%, #1f9bd4 55%, var(--om-fonce) 100%); }
+.carte, .bloc, .chiffres, .vide, .action, .chiffres.arabesques, .carte.arabesques, .bloc.arabesques { background-image: none; }
+.vide { background-color: rgba(255, 255, 255, .8); }
+body { background-position: left 0 top 58px, right 0 top 58px, left 0 bottom 66px, right 0 bottom 66px, center; background-size: clamp(190px, 46vw, 340px) auto, clamp(190px, 46vw, 340px) auto, clamp(190px, 46vw, 340px) auto, clamp(190px, 46vw, 340px) auto, 100% 100%; }

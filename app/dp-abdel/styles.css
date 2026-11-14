@@ -488,9 +488,8 @@ details.carte > summary { cursor: pointer; font-weight: 700; }
   --texte: #121820; --texte-doux: #5e6772;
   --orange: #9a6a2f; --rouge: #b0453a; --rouge-fond: #f8ebe8; --vert: #1f7a55; --vert-fond: #e8f4ee;
 }
-body { background-color: #f5fafd; background-image: url("arabesques-fond.svg"); background-size: 260px 260px; background-attachment: fixed; }
 .bandeau {
-  background: url("arabesques-blanc.svg") 0 0 / 180px 180px repeat, linear-gradient(120deg, var(--om) 0%, #1f9bd4 55%, var(--om-fonce) 100%);
+  background: linear-gradient(120deg, var(--om) 0%, #1f9bd4 55%, var(--om-fonce) 100%);
   border-bottom: 2px solid var(--or); color: #fff;
 }
 .bandeau::after { display: none; }
@@ -513,7 +512,7 @@ h1 { background: none; -webkit-background-clip: border-box; background-clip: bor
 .menu-lien .ico, .menu-lien.secu .ico { color: var(--om-fonce); }
 
 .carte, .compteur, .espace-secu, .espace-net, .espace-feu, .interrupteur-abdel, .dialogue {
-  background-color: #fff; background-image: url("arabesques.svg"); background-size: 220px 220px;
+  background-color: #fff;
 }
 .carte, .compteur { box-shadow: 0 6px 22px rgba(10, 120, 184, .06); }
 .carte-sable { background-color: var(--sable); }
@@ -550,3 +549,25 @@ h1 { background: none; -webkit-background-clip: border-box; background-clip: bor
 input:focus, select:focus, textarea:focus { outline-color: var(--om); border-color: var(--om); }
 .interrupteur-abdel.actif { border-color: var(--om); background-color: var(--om-clair); }
 .interrupteur-abdel.actif .bascule-piste { background: var(--om-fonce); }
+
+/* Ornements dorés (14/11, soir) : arabesques arrondies et irrégulières dans les 4 coins de l’écran,
+   et deux longues courbes qui traversent la page. Plus de motif répété dans les cartes. */
+body {
+  background-color: #f6fafd;
+  background-image: url("coin-hg.svg"), url("coin-hd.svg"), url("coin-bg.svg"), url("coin-bd.svg"), url("courbes.svg");
+  background-position: left top, right top, left bottom, right bottom, center;
+  background-repeat: no-repeat;
+  background-size: clamp(170px, 30vw, 340px) auto, clamp(170px, 30vw, 340px) auto, clamp(170px, 30vw, 340px) auto, clamp(170px, 30vw, 340px) auto, 100% 100%;
+  background-attachment: fixed;
+}
+.bandeau { background: linear-gradient(120deg, var(--om) 0%, #1f9bd4 55%, var(--om-fonce) 100%); }
+.carte, .compteur, .espace-secu, .espace-net, .espace-feu, .interrupteur-abdel, .dialogue { background-image: none; }
+.menu-lateral { background: rgba(255, 255, 255, .55); }
+body { background-position: left 0 top 60px, right 0 top 60px, left bottom, right bottom, center; background-size: clamp(190px, 30vw, 340px) auto, clamp(190px, 30vw, 340px) auto, clamp(190px, 30vw, 340px) auto, clamp(190px, 30vw, 340px) auto, 100% 100%; }
+@media (max-width: 40rem) {
+  .ligne { grid-template-columns: auto minmax(0, 1fr); }
+  .ligne.sans-score { grid-template-columns: minmax(0, 1fr); }
+  .ligne > .ligne-droite { grid-column: 2; align-items: flex-start; text-align: left; }
+  .ligne.sans-score > .ligne-droite { grid-column: 1; }
+  .ligne > .ligne-droite .pastilles { justify-content: flex-start; }
+}
