@@ -289,7 +289,7 @@
   /* Menu et navigation                                                  */
   /* ------------------------------------------------------------------ */
   const MENU = [
-    { titre: null, liens: [['', 'Tableau de bord', '◎'], ['relances', 'Appels et relances', '☎'], ['pipeline', 'Pipeline commercial', '⇢']] },
+    { titre: null, liens: [['', 'Tableau de bord', '◎'], ['session', 'Session d\'appels', '▶'], ['relances', 'Appels et relances', '☎'], ['pipeline', 'Pipeline commercial', '⇢']] },
     { titre: 'Prospects', liens: [['securite', 'Prospects sécurité', '🛡', 'secu'], ['nettoyage', 'Prospects nettoyage', '✦'], ['recherche', 'Recherche de prospects', '⌕'], ['sites', 'Sites de prospection', '↗']] },
     { titre: 'Contrats', liens: [['ao', 'Appels d\'offres', '§'], ['calculateur', 'Calculateur de contrats', '∑']] },
     { titre: 'Pilotage', liens: [['stats', 'Statistiques', '▤'], ['assistant', 'Assistant', '✧'], ['parametres', 'Paramètres', '⚙']] },
@@ -313,7 +313,7 @@
     const pages = {
       '': pAccueil, relances: pRelances, pipeline: pPipeline, securite: () => pListe('secu'), nettoyage: () => pListe('net'),
       recherche: pRecherche, sites: pSites, ao: pAO, calculateur: pCalc, stats: pStats, assistant: pAssistant, parametres: pParametres,
-      prospect: () => pFiche(r.id, r.sous), nouveau: () => pNouveau(r.id),
+      prospect: () => pFiche(r.id, r.sous), nouveau: () => pNouveau(r.id), session: pSession,
     };
     contenu.innerHTML = (pages[r.nom] || pAccueil)(r);
     apresRendu(r);
@@ -334,16 +334,30 @@
     return `<span class="pastille ${cls}">${esc(C.STATUS_LABEL[k] || k)}</span>`;
   }
   const pastillesAct = p => (p.secu ? '<span class="pastille p-encre">Sécurité</span>' : '') + (p.net ? '<span class="pastille p-menthe">Nettoyage</span>' : '');
+  /* Signal chaud : l'agent Leads a noté un nouveau signal (offre d'emploi, appel d'offres, ouverture…)
+     depuis moins de 14 jours, et Émilie n'a pas appelé depuis. */
+  function signalChaud(p) {
+    if (C.CLOSED.includes(p.status) || p.optOut) return null;
+    const limite = addDays(today(), -14);
+    const evs = (p.history || []).filter(e => e.type === 'note' && /nouveau signal|fiche créée par l'agent leads/i.test(e.text || '') && (e.ts || '').slice(0, 10) >= limite)
+      .sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+    const dernier = evs[0];
+    if (!dernier) return null;
+    if (p.lastCallDate && p.lastCallDate >= dernier.ts.slice(0, 10)) return null;
+    return { ts: dernier.ts, texte: String(dernier.text || '').replace(/^(nouveau signal|fiche créée par l'agent leads)\s*:\s*/i, '') };
+  }
+  const signauxChauds = () => liste().map(p => ({ p, sg: signalChaud(p) })).filter(x => x.sg).sort((a, b) => b.sg.ts.localeCompare(a.sg.ts)).map(x => x.p);
   function ligneProspect(p, mode) {
     const s = S.params, v = C.monthlyValue(p, s);
+    const sg = signalChaud(p);
     const retard = p.nextDate && p.nextDate < today();
-    const detail = [p.city, segLabel(p.sector), mode === 'tel' && p.phone ? '☎ ' + p.phone : '', p.nextAction].filter(Boolean).map(esc).join(' · ');
+    const detail = [p.city, segLabel(p.sector), mode === 'tel' && p.phone ? '☎ ' + p.phone : '', mode === 'signal' && sg ? sg.texte : p.nextAction].filter(Boolean).map(esc).join(' · ');
     const droite = mode === 'relance'
       ? `<span class="pastille ${retard ? 'p-rouge' : 'p-safran'}">${retard ? 'En retard · ' : ''}${fd(p.nextDate)}</span>`
       : mode === 'dernier' ? `<span class="petit doux">Dernier appel : ${fd(p.lastCallDate)}</span>` : '';
     return `<li><a class="ligne" href="#/prospect/${encodeURIComponent(p.id)}">${scoreRond(p)}
       <div><div class="ligne-titre">${esc(p.name)}${p.optOut ? ' <span class="pastille p-rouge">Ne plus contacter</span>' : ''}</div><div class="ligne-detail">${detail || '&nbsp;'}</div></div>
-      <div class="ligne-droite"><div class="pastilles">${pastillesAct(p)}${pastilleStatut(p)}</div>${droite || (v ? `<span class="ligne-montant">${eur(v)}<span class="petit doux"> /mois</span></span>` : '')}</div></a></li>`;
+      <div class="ligne-droite"><div class="pastilles">${sg ? `<span class="pastille p-feu" title="${esc(sg.texte)}">🔥 Nouveau signal · ${fd(sg.ts)}</span>` : ''}${pastillesAct(p)}${pastilleStatut(p)}</div>${droite || (v ? `<span class="ligne-montant">${eur(v)}<span class="petit doux"> /mois</span></span>` : '')}</div></a></li>`;
   }
   const listeProspects = (arr, mode, vide) => arr.length ? `<ul class="liste">${arr.map(p => ligneProspect(p, mode)).join('')}</ul>` : `<p class="message message-info">${vide || 'Aucun prospect ici pour l\'instant.'}</p>`;
 
@@ -359,7 +373,6 @@
       const j = C.daysBetween(today(), t.deadline);
       if (j >= 0 && j <= 15) alertes.push(`<p class="message ${j <= 2 ? 'message-erreur' : 'message-encre'}"><b>Appel d'offres J-${j}</b> · ${esc(t.object)} (${esc(t.buyer)}). <a href="#/ao/${encodeURIComponent(t.id)}">Voir →</a></p>`);
     });
-    if (liste().length && (!s.lastBackup || C.daysBetween(s.lastBackup.slice(0, 10), today()) > 7)) alertes.push(`<p class="message message-info">Dernière sauvegarde : ${s.lastBackup ? fd(s.lastBackup) : 'jamais'}. <a href="#/parametres">Télécharger une sauvegarde →</a></p>`);
     const bloc = act => {
       const d = C.dashboard(liste(), s, act);
       const base = act === 'secu' ? '#/securite' : '#/nettoyage';
@@ -374,15 +387,19 @@
       </div>
       <p class="aide">Prévisionnel pondéré : <b>${eur(d.forecast)} HT / mois</b> (chaque prospect compte selon sa probabilité de signature à son étape).</p>`;
     };
+    const chauds = signauxChauds();
     const top = liste().filter(p => !C.CLOSED.includes(p.status) && !p.optOut)
-      .sort((a, b) => C.score(b).total - C.score(a).total || C.monthlyValue(b, s) - C.monthlyValue(a, s)).slice(0, 8);
+      .sort((a, b) => (signalChaud(b) ? 1 : 0) - (signalChaud(a) ? 1 : 0) || C.score(b).total - C.score(a).total || C.monthlyValue(b, s) - C.monthlyValue(a, s)).slice(0, 8);
     return `<div class="pile">
       ${tete('Tableau de bord', `Bonjour ${prenom()}`, 'Vue d\'ensemble de ta prospection pour Abdel. La sécurité passe en premier.')}
       ${alertes.join('')}
+      <div class="actions"><a class="bouton bouton-session" href="#/session">▶ Démarrer une session d'appels</a></div>
+      ${chauds.length ? `<section class="espace espace-feu"><div class="espace-tete"><h2>🔥 Signaux chauds</h2><span class="pastille p-feu">${chauds.length}</span></div>
+        <p class="aide">Un besoin vient d'apparaître (offre d'emploi, appel d'offres, ouverture…) et tu n'as pas encore appelé : c'est le meilleur moment.</p>${listeProspects(chauds.slice(0, 8), 'signal')}</section>` : ''}
       ${liste().length ? '' : `<p class="message message-encre"><b>Ta base est vide.</b> Commence par la <a href="#/recherche">recherche de prospects</a> (entreprises réelles de la métropole, données officielles), ou importe un fichier Excel depuis <a href="#/parametres">Paramètres</a>.</p>`}
       <section class="espace espace-secu"><div class="espace-tete"><h2>🛡 Sécurité privée</h2><span class="pastille p-encre">Priorité</span></div>${bloc('secu')}</section>
       <section class="espace espace-net"><div class="espace-tete"><h2>✦ Nettoyage professionnel</h2></div>${bloc('net')}</section>
-      <section><div class="section-titre"><h2>À travailler en premier</h2><p>par score, puis valeur</p></div>${listeProspects(top, '', 'Aucun prospect ouvert.')}</section>
+      <section><div class="section-titre"><h2>À travailler en premier</h2><p>signaux chauds, puis score et valeur</p></div>${listeProspects(top, '', 'Aucun prospect ouvert.')}</section>
       <p class="aide">CA = chiffre d'affaires HT, pas le bénéfice. Mois = semaine × 52 / 12.</p></div>`;
   }
 
@@ -393,6 +410,7 @@
     const t = today();
     const ouverts = liste().filter(p => !C.CLOSED.includes(p.status) && !p.optOut);
     const sections = [
+      ['🔥 Signaux chauds : à appeler en priorité', signauxChauds(), 'signal'],
       ['Relances du jour et en retard', ouverts.filter(p => p.nextDate && p.nextDate <= t).sort((a, b) => a.nextDate.localeCompare(b.nextDate)), 'relance'],
       ['Rendez-vous du jour', liste().filter(p => p.rdvDate && p.rdvDate.slice(0, 10) === t), 'tel'],
       ['Devis en attente de réponse', ouverts.filter(p => p.status === 'devis'), 'relance'],
@@ -400,7 +418,7 @@
       ['À appeler : jamais contactés, meilleurs scores d\'abord', ouverts.filter(p => !C.num(p.callCount) && C.NOT_YET_CONTACTED.includes(p.status)).sort((a, b) => C.score(b).total - C.score(a).total).slice(0, 25), 'tel'],
       ['Sans nouvelles depuis 15 jours ou plus', ouverts.filter(p => p.lastCallDate && C.daysBetween(p.lastCallDate, t) >= 15), 'dernier'],
     ];
-    return `<div class="pile">${tete('Appels et relances', 'Ma journée', 'Après chaque appel : ouvre la fiche, onglet « Suivi », et note l\'appel. La date de relance est obligatoire : c\'est elle qui te remet le prospect ici au bon moment.')}
+    return `<div class="pile">${tete('Appels et relances', 'Ma journée', 'Après chaque appel : ouvre la fiche, onglet « Suivi », et note l\'appel. La date de relance est obligatoire : c\'est elle qui te remet le prospect ici au bon moment.', '<a class="bouton bouton-session" href="#/session">▶ Démarrer une session d\'appels</a>')}
       ${sections.map(([titre, arr, mode]) => `<section><div class="section-titre"><h2>${esc(titre)}</h2><p>${arr.length}</p></div>${listeProspects(arr, mode, 'Rien pour le moment.')}</section>`).join('')}</div>`;
   }
 
@@ -696,6 +714,7 @@
           <label>Note<textarea name="note"></textarea></label>
           <p class="aide">Date de relance obligatoire, sauf « Refus » ou « Pas de besoin ». L'étape avance toute seule (décideur joint, intéressé, rendez-vous, devis demandé).</p>
           <div class="actions"><button class="bouton" type="submit">Enregistrer l'appel</button>${p.phone ? `<a class="bouton bouton-secondaire" href="tel:${esc(p.phone.replace(/\s/g, ''))}">☎ ${esc(p.phone)}</a>` : ''}</div></form>
+        ${carteEmail(p)}
         <div class="carte formulaire"><h3>Étape et rendez-vous</h3>
           <label>Étape du pipeline<select data-champ="status">${C.STATUSES.map(x => opt(x[0], x[1], p.status)).join('')}</select></label>
           <div class="deux-colonnes">${champ(p, 'nextDate', 'Prochaine relance', 'date')}${champ(p, 'rdvDate', 'Rendez-vous', 'datetime-local')}</div>
@@ -722,6 +741,243 @@
       <section class="pile-serree"><div class="section-titre"><h2>Réponses aux objections</h2></div>${objections.map(o => `<div class="script"><b>${esc(o.o)}</b>${esc(perso(o.r))}</div>`).join('')}</section></div>`;
   }
 
+  /* ------------------------------------------------------------------ */
+  /* E-mails de suivi préparés en un clic                                */
+  /* ------------------------------------------------------------------ */
+  const TYPES_EMAIL = [
+    ['apres_appel', 'Récapitulatif après un appel'],
+    ['presentation', 'Présentation demandée par le prospect'],
+    ['relance', 'Relance sans réponse'],
+    ['rdv', 'Confirmation de rendez-vous'],
+    ['devis', 'Suivi de devis'],
+  ];
+  /* Nom de la personne à qui écrire, tiré des interlocuteurs (« Prénom Nom — Fonction (source) »). */
+  function interlocuteur(p) {
+    const c = p.contacts || {};
+    for (const k of ['securite', 'sg', 'achats', 'site', 'dirigeant']) {
+      const v = String(c[k] || '').trim();
+      if (!v || /non public|standard/i.test(v)) continue;
+      const nom = v.split(/\s+[—–-]\s+|\s*\(/)[0].trim();
+      if (nom && nom.length <= 60 && /[a-zA-ZÀ-ÿ]/.test(nom)) return nom;
+    }
+    return '';
+  }
+  function dernierAppel(p) { return [...(p.history || [])].filter(e => e.type === 'call').sort((a, b) => (b.ts || '').localeCompare(a.ts || ''))[0] || null; }
+  function signatureEmail(p) {
+    const lignes = [prenom(), 'Abdel — ' + (p.secu && p.net ? 'sécurité privée et propreté' : p.net ? 'propreté et entretien des locaux' : 'sécurité privée')];
+    if ((S.params.userPhone || '').trim()) lignes.push(S.params.userPhone.trim());
+    return lignes.join('\n');
+  }
+  function brouillonEmail(p, type) {
+    const nom = interlocuteur(p);
+    const bonjour = nom ? `Bonjour ${nom},` : 'Bonjour,';
+    const act = p.secu && p.net ? 'sécurité et de propreté' : p.net ? 'propreté' : 'sécurité';
+    const appel = dernierAppel(p);
+    const quand = appel ? (appel.date === today() ? "aujourd'hui" : 'le ' + fd(appel.date)) : '';
+    // Besoin exprimé par le prospect lui-même (dernier appel), jamais le signal repéré par l'agent.
+    const brut = ((appel && appel.need) || (C.num(p.callCount) ? p.need : '') || '').trim();
+    const besoin = brut ? brut.charAt(0).toLowerCase() + brut.slice(1).replace(/[.\s]+$/, '') : '';
+    const relance = p.nextDate && p.nextDate >= today() ? fd(p.nextDate) : '';
+    const optout = 'Si ce sujet ne vous concerne pas, dites-le-moi simplement et je ne vous recontacterai pas.';
+    const services = [];
+    if (p.secu) services.push('- Sécurité : surveillance de locaux, d\'entrepôts, de chantiers et de parkings, gardiennage, sécurité événementielle.');
+    if (p.net) services.push('- Propreté : nettoyage de bureaux, de commerces et de locaux professionnels, entretien régulier, produits fournis ou non selon votre choix.');
+    const cnaps = p.secu && (S.params.cnaps || '').trim() ? `\nNotre autorisation d'exercice CNAPS : ${S.params.cnaps.trim()}.` : '';
+    let objet = '', corps = '';
+    switch (type) {
+      case 'apres_appel':
+        objet = `Suite à notre échange — ${p.name}`;
+        corps = `${bonjour}\n\nMerci pour votre temps au téléphone${quand ? ' ' + quand : ''}.\n\n${besoin ? `Comme convenu, je reviens vers vous au sujet de votre besoin : ${besoin}.` : `Comme convenu, je vous laisse mes coordonnées pour vos besoins en ${act}.`}\n\nPour vous faire une proposition juste, le plus simple est une courte visite du site (20 minutes environ).${relance ? ` Je vous rappelle le ${relance} pour convenir d'un créneau.` : ' Quel moment vous arrangerait cette semaine ou la suivante ?'}`;
+        break;
+      case 'presentation':
+        objet = `Notre présentation — ${p.name}`;
+        corps = `${bonjour}\n\nComme promis${quand ? ' lors de notre échange ' + quand : ''}, voici en quelques lignes ce que nous proposons :\n\n${services.join('\n')}${cnaps}\n\n${besoin ? `Pour votre besoin (${besoin}), une visite du site nous permettrait de vous faire une proposition chiffrée précise.` : 'Une visite rapide du site nous permettrait de vous faire une proposition chiffrée précise.'}${relance ? ` Je vous rappelle le ${relance}.` : ''}\n\n${optout}`;
+        break;
+      case 'relance':
+        objet = `Petit point — ${p.name}`;
+        corps = `${bonjour}\n\nJe me permets de revenir vers vous${appel ? ` suite à notre échange du ${fd(appel.date)}` : ''} au sujet de vos besoins en ${act}.\n\nAvez-vous pu y réfléchir ? Dix minutes au téléphone suffisent pour voir si nous pouvons vous être utiles.\n\n${optout}`;
+        break;
+      case 'rdv': {
+        const d = p.rdvDate ? new Date(p.rdvDate) : null;
+        const qd = d && !isNaN(d) ? `le ${d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} à ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : '';
+        objet = `Confirmation de notre rendez-vous — ${p.name}`;
+        corps = `${bonjour}\n\n${qd ? `Je vous confirme notre rendez-vous ${qd}` : 'Je reviens vers vous pour confirmer notre rendez-vous'}${p.address ? `, ${p.address}${p.city ? ' à ' + p.city : ''}` : ''}.\n\nNous ferons ensemble le tour du site pour bien comprendre vos besoins${besoin ? ` (${besoin})` : ''}, puis je vous enverrai une proposition chiffrée.\n\nEn cas d'empêchement, il suffit de me répondre ici.`;
+        break;
+      }
+      case 'devis':
+        objet = `Votre proposition — ${p.name}`;
+        corps = `${bonjour}\n\nJe reviens vers vous au sujet de la proposition que nous vous avons adressée.\n\nAvez-vous pu la consulter ? Je suis disponible pour répondre à vos questions ou l'adapter à vos horaires et à votre organisation.${relance ? `\n\nJe vous rappelle le ${relance}.` : ''}`;
+        break;
+    }
+    return { objet, corps: `${corps}\n\nBien cordialement,\n${signatureEmail(p)}` };
+  }
+  function carteEmail(p) {
+    const st = S.email && S.email.id === p.id ? S.email : null;
+    return `<div class="carte formulaire carte-email"><h3>✉ Préparer un e-mail</h3>
+      <div class="deux-colonnes"><label>Type d'e-mail<select id="type-email">${TYPES_EMAIL.map(t => opt(t[0], t[1], st ? st.type : '')).join('')}</select></label>
+        <div class="actions actions-bas"><button class="bouton" type="button" data-action="email-preparer">Préparer</button></div></div>
+      ${st ? `<label>Objet<input type="text" id="email-objet" value="${esc(st.objet)}"></label>
+        <label>Message<textarea id="email-corps" class="zone-email">${esc(st.corps)}</textarea></label>
+        ${p.email ? '' : '<p class="aide">Pas d\'adresse e-mail sur la fiche : ta messagerie s\'ouvrira sans destinataire.</p>'}
+        <div class="actions"><button class="bouton" type="button" data-action="email-ouvrir">Ouvrir dans ma messagerie</button>
+          <button class="bouton bouton-secondaire" type="button" data-action="email-copier">Copier</button>
+          <button class="bouton bouton-secondaire" type="button" data-action="email-ia">✨ Améliorer avec l'IA</button></div>
+        <div id="zone-ia"></div>` : '<p class="aide">Le texte est rédigé à partir de la fiche (interlocuteur, besoin, dernier appel, rendez-vous). Tu le relis, tu le modifies si besoin, puis tu l\'envoies depuis ta messagerie.</p>'}</div>`;
+  }
+  function lireEmailEdite() {
+    if (!S.email) return;
+    const o = document.getElementById('email-objet'), c = document.getElementById('email-corps');
+    if (o) S.email.objet = o.value; if (c) S.email.corps = c.value;
+  }
+  async function actionEmail(act, bouton) {
+    const zoneF = document.getElementById('corps-fiche'); if (!zoneF) return;
+    const p = S.prospects[zoneF.dataset.id]; if (!p) return;
+    if (act === 'email-preparer') {
+      const type = document.getElementById('type-email').value;
+      S.email = { id: p.id, type, ...brouillonEmail(p, type) };
+      return rafraichir();
+    }
+    lireEmailEdite();
+    if (act === 'email-copier') {
+      try { await navigator.clipboard.writeText(`Objet : ${S.email.objet}\n\n${S.email.corps}`); notif('Texte copié'); }
+      catch (_) { notif('Copie impossible : sélectionne le texte à la main.', true); }
+    }
+    if (act === 'email-ouvrir') {
+      const lien = `mailto:${encodeURIComponent((p.email || '').trim())}?subject=${encodeURIComponent(S.email.objet)}&body=${encodeURIComponent(S.email.corps)}`;
+      const d = clone(p);
+      d.history = [...(d.history || []), { type: 'note', ts: nowISO(), text: `E-mail préparé : ${(TYPES_EMAIL.find(t => t[0] === S.email.type) || [])[1] || ''} (« ${S.email.objet} »)` }];
+      enregistrerProspect(d);
+      location.href = lien;
+    }
+    if (act === 'email-ia') {
+      const zoneIa = document.getElementById('zone-ia');
+      occupe(bouton, true, 'L\'IA réécrit…');
+      try {
+        const nom = interlocuteur(p);
+        // Le nom de la personne n'est pas envoyé à l'IA : il est remplacé par un repère puis remis.
+        const masque = t => nom ? t.split(nom).join('{{CONTACT}}') : t;
+        const r = await appelServeur({ action: 'redaction', type: S.email.type, objet: masque(S.email.objet), texte: masque(S.email.corps), secteur: segLabel(p.sector), activite: p.secu && p.net ? 'sécurité et propreté' : p.net ? 'propreté' : 'sécurité' });
+        const remettre = t => String(t || '').split('{{CONTACT}}').join(nom || '');
+        S.email.objet = remettre(r.objet) || S.email.objet; S.email.corps = remettre(r.texte) || S.email.corps;
+        rafraichir(); notif('Texte réécrit par l\'IA : relis-le avant d\'envoyer');
+      } catch (e) {
+        occupe(bouton, false);
+        if (zoneIa) zoneIa.innerHTML = `<p class="message message-info">${esc(e.message)}</p>`;
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Session d'appels : un prospect à la fois                            */
+  /* ------------------------------------------------------------------ */
+  function fileSession(act) {
+    const t = today();
+    const ouverts = liste().filter(p => !C.CLOSED.includes(p.status) && !p.optOut && (!act || (act === 'secu' ? p.secu : p.net)));
+    const vus = new Set(), file = [];
+    const ajoute = arr => arr.forEach(p => { if (!vus.has(p.id)) { vus.add(p.id); file.push(p.id); } });
+    ajoute(ouverts.filter(p => p.nextDate && p.nextDate <= t).sort((a, b) => a.nextDate.localeCompare(b.nextDate)));
+    ajoute(ouverts.filter(p => signalChaud(p)));
+    ajoute(ouverts.filter(p => p.rdvDate && p.rdvDate.slice(0, 10) === t));
+    ajoute(ouverts.filter(p => !C.num(p.callCount) && C.NOT_YET_CONTACTED.includes(p.status)).sort((a, b) => C.score(b).total - C.score(a).total));
+    return file.slice(0, 40);
+  }
+  function pSession() {
+    const ss = S.session;
+    if (!ss) {
+      const f = S.filtres.sess || (S.filtres.sess = { act: '' });
+      const n = fileSession(f.act).length;
+      return `<div class="pile">${tete('Appels', 'Session d\'appels', 'Un prospect à la fois, dans le bon ordre : relances du jour, signaux chauds, rendez-vous, puis les meilleurs prospects jamais appelés. Tu notes le résultat en deux touches et le suivant s\'affiche.')}
+        <div class="carte pile-serree carte-session">
+          <div class="filtres">${[['', 'Tout'], ['secu', '🛡 Sécurité'], ['net', '✦ Nettoyage']].map(([k, l]) => `<button type="button" class="filtre" data-filtre="sess.act" data-valeur="${k}" aria-pressed="${f.act === k}">${l}</button>`).join('')}</div>
+          <p class="question">${n ? `${n} prospect${n > 1 ? 's' : ''} à appeler` : 'Personne à appeler pour le moment'}</p>
+          <div class="actions">${n ? '<button class="bouton bouton-session" type="button" data-action="session-demarrer">▶ Démarrer</button>' : '<a class="bouton bouton-secondaire" href="#/recherche">Trouver des prospects</a>'}</div>
+        </div></div>`;
+    }
+    if (ss.i >= ss.file.length) return finSession();
+    const p = S.prospects[ss.file[ss.i]];
+    if (!p) { ss.i++; return pSession(); }
+    const sg = signalChaud(p), appel = dernierAppel(p), nom = interlocuteur(p);
+    const scripts = (p.secu || !p.net ? R.SCRIPTS.secu : R.SCRIPTS.net).slice(0, 2);
+    const objections = (p.secu || !p.net ? R.OBJECTIONS_SECU : R.OBJECTIONS).slice(0, 4);
+    const perso = x => x.replace(/Émilie/g, prenom()).replace(/\(Société\)/g, (S.params.companySecu || '').trim() || 'Abdel');
+    const r = ss.resultat;
+    const sansSuite = r && ['Refus', 'Pas de besoin'].includes(r);
+    const progression = Math.round(ss.i / ss.file.length * 100);
+    return `<div class="pile">
+      <div class="entete"><div><p class="surtitre">Session d'appels · ${ss.i + 1} sur ${ss.file.length}</p><h1>${esc(p.name)}</h1>
+        <p class="chapo">${[p.city, segLabel(p.sector), p.size].filter(Boolean).map(esc).join(' · ')}</p></div>
+        <div class="actions">${scoreRond(p)}<div class="pastilles">${pastillesAct(p)}${pastilleStatut(p)}</div></div></div>
+      <div class="barre-progression" role="progressbar" aria-valuenow="${progression}" aria-valuemin="0" aria-valuemax="100"><span class="barre-${Math.min(10, Math.round(progression / 10))}"></span></div>
+      ${sg ? `<p class="message message-feu">🔥 <b>Nouveau signal du ${fd(sg.ts)} :</b> ${esc(sg.texte)}</p>` : ''}
+      <div class="carte carte-session pile-serree">
+        <div class="actions">${p.phone ? `<a class="bouton bouton-appel" href="tel:${esc(p.phone.replace(/\s/g, ''))}">☎ Appeler ${esc(p.phone)}</a>` : `<a class="bouton bouton-secondaire" href="#/prospect/${encodeURIComponent(p.id)}/infos">Pas de numéro : compléter la fiche</a>`}</div>
+        <p><b>Qui demander :</b> ${esc(nom || (p.contacts && Object.values(p.contacts).find(Boolean)) || 'le responsable du site (sécurité ou services généraux)')}</p>
+        ${p.need ? `<p><b>Besoin :</b> ${esc(p.need)}</p>` : ''}
+        ${appel ? `<p class="aide"><b>Dernier appel le ${fd(appel.date)} :</b> ${esc(appel.result)}${appel.note ? ' — ' + esc(appel.note) : ''}${appel.objections ? ' · Objections : ' + esc(appel.objections) : ''}</p>` : ''}
+        ${p.nextAction ? `<p class="aide"><b>Prévu :</b> ${esc(p.nextAction)}</p>` : ''}
+        <details><summary>Script</summary>${scripts.map(x => `<div class="script"><b>${esc(x.t)}</b>${esc(perso(x.x))}</div>`).join('')}</details>
+        <details><summary>Objections fréquentes</summary>${objections.map(o => `<div class="script"><b>${esc(o.o)}</b>${esc(perso(o.r))}</div>`).join('')}</details>
+      </div>
+      <section class="pile-serree"><div class="section-titre"><h2>Résultat de l'appel</h2></div>
+        <div class="grille-resultats">${R.CALL_RESULTS.map(x => `<button type="button" class="resultat${r === x ? ' choisi' : ''}" data-action="session-resultat" data-valeur="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+        ${r ? `<form class="carte formulaire" id="f-session">
+          ${sansSuite ? `<label class="case"><input type="checkbox" name="perdu"> <span>Classer en « contrat perdu »</span></label>` : `<label>Relance le<input type="date" name="nextDate" value="${esc(ss.date || addDays(today(), ['Pas de réponse', 'Messagerie', 'Barrage du standard'].includes(r) ? 2 : 7))}" required></label>
+            <div class="filtres">${[['Demain', 1], ['Dans 3 jours', 3], ['Dans 1 semaine', 7], ['Dans 1 mois', 30]].map(([l, n]) => `<button type="button" class="filtre" data-action="session-date" data-valeur="${addDays(today(), n)}">${l}</button>`).join('')}</div>`}
+          <label>Interlocuteur joint<input type="text" name="contact" value="${esc(nom)}" autocomplete="off"></label>
+          <label>Note (facultatif)<textarea name="note" placeholder="Ce qu'il a dit, objection, besoin…"></textarea></label>
+          <div class="actions"><button class="bouton" type="submit">Enregistrer et suivant →</button></div></form>` : ''}
+      </section>
+      <div class="actions"><button class="bouton bouton-secondaire" type="button" data-action="session-passer">Passer ce prospect</button>
+        <a class="bouton-lien" href="#/prospect/${encodeURIComponent(p.id)}">Ouvrir la fiche complète</a>
+        <button class="bouton-lien" type="button" data-action="session-fin">Terminer la session</button></div></div>`;
+  }
+  function finSession() {
+    const ss = S.session;
+    const parRes = {};
+    ss.faits.forEach(f => { parRes[f.r] = (parRes[f.r] || 0) + 1; });
+    const rdv = (parRes['Rendez-vous pris'] || 0), interesses = (parRes['Intéressé'] || 0) + (parRes['Devis demandé'] || 0);
+    return `<div class="pile">${tete('Session d\'appels', 'Session terminée 🎉', `${ss.faits.length} appel${ss.faits.length > 1 ? 's' : ''} noté${ss.faits.length > 1 ? 's' : ''}, ${ss.passes} passé${ss.passes > 1 ? 's' : ''}.`)}
+      <div class="compteurs trois">${compteur(ss.faits.length, 'appels notés', 'compteur-encre')}${compteur(rdv, 'rendez-vous pris', 'compteur-vert')}${compteur(interesses, 'intéressés ou devis demandés', 'compteur-safran')}</div>
+      ${ss.faits.length ? `<ul class="liste">${ss.faits.map(f => `<li><a class="ligne sans-score" href="#/prospect/${encodeURIComponent(f.id)}"><span class="ligne-titre">${esc((S.prospects[f.id] || {}).name || '')}</span><span class="pastille p-neutre">${esc(f.r)}</span></a></li>`).join('')}</ul>` : ''}
+      <div class="actions"><button class="bouton bouton-session" type="button" data-action="session-nouvelle">▶ Nouvelle session</button><a class="bouton bouton-secondaire" href="#/">Tableau de bord</a></div></div>`;
+  }
+  async function enregistrerSession(form) {
+    const ss = S.session; const id = ss.file[ss.i]; const p = S.prospects[id];
+    const e = Object.fromEntries(new FormData(form).entries());
+    e.result = ss.resultat;
+    const sansSuite = ['Refus', 'Pas de besoin'].includes(e.result);
+    if (!sansSuite && !e.nextDate) return notif('Indique une date de relance.', true);
+    let d = appliquerAppel(p, e);
+    if (sansSuite) d = avecStatut(d, e.perdu ? 'perdu' : 'relance');
+    const b = form.querySelector('button[type=submit]'); occupe(b, true, 'Enregistrement…');
+    if (!(await enregistrerProspect(d))) return occupe(b, false);
+    ss.faits.push({ id, r: e.result }); ss.i++; ss.resultat = null; ss.date = null;
+    notif('Appel noté' + (d.nextDate ? ' · relance le ' + fd(d.nextDate) : ''));
+    route();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Sauvegardes automatiques (chaque dimanche, 8 semaines gardées)      */
+  /* ------------------------------------------------------------------ */
+  async function chargerSauvegardes() {
+    const zone = document.getElementById('zone-sauvegardes'); if (!zone) return;
+    const { data, error } = await sb.rpc('abdel_liste_sauvegardes');
+    if (error) { zone.innerHTML = '<p class="message message-erreur">Liste des sauvegardes indisponible pour le moment.</p>'; return; }
+    S.sauvegardes = data || [];
+    zone.innerHTML = S.sauvegardes.length ? `<ul class="liste">${S.sauvegardes.map(s => `<li class="ligne sans-score"><div><div class="ligne-titre">${fdt(s.faite_le)}</div><div class="ligne-detail">${s.lignes} éléments sauvegardés</div></div>
+        <div class="actions"><button class="bouton bouton-petit bouton-secondaire" type="button" data-action="sauvegarde-telecharger" data-id="${s.id}">Télécharger</button><button class="bouton bouton-petit" type="button" data-action="sauvegarde-restaurer" data-id="${s.id}">Restaurer</button></div></li>`).join('')}</ul>`
+      : '<p class="aide">Aucune sauvegarde automatique pour le moment.</p>';
+  }
+  async function lireSauvegarde(id) {
+    const { data, error } = await sb.rpc('abdel_sauvegarde', { p_id: +id });
+    if (error || !data) { notif('Sauvegarde illisible.', true); return null; }
+    const lignes = t => (data[t] || []);
+    const main = lignes('abdel_parametres').find(r => r.id === 'main');
+    const s = (S.sauvegardes || []).find(x => String(x.id) === String(id));
+    return { app: 'CRM Abdel', version: 1, exportedAt: s ? s.faite_le : nowISO(), settings: main ? main.data : null,
+      prospects: lignes('abdel_prospects').map(r => ({ ...r.data, id: r.id })), tenders: lignes('abdel_appels_offres').map(r => ({ ...r.data, id: r.id })) };
+  }
+
   /* Enregistrement automatique des champs de la fiche */
   let minuterie = null;
   async function champModifie(el) {
@@ -745,14 +1001,12 @@
     else { const box = document.getElementById('raisons'); if (box) box.innerHTML = raisonsHtml(C.score(d)); }
   }
 
-  async function noterAppel(form) {
-    const id = form.closest('#corps-fiche').dataset.id;
-    const e = Object.fromEntries(new FormData(form).entries());
+  /* Applique un appel à une fiche (utilisé par la fiche et par la session d'appels). */
+  function appliquerAppel(source, e) {
     const sansSuite = ['Refus', 'Pas de besoin'].includes(e.result);
-    if (!sansSuite && !e.nextDate) return notif('Indique une date de relance.', true);
-    let d = clone(S.prospects[id]);
+    let d = clone(source);
     const ts = nowISO();
-    d.history = [...(d.history || []), { type: 'call', ts, date: today(), result: e.result, contact: e.contact, need: e.need, objections: e.objections, nextAction: e.nextAction, nextDate: sansSuite ? '' : e.nextDate, note: e.note }];
+    d.history = [...(d.history || []), { type: 'call', ts, date: today(), result: e.result, contact: e.contact || '', need: e.need || '', objections: e.objections || '', nextAction: e.nextAction || '', nextDate: sansSuite ? '' : e.nextDate, note: e.note || '' }];
     d.lastCallDate = today(); d.callCount = C.num(d.callCount) + 1;
     if (e.need && !d.need) d.need = e.need;
     if (e.nextAction) d.nextAction = e.nextAction;
@@ -760,6 +1014,14 @@
     if (C.NOT_YET_CONTACTED.includes(d.status)) d = avecStatut(d, 'contact');
     const cible = { 'Décideur joint': 'decideur', 'Intéressé': 'interet', 'Rendez-vous pris': 'rdv', 'Devis demandé': 'propo' }[e.result];
     if (cible && !C.CLOSED.includes(d.status) && C.STATUS_ORDER[cible] > C.STATUS_ORDER[d.status]) d = avecStatut(d, cible);
+    return d;
+  }
+  async function noterAppel(form) {
+    const id = form.closest('#corps-fiche').dataset.id;
+    const e = Object.fromEntries(new FormData(form).entries());
+    const sansSuite = ['Refus', 'Pas de besoin'].includes(e.result);
+    if (!sansSuite && !e.nextDate) return notif('Indique une date de relance.', true);
+    const d = appliquerAppel(S.prospects[id], e);
     const b = form.querySelector('button[type=submit]'); occupe(b, true, 'Enregistrement…');
     const ok = await enregistrerProspect(d);
     occupe(b, false);
@@ -1008,10 +1270,13 @@
           <p class="aide">Ne jamais proposer un tarif inférieur sans l'accord d'Abdel.</p></div>
         <div class="carte formulaire"><h3>Coûts (pour la marge)</h3><div class="deux-colonnes">${c('costHourSecu', 'Coût horaire chargé, agent de sécurité (€)', 'number', 'À demander à Abdel')}${c('costHourNet', 'Coût horaire chargé, agent de propreté (€)', 'number', 'À demander à Abdel')}
           ${c('nightCostPct', 'Surcoût de nuit (%)', 'number', 'Indicatif, à confirmer')}${c('sundayCostPct', 'Surcoût du dimanche (%)', 'number', 'Indicatif, à confirmer')}</div></div>
-        <div class="carte formulaire"><h3>Entreprises</h3><div class="deux-colonnes">${c('companySecu', 'Société de sécurité (nom légal)')}${c('cnaps', 'N° d\'autorisation d\'exercice CNAPS', 'text', 'Exigé dans les devis et appels d\'offres sécurité')}${c('companyNet', 'Société de nettoyage')}${c('userName', 'Ton prénom (scripts)')}</div></div>
+        <div class="carte formulaire"><h3>Entreprises</h3><div class="deux-colonnes">${c('companySecu', 'Société de sécurité (nom légal)')}${c('cnaps', 'N° d\'autorisation d\'exercice CNAPS', 'text', 'Exigé dans les devis et appels d\'offres sécurité')}${c('companyNet', 'Société de nettoyage')}${c('userName', 'Ton prénom (scripts et e-mails)')}${c('userPhone', 'Ton téléphone professionnel (signature des e-mails)', 'tel')}</div></div>
         <div class="actions"><button class="bouton" type="submit">Enregistrer les paramètres</button></div></form>
-      <section class="carte pile-serree"><h3>Sauvegarde, import et export</h3>
-        <p class="aide">Dernière sauvegarde complète : ${s.lastBackup ? fdt(s.lastBackup) : 'jamais'}. Une par semaine, rangée dans ton Drive.</p>
+      <section class="carte pile-serree"><h3>Sauvegardes automatiques</h3>
+        <p class="aide">Une copie complète de tes prospects, appels d'offres et paramètres est faite chaque dimanche vers 3 h. Les 8 dernières semaines sont gardées. « Restaurer » remet les fiches telles qu'elles étaient ce jour-là, sans supprimer celles créées depuis.</p>
+        <div id="zone-sauvegardes"><p class="chargement">Chargement…</p></div></section>
+      <section class="carte pile-serree"><h3>Export et import</h3>
+        <p class="aide">Pour garder une copie en dehors de la plateforme (dans ton Drive par exemple), télécharge une sauvegarde de temps en temps. Dernier téléchargement : ${s.lastBackup ? fdt(s.lastBackup) : 'jamais'}.</p>
         <div class="actions"><button class="bouton" type="button" data-action="sauvegarde">Télécharger une sauvegarde complète</button><button class="bouton bouton-secondaire" type="button" data-action="exporter" data-quoi="all">Exporter en Excel</button>
           <button class="bouton bouton-secondaire" type="button" data-action="exporter-csv">Exporter en CSV</button><button class="bouton bouton-secondaire" type="button" data-action="importer">Importer (CSV, Excel ou sauvegarde)</button></div>
         <p class="aide">Import : les colonnes sont reconnues par leur nom (Entreprise, SIREN, Ville, Code postal, Téléphone, Email…). Les doublons (même SIREN, ou même nom et code postal) sont ignorés.</p></section>
@@ -1122,7 +1387,12 @@
   /* ------------------------------------------------------------------ */
   /* Après rendu et événements                                           */
   /* ------------------------------------------------------------------ */
-  function apresRendu(r) { if (r.nom === 'calculateur') majCalc(); }
+  function apresRendu(r) {
+    if (r.nom === 'calculateur') majCalc();
+    if (r.nom === 'parametres') chargerSauvegardes();
+    if (r.nom !== 'prospect' && S.email) S.email = null;
+    if (r.nom !== 'session' && S.session && S.session.i >= S.session.file.length) S.session = null;
+  }
 
   document.addEventListener('click', async e => {
     const filtre = e.target.closest('button[data-filtre]');
@@ -1136,6 +1406,14 @@
     if (act === 'ajouter-resultat') ajouterResultat(+a.dataset.i, a);
     if (act === 'rech-suite') lancerRecherche((S.recherche.data.page || 1) + 1);
     if (act === 'registre') completerRegistre(a);
+    if (act.startsWith('email-')) actionEmail(act, a);
+    if (act === 'session-demarrer' || act === 'session-nouvelle') { S.session = { file: fileSession((S.filtres.sess || {}).act), i: 0, faits: [], passes: 0, resultat: null }; if (act === 'session-nouvelle' && !S.session.file.length) S.session = null; route(); }
+    if (act === 'session-resultat') { S.session.resultat = a.dataset.valeur; rafraichir(); const f = document.getElementById('f-session'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    if (act === 'session-date') { const champ = document.querySelector('#f-session [name=nextDate]'); if (champ) champ.value = a.dataset.valeur; S.session.date = a.dataset.valeur; }
+    if (act === 'session-passer') { S.session.i++; S.session.passes++; S.session.resultat = null; S.session.date = null; route(); }
+    if (act === 'session-fin') { S.session.i = S.session.file.length; route(); }
+    if (act === 'sauvegarde-telecharger') { const d = await lireSauvegarde(a.dataset.id); if (d) telecharger(`Sauvegarde-CRM-Abdel-${String(d.exportedAt).slice(0, 10)}.json`, JSON.stringify(d, null, 1), 'application/json'); }
+    if (act === 'sauvegarde-restaurer') { const d = await lireSauvegarde(a.dataset.id); if (d) restaurer(d); }
     if (act === 'restaurer-corbeille') restaurerCorbeille(a.dataset.id);
     if (act === 'agent-contacts') demanderAgentContacts(false);
     if (act === 'agent-contacts-annuler') demanderAgentContacts(true);
@@ -1187,6 +1465,7 @@
       lancerRecherche(1);
     }
     if (f.id === 'f-appel') { e.preventDefault(); noterAppel(f); }
+    if (f.id === 'f-session') { e.preventDefault(); enregistrerSession(f); }
     if (f.id === 'f-nouveau') {
       e.preventDefault();
       const d = Object.fromEntries(new FormData(f).entries());

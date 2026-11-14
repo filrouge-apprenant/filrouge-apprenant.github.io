@@ -280,3 +280,100 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   .marque-nom, .bouton-menu, .zone-compte .bouton-lien { white-space: nowrap; }
   .zone-compte { gap: .5rem; }
 }
+
+/* =============================================================================
+   Couleurs vives (14/11/2026) : même mise en page, palette plus gaie.
+   Bleu roi pour la sécurité, vert émeraude pour le nettoyage, jaune soleil,
+   corail et violet en accents. Toujours sur fond blanc, sans aplat sombre.
+   ============================================================================= */
+:root {
+  --encre: #2050e0;  --encre-moyen: #4a72f0;  --encre-clair: #e8efff;
+  --safran: #ffb21e; --safran-clair: #fff4d9;  --safran-fort: #ffe3a3;
+  --menthe: #0fae80; --menthe-clair: #dff7ee;
+  --corail: #ff6b57; --corail-clair: #ffece8;
+  --violet: #7b5cf0; --violet-clair: #f0ebff;
+  --filet: #ece7f6;  --filet-fort: #d6cdea;
+  --sable: #fbf9ff;
+  --orange: #e2730a; --rouge: #e5384d; --rouge-fond: #ffe9ec; --vert: #0f9a62; --vert-fond: #e0f7ea;
+}
+.bandeau { border-bottom: 0; }
+.bandeau::after { content: ""; display: block; height: 4px; background: linear-gradient(90deg, var(--encre), var(--violet), var(--corail), var(--safran), var(--menthe)); }
+.marque-sous { color: var(--violet); }
+.menu-lateral { border-right: 1px solid var(--filet-fort); }
+.menu-titre { color: var(--violet); }
+.menu-lien[aria-current="page"] { background: linear-gradient(90deg, var(--encre-clair), var(--violet-clair)); border-left-color: var(--violet); color: var(--encre); }
+.menu-lien:hover { background: var(--violet-clair); }
+.menu-lien .ico { color: var(--violet); }
+.menu-lien.secu .ico { color: var(--encre); }
+.surtitre { color: var(--violet); }
+.section-titre { border-bottom: 2px solid transparent; border-image: linear-gradient(90deg, var(--encre), var(--violet), transparent) 1; }
+.section-titre.menthe { border-image: linear-gradient(90deg, var(--menthe), transparent) 1; }
+h1 { background: linear-gradient(90deg, #142a6e, var(--encre) 60%, var(--violet)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* Compteurs : une couleur par case, en bandeau haut */
+.compteur { border-top: 4px solid var(--encre); }
+.compteurs .compteur:nth-child(5n+2) { border-top-color: var(--violet); }
+.compteurs .compteur:nth-child(5n+3) { border-top-color: var(--menthe); }
+.compteurs .compteur:nth-child(5n+4) { border-top-color: var(--safran); }
+.compteurs .compteur:nth-child(5n+5) { border-top-color: var(--corail); }
+.compteur-encre .compteur-valeur { color: var(--encre); }
+.compteur-safran .compteur-valeur { color: var(--orange); }
+
+/* Espaces du tableau de bord */
+.espace-secu { border: 2px solid var(--encre); background: linear-gradient(135deg, #dfe8ff 0, #f1edff 45%, #fff 75%); }
+.espace-net { border: 2px solid var(--menthe); background: linear-gradient(135deg, #d6f5e8 0, #eefbf6 45%, #fff 75%); }
+.espace-feu { border: 2px solid var(--corail); background: linear-gradient(135deg, #ffe2dc 0, #fff3e0 45%, #fff 75%); }
+.espace-feu h2 { color: var(--corail); }
+
+/* Boutons */
+.bouton { background: var(--encre); color: #fff; border-color: var(--encre); box-shadow: 0 2px 0 rgba(32, 80, 224, .18); }
+.bouton:hover { background: #1740bf; }
+.bouton-secondaire { background: #fff; color: var(--encre); }
+.bouton-secondaire:hover { background: var(--encre-clair); }
+.bouton-menthe { background: var(--menthe); border-color: var(--menthe); color: #fff; }
+.bouton-danger { background: #fff; color: var(--rouge); border-color: var(--rouge); }
+.bouton-session { background: linear-gradient(90deg, var(--violet), var(--encre)); border: 0; color: #fff; font-size: 1.02rem; padding: .7rem 1.2rem; }
+.bouton-session:hover { filter: brightness(1.08); background: linear-gradient(90deg, var(--violet), var(--encre)); }
+.bouton-appel { background: var(--menthe); border-color: var(--menthe); color: #fff; font-size: 1.15rem; padding: .85rem 1.4rem; }
+.bouton-appel:hover { background: #0b9169; }
+.filtre[aria-pressed="true"], .filtre[aria-current="true"] { background: var(--violet-clair); border-color: var(--violet); color: var(--violet); }
+
+/* Pastilles et scores */
+.p-encre { background: var(--encre-clair); color: var(--encre); }
+.p-menthe { background: var(--menthe-clair); color: #0a7a59; }
+.p-safran { background: var(--safran-clair); color: var(--orange); }
+.p-feu { background: var(--corail-clair); color: #d63f2a; border-color: #ffc4b9; }
+.score.chaud { border-color: var(--safran); background: var(--safran-clair); }
+.score.travail { border-color: var(--violet); color: var(--violet); background: var(--violet-clair); }
+.message-feu { background: var(--corail-clair); border-left: 4px solid var(--corail); }
+.message-action { background: var(--safran-clair); border-left-color: var(--safran); }
+.message-encre { background: var(--encre-clair); border-left-color: var(--encre); }
+
+/* Pipeline : une couleur par colonne */
+.colonne-tete { border-top: 4px solid var(--encre); }
+.colonne:nth-child(2) .colonne-tete { border-top-color: var(--violet); }
+.colonne:nth-child(3) .colonne-tete { border-top-color: #22a6d8; }
+.colonne:nth-child(4) .colonne-tete { border-top-color: var(--safran); }
+.colonne:nth-child(5) .colonne-tete { border-top-color: var(--corail); }
+.colonne:nth-child(6) .colonne-tete { border-top-color: #e0569b; }
+.colonne:nth-child(7) .colonne-tete { border-top-color: var(--menthe); }
+.carte-pipe { border-left-color: var(--encre); }
+.script { border-left-color: var(--violet); background: var(--violet-clair); }
+
+/* Session d'appels */
+.carte-session { border: 2px solid var(--violet-clair); }
+.barre-progression { height: 8px; border-radius: 999px; background: var(--filet); overflow: hidden; }
+.barre-progression span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--violet), var(--encre), var(--menthe)); }
+.barre-0 { width: 3%; } .barre-1 { width: 10%; } .barre-2 { width: 20%; } .barre-3 { width: 30%; } .barre-4 { width: 40%; } .barre-5 { width: 50%; }
+.barre-6 { width: 60%; } .barre-7 { width: 70%; } .barre-8 { width: 80%; } .barre-9 { width: 90%; } .barre-10 { width: 100%; }
+.grille-resultats { display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: .5rem; }
+.resultat { border: 1.5px solid var(--filet-fort); background: #fff; border-radius: 10px; padding: .75rem .6rem; font-weight: 700; cursor: pointer; text-align: center; color: var(--texte); }
+.resultat:hover { border-color: var(--violet); background: var(--violet-clair); }
+.resultat.choisi { border-color: var(--encre); background: var(--encre); color: #fff; }
+details summary { cursor: pointer; font-weight: 700; color: var(--violet); padding: .3rem 0; }
+details[open] summary { margin-bottom: .5rem; }
+
+/* E-mails */
+.carte-email { border: 1.5px solid var(--encre-clair); }
+.zone-email { min-height: 14rem; font-size: .95rem; line-height: 1.5; }
+.actions-bas { align-items: flex-end; }

@@ -116,6 +116,35 @@ async function boamp(b: any) {
   return { depuis, resultats: trouves.filter((x) => x.parution >= depuis) };
 }
 
+// ---------------------------------------------------------------------------
+// Réécriture d'un e-mail par une IA (Mistral, formule gratuite « Experiment »).
+// La clé MISTRAL_API_KEY est un secret de fonction (jamais dans le code du site).
+// Le nom de la personne n'est jamais envoyé : la page le remplace par {{CONTACT}}.
+// ---------------------------------------------------------------------------
+async function redaction(b: any) {
+  const cle = (Deno.env.get("MISTRAL_API_KEY") || "").trim();
+  if (!cle) throw new Error("L'IA n'est pas encore activée : il manque une clé Mistral gratuite. Le texte préparé reste utilisable tel quel.");
+  const texte = String(b.texte || "").slice(0, 4000), objet = String(b.objet || "").slice(0, 200);
+  if (!texte) throw new Error("Rien à réécrire.");
+  const consigne = `Tu réécris un e-mail de prospection B2B en français pour Abdel, entreprise de ${String(b.activite || "sécurité privée et propreté").slice(0, 60)} sur Bordeaux Métropole (secteur du prospect : ${String(b.secteur || "non précisé").slice(0, 60)}).
+Règles : ton professionnel, chaleureux et naturel, phrases courtes, 120 mots maximum hors signature ; garde EXACTEMENT les faits, dates, noms et la signature ; n'invente aucun prix, aucun délai, aucune garantie, aucune certification ni capacité ; aucun crochet ni champ à remplir ; garde le repère {{CONTACT}} tel quel s'il est présent ; garde la phrase de désinscription si elle existe.
+Réponds uniquement en JSON : {"objet": "...", "texte": "..."}.`;
+  const r = await fetch("https://api.mistral.ai/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cle}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: Deno.env.get("MISTRAL_MODEL") || "mistral-small-latest", temperature: 0.4, response_format: { type: "json_object" },
+      messages: [{ role: "system", content: consigne }, { role: "user", content: `Objet : ${objet}\n\n${texte}` }],
+    }),
+  });
+  if (r.status === 429) throw new Error("L'IA gratuite est très demandée en ce moment : réessaie dans une minute.");
+  if (!r.ok) throw new Error("L'IA n'a pas répondu (" + r.status + "). Le texte préparé reste utilisable tel quel.");
+  const d = await r.json();
+  let sortie: any = {};
+  try { sortie = JSON.parse(d.choices?.[0]?.message?.content || "{}"); } catch { throw new Error("Réponse de l'IA illisible : réessaie."); }
+  return { objet: String(sortie.objet || objet).slice(0, 200), texte: String(sortie.texte || "").slice(0, 5000) };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ erreur: "Méthode non autorisée" }, 405);
@@ -130,6 +159,7 @@ Deno.serve(async (req) => {
   try {
     if (b.action === "entreprises") return json(await entreprises(b));
     if (b.action === "boamp") return json(await boamp(b));
+    if (b.action === "redaction") return json(await redaction(b));
     return json({ erreur: "Action inconnue" }, 400);
   } catch (e) {
     const lent = e instanceof DOMException && e.name === "AbortError";
