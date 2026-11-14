@@ -378,11 +378,11 @@
     const em = signes.reduce((a, p) => a + remuneration(p).parMois, 0), deja = signes.reduce((a, p) => a + remuneration(p).percu, 0) + nbRdv * num(S.params.commRdv);
     const regle = `${eur2(S.params.commHour)} par heure et par mois${num(S.params.commMonths) ? ` pendant ${nf(S.params.commMonths)} mois` : ', tant que le client reste'}${num(S.params.commRdv) ? ` + ${eur(S.params.commRdv)} par rendez-vous` : ''}`;
     return `<div class="titre-page"><p class="surtitre">Contrats</p><h1>Contrats signés</h1><p class="chapo">Les mêmes chiffres que ceux d'Émilie. Rémunération convenue : ${esc(regle)}.</p></div>
-      <div class="chiffres">${chiffre(nf(signes.length), 'contrats signés', 'vert', '#/gains')}${chiffre(nf(heures) + ' h', 'heures / mois', '', '#/gains')}${chiffre(eur(ca), 'CA HT / mois', 'vert', '#/gains')}${chiffre(eur(ca * 12), 'CA HT / an', 'violet', '#/gains')}</div>
-      ${signes.length ? `<ul class="cartes">${signes.map(p => `<li><a class="carte ${activite(p)}" href="#/client/${encodeURIComponent(p.id)}"><div class="carte-haut"><div><div class="carte-nom">${esc(p.name)}</div><div class="carte-lieu">Signé le ${fd(p.wonAt)}${p.contractStart ? ' · début ' + fd(p.contractStart) : ''}</div></div><span class="pastille vert">Signé</span></div>
+      <div class="chiffres arabesques">${chiffre(nf(signes.length), 'contrats signés', 'vert', '#/gains')}${chiffre(nf(heures) + ' h', 'heures / mois', '', '#/gains')}${chiffre(eur(ca), 'CA HT / mois', 'vert', '#/gains')}${chiffre(eur(ca * 12), 'CA HT / an', 'violet', '#/gains')}</div>
+      ${signes.length ? `<ul class="cartes">${signes.map(p => `<li><a class="carte arabesques ${activite(p)}" href="#/client/${encodeURIComponent(p.id)}"><div class="carte-haut"><div><div class="carte-nom">${esc(p.name)}</div><div class="carte-lieu">Signé le ${fd(p.wonAt)}${p.contractStart ? ' · début ' + fd(p.contractStart) : ''}</div></div><span class="pastille vert">Signé</span></div>
         <div class="carte-montant"><span>${nf(C.totalHours(p))} h / mois</span><b>${eur(valeurMois(p))} <small>HT / mois</small></b></div>
         <div class="carte-infos">${infosContrat(p)}<span class="info">Part d'Émilie : <b>${eur2(remuneration(p).parMois)}</b> / mois</span></div></a></li>`).join('')}</ul>` : '<p class="vide">Pas encore de contrat signé.</p>'}
-      <div class="bloc"><h2>Rémunération d'Émilie</h2><dl class="lignes-info"><div><dt>Par mois</dt><dd>${eur2(em)}</dd></div><div><dt>Rendez-vous obtenus</dt><dd>${nf(nbRdv)}</dd></div><div><dt>Depuis le début</dt><dd>${eur2(deja)}</dd></div></dl></div>`;
+      <div class="bloc arabesques"><h2>Rémunération d'Émilie</h2><dl class="lignes-info"><div><dt>Par mois</dt><dd>${eur2(em)}</dd></div><div><dt>Rendez-vous obtenus</dt><dd>${nf(nbRdv)}</dd></div><div><dt>Depuis le début</dt><dd>${eur2(deja)}</dd></div></dl></div>`;
   }
 
   /* ---------- Événements ---------- */

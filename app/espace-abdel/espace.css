@@ -296,3 +296,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--om); box-shadow:
 .onglets-bas { background: rgba(255, 255, 255, .96); border-top: 1px solid var(--or); backdrop-filter: blur(8px); }
 .onglet[aria-current="page"] { color: var(--om-fonce); box-shadow: inset 0 2px 0 var(--om); }
 .onglet .badge { background: var(--om-fonce); }
+
+/* Arabesques fines derrière les contrats signés (motif léger, ne gêne pas la lecture) */
+.chiffres.arabesques, .carte.arabesques, .bloc.arabesques { background-color: #fff; background-image: url("arabesques.svg"); background-size: 220px 220px; background-repeat: repeat; }
+.chiffres.arabesques .chiffre { background: rgba(255, 255, 255, .55); }
+.carte.arabesques .carte-montant { border-top-color: rgba(194, 163, 107, .45); }
