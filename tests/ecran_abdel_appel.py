@@ -1,7 +1,7 @@
 """
 Test d'écran du CRM Abdel : appel en un clic (14 novembre 2026), avec une FAUSSE base
 en mémoire (tests/faux-supabase.js) : aucune vraie donnée.
-Vérifie : le bouton « Appeler » ouvre le clavier du téléphone (lien tel:), au retour sur le CRM
+Vérifie : le script reprend l'entreprise et le responsable de la fiche ; le bouton « Appeler » ouvre le clavier du téléphone (lien tel:), au retour sur le CRM
 la fiche s'ouvre sur « Suivi et appels » avec la durée remplie, et l'appel enregistré
 garde la durée et la case « enregistré ».
 Usage : python tests/ecran_abdel_appel.py [dossier des captures]
@@ -18,7 +18,7 @@ PROSPECT = "b0000000-0000-4000-8000-000000000001"
 AJOUT = """
 () => {
   window.__db.abdel_prospects = [{ id: '%s', data: { name: 'Entrepôt Fictif', city: 'Mérignac', secu: true, net: false,
-    status: 'identifie', phone: '05 00 00 00 00', history: [] } }];
+    status: 'identifie', phone: '05 00 00 00 00', address: '12 rue du Port', contacts: { securite: 'Karim Exemple — Responsable sécurité (LinkedIn)' }, history: [] } }];
   sessionStorage.setItem('db', JSON.stringify(window.__db));
 }
 """ % PROSPECT
@@ -68,6 +68,16 @@ async def main():
             await page.wait_for_timeout(800)
             appel = await page.evaluate("() => (window.__db.abdel_prospects.filter(r => r.id === '%s').pop().data.history || []).find(h => h.type === 'call')" % PROSPECT)
             ok(appel and appel["duration"] == 1 and appel["recorded"] is True, "l'appel garde la durée et « enregistré »")
+            # Script adapté à la fiche
+            await page.goto(f"http://127.0.0.1:8767/dp-abdel/index.html#/prospect/{PROSPECT}/scripts")
+            await page.wait_for_selector(".script-fiche", timeout=8000)
+            entete = await page.text_content(".script-fiche")
+            ok("Entrepôt Fictif" in entete and "Karim Exemple" in entete, "en-tête : entreprise appelée et personne à demander")
+            textes = " ".join(await page.locator(".script").all_text_contents())
+            ok("Bonjour Karim Exemple" in textes and "(nom)" not in textes, "le nom du responsable remplace « M. (nom) »")
+            ok("parler à Karim Exemple" in textes, "phrase du standard avec le nom")
+            ok(await page.locator(".script mark").count() >= 3, "les éléments de la fiche sont surlignés")
+            await page.screenshot(path=os.path.join(SORTIE, "abdel-script.png"), full_page=False)
             ok(not erreurs, "aucune erreur JavaScript" + (f" : {erreurs}" if erreurs else ""))
             await nav.close()
     finally:

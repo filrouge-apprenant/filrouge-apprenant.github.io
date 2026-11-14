@@ -387,3 +387,6 @@ details[open] summary { margin-bottom: .5rem; }
 details.carte > summary { cursor: pointer; font-weight: 700; }
 .actions-script { margin-bottom: 0.6rem; }
 @media (min-width: 48rem) { .actions-script { display: none; } }
+/* Script personnalisé : ce qui vient de la fiche appelée est surligné. */
+.script mark, .script-fiche mark { background: #fff1b8; color: inherit; padding: 0 .15em; border-radius: 3px; font-weight: 600; }
+.script-fiche p { margin: 0; }

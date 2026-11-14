@@ -754,16 +754,31 @@
     const nom = prenom();
     // Le nom légal de la société de sécurité (Paramètres) remplace « (Société) » ; sinon le repère reste visible.
     const societe = (S.params.companySecu || '').trim() || '(Société)';
-    // Espaces insécables : « ? », « ! », « : », « » » ne passent jamais seuls à la ligne sur téléphone.
     const entreprise = (S.params.companyNet || '').trim() || 'Abdel';
     const tel = (S.params.userPhone || '').trim();
-    const perso = s => s.replace(/Émilie/g, nom).replace(/\(Société\)/g, societe).replace(/\(Entreprise\)/g, entreprise).replace(/\(téléphone\)/g, tel || '(ton téléphone)')
-      .replace(/ ([?!:;»])/g, ' $1').replace(/« /g, '« ');
+    // Ce qui vient de la fiche appelée : surligné dans le script (repères \u0001…\u0002 posés avant l'échappement HTML).
+    const contact = interlocuteur(p);
+    const m = v => '\u0001' + v + '\u0002';
+    const prospect = (p.name || '').trim(), ville = (p.city || '').trim(), adresse = (p.address || '').trim();
+    const perso = s => {
+      let t = s.replace(/Émilie/g, nom).replace(/\(Société\)/g, societe).replace(/\(Entreprise\)/g, entreprise).replace(/\(téléphone\)/g, tel || '(ton téléphone)');
+      if (contact) t = t.replace(/M\. \/ Mme \(nom\)|M\. \(nom\)|\(nom\)/g, m(contact));
+      if (adresse) t = t.replace(/\(adresse\)/g, m(adresse + (ville ? ', ' + ville : '')));
+      if (ville) t = t.replace(/\(ville\)/g, m(ville));
+      return t.replace(/ ([?!:;»])/g, '\u00a0$1').replace(/« /g, '«\u00a0');
+    };
+    const rendre = s => esc(perso(s)).replace(/\u0001/g, '<mark>').replace(/\u0002/g, '</mark>');
+    // Phrase d'entrée au standard quand on connaît le nom de la personne à joindre.
+    const standardNomme = contact ? (sc => `<div class="script"><b>Tu as un nom : demande-le directement</b>${rendre(`« Bonjour, Émilie de ${sc}. Je souhaiterais parler à (nom), s'il vous plaît. »\n\nSi on te demande « C'est à quel sujet ? », passe au 1 bis.`)}</div>`) : () => '';
     const rappel = (p.secu || !p.net) && !(S.params.companySecu || '').trim()
       ? `<p class="message message-info">Renseigne le nom légal de la société de sécurité et le n° CNAPS dans <a href="#/parametres">Paramètres</a> : ils remplaceront « (Société) » dans le script.</p>` : '';
+    const fiche = `<div class="carte carte-sable pile-serree script-fiche"><p class="surtitre">📞 Tu appelles</p>
+      <p><b>${esc(prospect || 'Entreprise sans nom')}</b>${ville ? ' · ' + esc(ville) : ''}${p.phone ? ' · ' + esc(p.phone) : ''}</p>
+      <p>${contact ? `Demande : <mark>${esc(contact)}</mark>` : 'Pas encore de nom : au standard, demande le responsable du site.'}</p>
+      ${signalChaud(p) ? `<p class="aide">🔥 Ton accroche : ${esc(signalChaud(p).texte)}</p>` : ''}</div>`;
     const objections = [].concat(p.secu || !p.net ? R.OBJECTIONS_SECU : [], p.net ? R.OBJECTIONS_NET : [], R.OBJECTIONS);
-    return `<div class="pile">${rappel}${blocs.map(([t, sc]) => `<section class="pile-serree"><div class="section-titre"><h2>Script ${t}</h2></div>${sc.map(x => `<div class="script"><b>${esc(x.t)}</b>${esc(perso(x.x))}</div>`).join('')}</section>`).join('')}
-      <section class="pile-serree"><div class="section-titre"><h2>Réponses aux objections</h2></div>${objections.map(o => `<div class="script"><b>${esc(o.o)}</b>${esc(perso(o.r))}</div>`).join('')}</section></div>`;
+    return `<div class="pile">${fiche}${rappel}${blocs.map(([t, sc]) => `<section class="pile-serree"><div class="section-titre"><h2>Script ${t}</h2></div>${sc.map((x, i) => (i === 1 ? standardNomme(t === 'Nettoyage' ? '(Entreprise)' : '(Société)') : '') + `<div class="script"><b>${esc(x.t)}</b>${rendre(x.x)}</div>`).join('')}</section>`).join('')}
+      <section class="pile-serree"><div class="section-titre"><h2>Réponses aux objections</h2></div>${objections.map(o => `<div class="script"><b>${esc(o.o)}</b>${rendre(o.r)}</div>`).join('')}</section></div>`;
   }
 
   /* ------------------------------------------------------------------ */
