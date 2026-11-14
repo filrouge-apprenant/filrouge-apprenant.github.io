@@ -377,3 +377,13 @@ details[open] summary { margin-bottom: .5rem; }
 .carte-email { border: 1.5px solid var(--encre-clair); }
 .zone-email { min-height: 14rem; font-size: .95rem; line-height: 1.5; }
 .actions-bas { align-items: flex-end; }
+
+/* Session d'appels intégrée à la fiche (14/11) */
+.bandeau-session { border: 2px solid var(--violet); }
+.entete-session { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.entete-session .surtitre { margin: 0; }
+.bandeau-session .actions { align-items: center; }
+.colonnes-session { align-items: start; }
+details.carte > summary { cursor: pointer; font-weight: 700; }
+.actions-script { margin-bottom: 0.6rem; }
+@media (min-width: 48rem) { .actions-script { display: none; } }
