@@ -417,3 +417,36 @@ details.carte > summary { cursor: pointer; font-weight: 700; }
 .compteurs.deux { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .texte-menthe { color: var(--menthe); }
 @media (max-width: 40rem) { .compteurs.deux { grid-template-columns: 1fr; } }
+
+/* Devis (14/11) */
+.lignes-devis { display: flex; flex-direction: column; gap: .6rem; }
+.ligne-devis { display: grid; grid-template-columns: minmax(0, 1fr) 7rem 7rem 7rem auto; gap: .5rem; align-items: end; padding: .5rem; border-radius: 8px; border: 1px solid var(--filet); }
+.ligne-devis.sous-plancher { border-color: var(--orange); background: var(--orange-fond); }
+.ld-montant { font-weight: 700; text-align: right; padding-bottom: .55rem; font-variant-numeric: tabular-nums; }
+@media (max-width: 48rem) { .ligne-devis { grid-template-columns: 1fr 1fr; } .ld-libelle { grid-column: 1 / -1; } .ld-montant { text-align: left; } }
+.dialogue:has(.apercu-devis) { max-width: 52rem; max-height: 82vh; overflow-y: auto; }
+.dialogue-fond:has(.apercu-devis) { padding-top: 4vh; }
+.document-devis { background: #fff; color: #1b2230; font-size: .9rem; line-height: 1.45; display: flex; flex-direction: column; gap: 1.1rem; padding: .5rem; }
+.document-devis p { margin: 0; }
+.dd-tete { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; border-bottom: 3px solid var(--encre); padding-bottom: .8rem; }
+.dd-societe { font-size: 1.15rem; font-weight: 800; color: var(--encre); }
+.dd-ref { text-align: right; }
+.dd-titre { font-size: 1.6rem; font-weight: 800; letter-spacing: .08em; color: var(--encre); }
+.dd-petit { font-size: .78rem; color: #59627a; }
+.dd-client { border-left: 3px solid var(--safran); padding-left: .8rem; }
+.dd-table, .dd-totaux { width: 100%; border-collapse: collapse; }
+.dd-table th { text-align: left; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; border-bottom: 2px solid #d9dce6; padding: .45rem .4rem; }
+.dd-table td { border-bottom: 1px solid #e7e9f0; padding: .5rem .4rem; vertical-align: top; }
+.dd-table .n, .dd-totaux .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dd-totaux { max-width: 22rem; margin-left: auto; }
+.dd-totaux td { padding: .3rem .4rem; }
+.dd-ttc td { border-top: 2px solid var(--encre); font-weight: 800; font-size: 1.05rem; }
+.dd-conditions { display: flex; flex-direction: column; gap: .4rem; font-size: .82rem; }
+.dd-signature div { border: 1px dashed #b8bdcc; border-radius: 8px; min-height: 6rem; padding: .6rem; max-width: 22rem; margin-left: auto; }
+#zone-impression { display: none; }
+@media print {
+  body.impression-devis > *:not(#zone-impression) { display: none !important; }
+  body.impression-devis #zone-impression { display: block; }
+  body.impression-devis { background: #fff; }
+  @page { margin: 14mm; }
+}

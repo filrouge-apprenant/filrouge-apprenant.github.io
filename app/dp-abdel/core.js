@@ -118,6 +118,8 @@
     commHour: 1,     // ma commission : € par heure de contrat et par mois (offre d'Abdel)
     commMonths: 0,   // durée de la commission en mois (0 = tant que le client reste)
     commRdv: 0,      // prime par rendez-vous obtenu (€)
+    secuSiret: '', secuTva: '', secuAdresse: '', netSiret: '', netTva: '', netAdresse: '',
+    devisConditions: "Paiement à 30 jours à réception de facture, par virement. En cas de retard : pénalités au taux d'intérêt de la BCE majoré de 10 points et indemnité forfaitaire de 40 € pour frais de recouvrement. Les heures supplémentaires demandées par le client sont facturées au même taux. Devis gratuit et sans engagement.",
   };
 
   function rateNet(p, s) { return p.netProduits ? num(s.rateNetProduits) : num(s.rateNetClient); }

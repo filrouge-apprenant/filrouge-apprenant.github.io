@@ -179,6 +179,8 @@
     S.prospects = {}; p.forEach(r => { S.prospects[r.id] = { ...r.data, id: r.id }; });
     S.ao = {}; a.forEach(r => { S.ao[r.id] = { ...r.data, id: r.id }; });
     const m = s.find(r => r.id === 'main'); S.params = { ...C.DEFAULT_SETTINGS, ...(m ? m.data : {}) };
+    S.devis = {};
+    try { (await lireTable('abdel_devis')).forEach(r => { S.devis[r.id] = { ...r.data, id: r.id }; }); } catch (_) { /* table absente : onglet Devis vide */ }
     S.chargeA = Date.now();
     await chargerCorbeille();
   }
@@ -607,12 +609,12 @@
   function pFiche(id, onglet) {
     const p = S.prospects[id];
     if (!p) return `<div class="pile">${tete('Prospect', 'Fiche introuvable', 'Elle a peut-être été supprimée.')}<a class="bouton" href="#/securite">Retour aux prospects</a></div>`;
-    onglet = ['infos', 'qualification', 'suivi', 'scripts'].includes(onglet) ? onglet : 'suivi';
+    onglet = ['infos', 'qualification', 'suivi', 'devis', 'scripts'].includes(onglet) ? onglet : 'suivi';
     const sc = C.score(p);
     const v = C.monthlyValue(p, S.params);
-    const onglets = [['suivi', 'Suivi et appels'], ['infos', 'Informations'], ['qualification', 'Qualification et score'], ['scripts', 'Scripts']];
+    const onglets = [['suivi', 'Suivi et appels'], ['infos', 'Informations'], ['qualification', 'Qualification et score'], ['devis', 'Devis' + (devisDe(id).length ? ` (${devisDe(id).length})` : '')], ['scripts', 'Scripts']];
     const enSession = sessionSur(id);
-    const corps = { infos: fInfos, qualification: fQualif, suivi: fSuivi, scripts: fScripts }[onglet](p, enSession);
+    const corps = { infos: fInfos, qualification: fQualif, suivi: fSuivi, devis: fDevis, scripts: fScripts }[onglet](p, enSession);
     return `<div class="fiche-avec-notes"><div class="pile fiche-principale">${enSession ? bandeauSession(p) : ''}
       <div class="entete"><div><p class="surtitre ${p.secu ? '' : 'menthe'}"><a class="bouton-lien" href="#/${p.secu ? 'securite' : 'nettoyage'}">${p.secu ? 'Prospects sécurité' : 'Prospects nettoyage'}</a></p><h1>${esc(p.name)}</h1>
         <p class="chapo">${[p.city, segLabel(p.sector), p.phone ? '☎ ' + esc(p.phone) : ''].filter(Boolean).join(' · ')}</p></div>
@@ -1334,6 +1336,11 @@
         <div class="carte formulaire"><h3>Coûts (pour la marge)</h3><div class="deux-colonnes">${c('costHourSecu', 'Coût horaire chargé, agent de sécurité (€)', 'number', 'À demander à Abdel')}${c('costHourNet', 'Coût horaire chargé, agent de propreté (€)', 'number', 'À demander à Abdel')}
           ${c('nightCostPct', 'Surcoût de nuit (%)', 'number', 'Indicatif, à confirmer')}${c('sundayCostPct', 'Surcoût du dimanche (%)', 'number', 'Indicatif, à confirmer')}</div></div>
         <div class="carte formulaire"><h3>Entreprises</h3><div class="deux-colonnes">${c('companySecu', 'Société de sécurité (nom légal)')}${c('cnaps', 'N° d\'autorisation d\'exercice CNAPS', 'text', 'Exigé dans les devis et appels d\'offres sécurité')}${c('companyNet', 'Société de nettoyage')}${c('userName', 'Ton prénom (scripts et e-mails)')}${c('userPhone', 'Ton téléphone professionnel (signature des e-mails)', 'tel')}</div></div>
+        <div class="carte formulaire"><h3>Devis : identité des sociétés</h3>
+          <div class="trois-colonnes">${c('secuSiret', 'SIRET société de sécurité')}${c('secuTva', 'N° TVA société de sécurité')}${c('secuAdresse', 'Adresse société de sécurité')}</div>
+          <div class="trois-colonnes">${c('netSiret', 'SIRET société de nettoyage')}${c('netTva', 'N° TVA société de nettoyage')}${c('netAdresse', 'Adresse société de nettoyage')}</div>
+          <label>Conditions par défaut des devis<textarea name="devisConditions" rows="3">${esc(s.devisConditions)}</textarea></label>
+          <p class="aide">Les noms légaux et le n° CNAPS se règlent dans « Entreprises » ci-dessus. Ces informations apparaissent en en-tête de chaque devis.</p></div>
         <div class="carte formulaire"><h3>Ma rémunération</h3><div class="trois-colonnes">${c('commHour', 'Commission par heure de contrat et par mois (€)', 'number', 'Offre actuelle d\'Abdel : 1 €')}${c('commMonths', 'Pendant combien de mois', 'number', '0 = tant que le client reste')}${c('commRdv', 'Prime par rendez-vous obtenu (€)', 'number', '0 si non prévue')}</div>
           <p class="aide">Sert à calculer ce que te rapportent les contrats dans « Rendez-vous et contrats ».</p></div>
         <div class="actions"><button class="bouton" type="submit">Enregistrer les paramètres</button></div></form>
@@ -1451,6 +1458,233 @@
 
 
   /* ------------------------------------------------------------------ */
+  /* Devis (onglet de la fiche)                                          */
+  /* ------------------------------------------------------------------ */
+  // Un devis = une société (sécurité OU nettoyage), des lignes en heures par mois × taux HT.
+  // Sous le tarif plancher d'Abdel, le devis doit être validé par Abdel avant l'envoi.
+  const STATUTS_DEVIS = [
+    ['brouillon', 'Brouillon', 'p-neutre'], ['a_valider', 'À valider par Abdel', 'p-orange'], ['pret', 'Prêt à envoyer', 'p-encre'],
+    ['envoye', 'Envoyé', 'p-safran'], ['accepte', 'Accepté', 'p-vert'], ['refuse', 'Refusé', 'p-rouge'],
+  ];
+  const STATUT_DEVIS = Object.fromEntries(STATUTS_DEVIS.map(x => [x[0], x]));
+  const devisDe = pid => Object.values(S.devis || {}).filter(d => d.prospectId === pid).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.numero || '').localeCompare(a.numero || ''));
+  const plancher = (d, s) => d.societe === 'secu' ? C.num(s.rateSecu) : (d.produits ? C.num(s.rateNetProduits) : C.num(s.rateNetClient));
+  const r2 = n => Math.round(n * 100) / 100;
+  function totauxDevis(d) {
+    const lignes = (d.lignes || []).map(l => ({ ...l, montant: r2(C.num(l.heures) * C.num(l.taux)) }));
+    const brut = r2(lignes.reduce((a, l) => a + l.montant, 0));
+    const remise = r2(brut * C.num(d.remisePct) / 100);
+    const ht = r2(brut - remise);
+    const tva = r2(ht * C.num(d.tvaPct) / 100);
+    const heures = lignes.reduce((a, l) => a + C.num(l.heures), 0);
+    const sousPlancher = lignes.some(l => C.num(l.taux) && C.num(l.taux) < plancher(d, S.params)) || (C.num(d.remisePct) > 0 && heures && ht / heures < plancher(d, S.params));
+    return { lignes, brut, remise, ht, tva, ttc: r2(ht + tva), heures, annuelHt: r2(ht * 12), sousPlancher };
+  }
+  function prochainNumero() {
+    const an = today().slice(0, 4);
+    const n = Object.values(S.devis || {}).map(d => (d.numero || '').match(new RegExp(`^D-${an}-(\\d+)$`))).filter(Boolean).map(m => +m[1]);
+    return `D-${an}-${String((n.length ? Math.max(...n) : 0) + 1).padStart(3, '0')}`;
+  }
+  function nouveauDevis(p, societe) {
+    const s = S.params;
+    const secu = societe === 'secu';
+    const contact = interlocuteur(p);
+    const d = {
+      id: 'dev_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), prospectId: p.id,
+      numero: prochainNumero(), date: today(), validiteJours: 30, societe, produits: secu ? false : !!p.netProduits,
+      client: { nom: p.name || '', adresse: [p.address, [p.cp, p.city].filter(Boolean).join(' ')].filter(Boolean).join(', '), contact: contact || '', email: p.email || '' },
+      lignes: [], remisePct: 0, tvaPct: 20, dureeMois: 12, debut: '', conditions: s.devisConditions || C.DEFAULT_SETTINGS.devisConditions,
+      noteInterne: '', statut: 'brouillon', historique: [{ ts: new Date().toISOString(), texte: 'Devis créé' }],
+    };
+    const h = secu ? C.num(p.hoursSecu) : C.num(p.hoursNet);
+    d.lignes.push(secu
+      ? { libelle: 'Surveillance et gardiennage par agent de sécurité titulaire de la carte professionnelle', heures: h || '', taux: C.num(s.rateSecu) }
+      : { libelle: 'Entretien des locaux' + (d.produits ? ', produits et consommables fournis' : ', produits fournis par le client'), heures: h || '', taux: plancher(d, s) });
+    return d;
+  }
+  async function ecrireDevis(d) {
+    const doc = clone(d); delete doc.id;
+    const { error } = await sb.from('abdel_devis').upsert({ id: d.id, prospect_id: d.prospectId, data: doc });
+    if (error) { notif(messageErreur(error), true); return false; }
+    S.devis[d.id] = d; return true;
+  }
+  const pastilleDevis = d => { const x = STATUT_DEVIS[d.statut] || STATUT_DEVIS.brouillon; return `<span class="pastille ${x[2]}">${x[1]}</span>`; };
+  const nomSociete = (societe, s) => societe === 'secu' ? ((s.companySecu || '').trim() || 'Société de sécurité (nom à renseigner)') : ((s.companyNet || '').trim() || 'Société de nettoyage (nom à renseigner)');
+
+  function fDevis(p) {
+    const ed = S.devisEdit && S.devisEdit.prospectId === p.id ? S.devisEdit : null;
+    if (ed) return editeurDevis(p, ed);
+    const liste = devisDe(p.id);
+    const boutons = `${p.secu || !p.net ? '<button class="bouton" type="button" data-action="devis-nouveau" data-valeur="secu">+ Devis sécurité</button>' : ''}${p.net ? '<button class="bouton" type="button" data-action="devis-nouveau" data-valeur="net">+ Devis nettoyage</button>' : ''}${p.secu && !p.net ? '<button class="bouton bouton-secondaire" type="button" data-action="devis-nouveau" data-valeur="net">+ Devis nettoyage</button>' : ''}`;
+    return `<div class="pile-serree">
+      <div class="actions">${boutons}</div>
+      ${liste.length ? `<ul class="liste">${liste.map(d => { const t = totauxDevis(d); return `<li class="ligne"><button type="button" class="ligne-titre bouton-lien" data-action="devis-ouvrir" data-valeur="${esc(d.id)}">${esc(d.numero)} · ${d.societe === 'secu' ? '🛡 Sécurité' : '✦ Nettoyage'}</button>
+        <span class="pastilles">${pastilleDevis(d)}${t.sousPlancher ? '<span class="pastille p-orange">Sous le tarif plancher</span>' : ''}</span>
+        <span class="ligne-detail">${fd(d.date)} · ${nf(t.heures)} h / mois · <b>${eur2(t.ht)} HT / mois</b> · ${eur(t.annuelHt)} HT / an</span></li>`; }).join('')}</ul>`
+        : '<p class="aide">Aucun devis pour ce client. Crée-le après le rendez-vous : les heures estimées de la fiche et les tarifs d\'Abdel sont repris automatiquement, tu ajustes ensuite.</p>'}
+    </div>`;
+  }
+
+  function editeurDevis(p, d) {
+    const s = S.params, t = totauxDevis(d), pl = plancher(d, s);
+    const verrou = ['envoye', 'accepte', 'refuse'].includes(d.statut);
+    const ro = verrou ? ' disabled' : '';
+    const manque = d.societe === 'secu'
+      ? [!s.companySecu && 'nom légal', !s.secuSiret && 'SIRET', !s.secuAdresse && 'adresse', !s.cnaps && 'n° CNAPS'].filter(Boolean)
+      : [!s.companyNet && 'nom légal', !s.netSiret && 'SIRET', !s.netAdresse && 'adresse'].filter(Boolean);
+    return `<form class="pile-serree" id="f-devis" data-id="${esc(d.id)}" novalidate>
+      <div class="entete-session"><p class="surtitre">${d.societe === 'secu' ? '🛡 Devis sécurité' : '✦ Devis nettoyage'} · ${esc(d.numero)}</p>
+        <div class="actions">${pastilleDevis(d)}<button class="bouton-lien" type="button" data-action="devis-fermer">← Tous les devis</button></div></div>
+      ${manque.length ? `<p class="message message-info">À compléter dans <a href="#/parametres">Paramètres › Devis</a> pour un devis conforme : ${manque.join(', ')}.</p>` : ''}
+      ${verrou ? '<p class="message message-info">Ce devis a été envoyé : il n\'est plus modifiable. Duplique-le pour faire une nouvelle version.</p>' : ''}
+      <div class="carte formulaire"><h3>Client</h3>
+        <div class="deux-colonnes"><label>Entreprise<input name="client.nom" value="${esc(d.client.nom)}"${ro}></label><label>À l'attention de<input name="client.contact" value="${esc(d.client.contact)}"${ro}></label></div>
+        <div class="deux-colonnes"><label>Adresse<input name="client.adresse" value="${esc(d.client.adresse)}"${ro}></label><label>E-mail<input type="email" name="client.email" value="${esc(d.client.email)}"${ro}></label></div></div>
+      <div class="carte formulaire"><h3>Prestations (par mois)</h3>
+        ${d.societe === 'net' ? `<label class="case"><input type="checkbox" name="produits"${d.produits ? ' checked' : ''}${ro}> <span>Produits et consommables fournis par Abdel (plancher ${eur2(s.rateNetProduits)} / h, sinon ${eur2(s.rateNetClient)} / h)</span></label>` : ''}
+        <div class="lignes-devis">${d.lignes.map((l, i) => `<div class="ligne-devis${C.num(l.taux) && C.num(l.taux) < pl ? ' sous-plancher' : ''}">
+          <label class="ld-libelle">Désignation<input name="l${i}.libelle" value="${esc(l.libelle)}"${ro}></label>
+          <label class="ld-n">Heures / mois<input type="number" min="0" step="any" name="l${i}.heures" value="${esc(l.heures)}"${ro}></label>
+          <label class="ld-n">Taux HT / h<input type="number" min="0" step="0.01" name="l${i}.taux" value="${esc(l.taux)}"${ro}></label>
+          <span class="ld-montant">${eur2(C.num(l.heures) * C.num(l.taux))}</span>
+          ${verrou || d.lignes.length < 2 ? '' : `<button type="button" class="bouton-lien" data-action="devis-ligne-moins" data-valeur="${i}" aria-label="Supprimer la ligne">✕</button>`}</div>`).join('')}</div>
+        ${verrou ? '' : '<div class="actions"><button type="button" class="bouton bouton-secondaire bouton-petit" data-action="devis-ligne-plus">+ Ajouter une ligne</button><button type="button" class="bouton bouton-secondaire bouton-petit" data-action="devis-ligne-plus" data-valeur="nuit">+ Majoration nuit</button><button type="button" class="bouton bouton-secondaire bouton-petit" data-action="devis-ligne-plus" data-valeur="dimanche">+ Majoration dimanche / férié</button></div>'}
+        <p class="aide">Tarif plancher d'Abdel : ${eur2(pl)} HT / h. En dessous, le devis doit être validé par Abdel avant l'envoi.</p></div>
+      <div class="carte formulaire"><h3>Conditions</h3>
+        <div class="trois-colonnes"><label>Remise (%)<input type="number" min="0" max="100" step="any" name="remisePct" value="${esc(d.remisePct)}"${ro}></label><label>TVA (%)<input type="number" min="0" step="any" name="tvaPct" value="${esc(d.tvaPct)}"${ro}></label><label>Validité (jours)<input type="number" min="1" name="validiteJours" value="${esc(d.validiteJours)}"${ro}></label></div>
+        <div class="trois-colonnes"><label>Date du devis<input type="date" name="date" value="${esc(d.date)}"${ro}></label><label>Début souhaité<input type="date" name="debut" value="${esc(d.debut)}"${ro}></label><label>Durée du contrat (mois)<input type="number" min="1" name="dureeMois" value="${esc(d.dureeMois)}"${ro}></label></div>
+        <label>Conditions et mentions<textarea name="conditions" rows="4"${ro}>${esc(d.conditions)}</textarea></label>
+        <label>Note interne (jamais sur le devis)<textarea name="noteInterne" rows="2">${esc(d.noteInterne)}</textarea></label></div>
+      <div class="carte totaux-devis" id="totaux-devis">${blocTotaux(d, t)}</div>
+      <div class="actions actions-bas">
+        ${verrou ? '' : '<button class="bouton" type="submit">Enregistrer</button>'}
+        <button class="bouton bouton-secondaire" type="button" data-action="devis-apercu">👁 Aperçu et PDF</button>
+        <button class="bouton bouton-secondaire" type="button" data-action="devis-dupliquer">Dupliquer</button>
+        ${d.statut === 'brouillon' ? '<button class="bouton-lien" type="button" data-action="devis-supprimer">Supprimer</button>' : ''}</div>
+      <div class="carte formulaire"><h3>Étape du devis</h3>
+        <div class="filtres">${STATUTS_DEVIS.map(([k, l]) => `<button type="button" class="filtre" data-action="devis-statut" data-valeur="${k}" aria-pressed="${d.statut === k}">${l}</button>`).join('')}</div>
+        <p class="aide">« Accepté » passe le client en « Contrat gagné » avec les heures du devis. L'envoi par e-mail avec lien d'acceptation arrive à l'étape 3.</p>
+        <div class="historique">${(d.historique || []).slice().reverse().map(h => `<div><div class="evenement-date">${fdt(h.ts)}</div>${esc(h.texte)}</div>`).join('')}</div></div>
+    </form>`;
+  }
+  function blocTotaux(d, t) {
+    return `${t.sousPlancher ? `<p class="message message-feu">⚠ Taux sous le tarif plancher d'Abdel (${eur2(plancher(d, S.params))} / h) : à faire valider par Abdel avant l'envoi.</p>` : ''}
+      <div class="compteurs">${compteur(nf(t.heures, 2) + ' h', 'heures / mois')}${compteur(eur2(t.ht), 'total HT / mois', 'compteur-argent')}${compteur(eur2(t.ttc), 'total TTC / mois')}${compteur(eur(t.annuelHt), 'HT sur 12 mois', 'compteur-vert')}</div>
+      ${t.remise ? `<p class="aide">Avant remise : ${eur2(t.brut)} HT · remise ${eur2(t.remise)}</p>` : ''}`;
+  }
+  function lireFormDevis(f) {
+    const d = clone(S.devisEdit);
+    const fd2 = new FormData(f);
+    d.produits = !!f.querySelector('[name=produits]') && f.querySelector('[name=produits]').checked;
+    for (const [k, v] of fd2.entries()) {
+      if (k === 'produits') continue;
+      const m = k.match(/^l(\d+)\.(\w+)$/);
+      if (m) { d.lignes[+m[1]][m[2]] = m[2] === 'libelle' ? v : (v === '' ? '' : C.num(v)); continue; }
+      if (k.startsWith('client.')) { d.client[k.slice(7)] = v; continue; }
+      d[k] = ['remisePct', 'tvaPct', 'validiteJours', 'dureeMois'].includes(k) ? C.num(v) : v;
+    }
+    return d;
+  }
+  function documentDevis(d) {
+    const s = S.params, t = totauxDevis(d), secu = d.societe === 'secu';
+    const ident = secu ? { nom: nomSociete('secu', s), adresse: s.secuAdresse, siret: s.secuSiret, tva: s.secuTva } : { nom: nomSociete('net', s), adresse: s.netAdresse, siret: s.netSiret, tva: s.netTva };
+    const fin = (() => { const x = new Date(d.date || today()); x.setDate(x.getDate() + C.num(d.validiteJours || 30)); return x.toISOString().slice(0, 10); })();
+    return `<article class="document-devis" id="document-devis">
+      <header class="dd-tete"><div><p class="dd-societe">${esc(ident.nom)}</p><p>${esc(ident.adresse || '')}</p><p>${ident.siret ? 'SIRET ' + esc(ident.siret) : ''}${ident.tva ? ' · TVA ' + esc(ident.tva) : ''}</p>
+        ${secu && s.cnaps ? `<p>Autorisation d'exercice CNAPS n° ${esc(s.cnaps)}</p>` : ''}${s.userPhone ? `<p>Tél. ${esc(s.userPhone)}</p>` : ''}</div>
+        <div class="dd-ref"><p class="dd-titre">DEVIS</p><p>N° ${esc(d.numero)}</p><p>Date : ${fd(d.date)}</p><p>Valable jusqu'au ${fd(fin)}</p></div></header>
+      <section class="dd-client"><p class="dd-petit">Destinataire</p><p><b>${esc(d.client.nom)}</b></p>${d.client.contact ? `<p>À l'attention de ${esc(d.client.contact)}</p>` : ''}<p>${esc(d.client.adresse)}</p></section>
+      <table class="dd-table"><thead><tr><th>Désignation</th><th class="n">Heures / mois</th><th class="n">Prix unitaire HT</th><th class="n">Total HT / mois</th></tr></thead>
+        <tbody>${t.lignes.map(l => `<tr><td>${esc(l.libelle)}</td><td class="n">${nf(C.num(l.heures), 2)}</td><td class="n">${eur2(l.taux)}</td><td class="n">${eur2(l.montant)}</td></tr>`).join('')}</tbody></table>
+      <table class="dd-totaux">${t.remise ? `<tr><td>Total avant remise</td><td class="n">${eur2(t.brut)}</td></tr><tr><td>Remise ${nf(d.remisePct, 2)} %</td><td class="n">− ${eur2(t.remise)}</td></tr>` : ''}
+        <tr><td>Total HT mensuel</td><td class="n"><b>${eur2(t.ht)}</b></td></tr><tr><td>TVA ${nf(d.tvaPct, 2)} %</td><td class="n">${eur2(t.tva)}</td></tr><tr class="dd-ttc"><td>Total TTC mensuel</td><td class="n">${eur2(t.ttc)}</td></tr></table>
+      <section class="dd-conditions"><p>${d.debut ? `Début de la prestation souhaité le ${fd(d.debut)}. ` : ''}Durée : ${nf(d.dureeMois)} mois. Facturation mensuelle selon les heures réalisées.</p>
+        <p>${esc(d.conditions || '')}</p>
+        ${secu ? '<p class="dd-petit">L\'autorisation d\'exercice délivrée par le CNAPS ne confère aucune prérogative de puissance publique à l\'entreprise ou aux personnes qui en bénéficient (art. L612-14 du code de la sécurité intérieure).</p>' : ''}</section>
+      <section class="dd-signature"><div><p class="dd-petit">Bon pour accord — date, nom, signature et cachet du client</p></div></section>
+    </article>`;
+  }
+  async function actionDevis(act, valeur) {
+    const f = document.getElementById('f-devis');
+    if (act === 'devis-nouveau') {
+      const p = S.prospects[document.getElementById('corps-fiche').dataset.id];
+      S.devisEdit = nouveauDevis(p, valeur); return rafraichir();
+    }
+    if (act === 'devis-ouvrir') { S.devisEdit = clone(S.devis[valeur]); return rafraichir(); }
+    if (act === 'devis-fermer') { S.devisEdit = null; return rafraichir(); }
+    if (!S.devisEdit) return;
+    if (f && !['envoye', 'accepte', 'refuse'].includes(S.devisEdit.statut)) S.devisEdit = lireFormDevis(f);
+    const d = S.devisEdit;
+    if (act === 'devis-ligne-plus') {
+      const base = d.lignes[0] || { taux: plancher(d, S.params) };
+      const pct = valeur === 'nuit' ? C.num(S.params.nightCostPct) || 10 : valeur === 'dimanche' ? C.num(S.params.sundayCostPct) || 10 : 0;
+      d.lignes.push(valeur ? { libelle: valeur === 'nuit' ? `Heures de nuit (21 h – 6 h), majoration ${pct} %` : `Heures de dimanche et jours fériés, majoration ${pct} %`, heures: '', taux: r2(C.num(base.taux) * (1 + pct / 100)) } : { libelle: '', heures: '', taux: plancher(d, S.params) });
+      return rafraichir();
+    }
+    if (act === 'devis-ligne-moins') { d.lignes.splice(+valeur, 1); return rafraichir(); }
+    if (act === 'devis-apercu') {
+      const r = await dialogue(`<div class="apercu-devis">${documentDevis(d)}</div>`, [{ label: '🖨 Imprimer / enregistrer en PDF', value: 'pdf' }, { label: 'Fermer', value: '', cls: 'bouton-secondaire' }]);
+      if (r === 'pdf') imprimerDevis(d);
+      return;
+    }
+    if (act === 'devis-dupliquer') {
+      const p = S.prospects[d.prospectId];
+      const copie = { ...clone(d), id: nouveauDevis(p, d.societe).id, numero: prochainNumero(), date: today(), statut: 'brouillon', historique: [{ ts: new Date().toISOString(), texte: `Copie du devis ${d.numero}` }] };
+      if (await ecrireDevis(copie)) { S.devisEdit = clone(copie); notif('Devis dupliqué : ' + copie.numero); rafraichir(); }
+      return;
+    }
+    if (act === 'devis-supprimer') {
+      const ok = await dialogue(`<h3>Supprimer le devis ${esc(d.numero)} ?</h3><p class="aide">Seuls les brouillons peuvent être supprimés.</p>`, [{ label: 'Supprimer', value: 'oui', cls: 'bouton-danger' }, { label: 'Annuler', value: '', cls: 'bouton-secondaire' }]);
+      if (ok && (!S.devis[d.id] || await effacer('abdel_devis', d.id))) { delete S.devis[d.id]; S.devisEdit = null; notif('Devis supprimé'); rafraichir(); }
+      return;
+    }
+    if (act === 'devis-statut') return changerStatutDevis(d, valeur);
+  }
+  async function changerStatutDevis(d, vers) {
+    if (d.statut === vers) return;
+    const t = totauxDevis(d);
+    if (['pret', 'envoye', 'accepte'].includes(vers) && t.sousPlancher && !(d.historique || []).some(h => /validé par Abdel/.test(h.texte))) {
+      const r = await dialogue(`<h3>Taux sous le tarif plancher</h3><p class="aide">Abdel doit valider ce devis avant l'envoi. Il t'a donné son accord ?</p>`, [{ label: 'Oui, Abdel a validé', value: 'oui' }, { label: 'Demander sa validation', value: 'demande', cls: 'bouton-secondaire' }]);
+      if (!r) return;
+      if (r === 'demande') vers = 'a_valider';
+      else d.historique.push({ ts: new Date().toISOString(), texte: 'Tarif sous le plancher validé par Abdel (accord indiqué par ' + (S.params.userName || 'Émilie') + ')' });
+    }
+    if (!t.heures && ['pret', 'envoye', 'accepte'].includes(vers)) return notif('Indique les heures par mois avant de continuer.', true);
+    d.statut = vers;
+    d.historique = (d.historique || []).concat([{ ts: new Date().toISOString(), texte: 'Étape : ' + STATUT_DEVIS[vers][1] }]);
+    if (vers === 'envoye') d.envoyeLe = today();
+    if (vers === 'accepte') d.accepteLe = today();
+    if (!(await ecrireDevis(d))) return;
+    S.devisEdit = clone(d);
+    const p = clone(S.prospects[d.prospectId]);
+    if (p) {
+      let change = false;
+      if (vers === 'envoye' && C.STATUS_ORDER[p.status] < C.STATUS_ORDER.devis) { avecStatut(p, 'devis'); change = true; }
+      if (vers === 'accepte') {
+        if (d.societe === 'secu') { p.hoursSecu = t.heures; p.secu = true; } else { p.hoursNet = t.heures; p.net = true; p.netProduits = !!d.produits; }
+        if (d.debut) p.contractStart = d.debut;
+        if (p.status !== 'gagne') avecStatut(p, 'gagne');
+        change = true;
+      }
+      if (change || vers === 'envoye' || vers === 'accepte' || vers === 'refuse') {
+        p.history = (p.history || []).concat([{ type: 'note', ts: new Date().toISOString(), text: `Devis ${d.numero} (${d.societe === 'secu' ? 'sécurité' : 'nettoyage'}) : ${STATUT_DEVIS[vers][1].toLowerCase()} · ${eur2(t.ht)} HT / mois, ${nf(t.heures, 2)} h` }]);
+        await enregistrerProspect(p);
+      }
+    }
+    notif(`Devis ${d.numero} : ${STATUT_DEVIS[vers][1]}`);
+    rafraichir();
+  }
+  function imprimerDevis(d) {
+    let zone = document.getElementById('zone-impression');
+    if (!zone) { zone = document.createElement('div'); zone.id = 'zone-impression'; document.body.appendChild(zone); }
+    zone.innerHTML = documentDevis(d);
+    document.body.classList.add('impression-devis');
+    const titre = document.title; document.title = `Devis ${d.numero} - ${d.client.nom}`;
+    window.print();
+    setTimeout(() => { document.body.classList.remove('impression-devis'); document.title = titre; }, 500);
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Rendez-vous et contrats : ce que ça rapporte à Abdel et à Émilie     */
   /* ------------------------------------------------------------------ */
   const ETAPES_RDV = ['rdv', 'propo', 'devis', 'nego'];
@@ -1535,6 +1769,7 @@
     if (r.nom === 'calculateur') majCalc();
     if (r.nom === 'parametres') chargerSauvegardes();
     if (r.nom !== 'prospect' && S.email) S.email = null;
+    if (S.devisEdit && (r.nom !== 'prospect' || r.id !== S.devisEdit.prospectId)) S.devisEdit = null;
     if (r.nom !== 'session' && S.session && S.session.i >= S.session.file.length) S.session = null;
   }
 
@@ -1555,6 +1790,7 @@
     if (act.startsWith('email-')) actionEmail(act, a);
     if (act === 'session-demarrer' || act === 'session-nouvelle') { S.session = { file: fileSession((S.filtres.sess || {}).act), i: 0, faits: [], passes: 0, resultat: null }; if (!S.session.file.length) { S.session = null; return route(); } allerSession(); }
     if (act === 'notes-basculer') { const o = document.body.classList.toggle('notes-ouvertes'); if (o) { const t = document.getElementById('note-brouillon'); if (t) t.focus(); } }
+    if (act.startsWith('devis-')) return actionDevis(act, a.dataset.valeur);
     if (act === 'aller-a') { const cible = document.getElementById(a.dataset.valeur); if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     if (act === 'date-rapide') { const champ = document.querySelector('#f-appel [name=nextDate]'); if (champ) champ.value = a.dataset.valeur; }
     if (act === 'session-passer') { S.session.i++; S.session.passes++; allerSession(); }
@@ -1639,6 +1875,13 @@
       const doc = { ...(S.ao[id] || { createdAt: nowISO() }), ...d, id, updatedAt: nowISO() };
       if (await ecrire('abdel_appels_offres', id, doc)) { S.ao[id] = doc; notif('Appel d\'offres enregistré'); location.hash = '#/ao'; }
     }
+    if (f.id === 'f-devis') {
+      e.preventDefault();
+      const d = lireFormDevis(f);
+      if (d.statut === 'brouillon' && totauxDevis(d).sousPlancher) d.statut = 'brouillon';
+      d.historique = (d.historique || []).concat(S.devis[d.id] ? [] : [{ ts: new Date().toISOString(), texte: 'Premier enregistrement' }]);
+      if (await ecrireDevis(d)) { S.devisEdit = clone(d); notif('Devis ' + d.numero + ' enregistré'); rafraichir(); }
+    }
     if (f.id === 'f-parametres') {
       e.preventDefault();
       const d = { ...S.params };
@@ -1652,6 +1895,7 @@
   document.addEventListener('input', e => {
     const t = e.target;
     if (t.id === 'note-brouillon') { ecrireBrouillon(t.dataset.id, t.value); return; }
+    if (t.form && t.form.id === 'f-devis' && S.devisEdit) { S.devisEdit = lireFormDevis(t.form); const z = document.getElementById('totaux-devis'); if (z) z.innerHTML = blocTotaux(S.devisEdit, totauxDevis(S.devisEdit)); const lg = t.closest('.ligne-devis'); if (lg) { const i = +(t.name.match(/^l(\d+)/) || [0, -1])[1]; const l = S.devisEdit.lignes[i]; if (l) { lg.querySelector('.ld-montant').textContent = eur2(C.num(l.heures) * C.num(l.taux)); lg.classList.toggle('sous-plancher', !!(C.num(l.taux) && C.num(l.taux) < plancher(S.devisEdit, S.params))); } } return; }
     if (t.dataset.calc && S.calc) { S.calc[t.dataset.calc] = t.value; if (t.dataset.calc !== 'pid') majCalc(); return; }
     if (t.dataset.filtre && t.dataset.direct) {
       const [k, f] = t.dataset.filtre.split('.'); S.filtres[k][f] = t.value;
@@ -1665,6 +1909,7 @@
   });
   document.addEventListener('change', e => {
     const t = e.target;
+    if (t.form && t.form.id === 'f-devis') { if (t.name === 'produits' && S.devisEdit) { S.devisEdit = lireFormDevis(t.form); rafraichir(); } return; }
     if (t.dataset.champ && t.closest('#corps-fiche')) return champModifie(t);
     if (t.dataset.filtre && !t.dataset.direct) { const [k, f] = t.dataset.filtre.split('.'); S.filtres[k] = S.filtres[k] || {}; S.filtres[k][f] = t.value; return rafraichir(); }
     if (t.dataset.calc === 'pid' && S.calc) { const p = S.prospects[t.value]; if (p && p.calc) { S.calc = { ...p.calc.inputs, pid: p.id }; rafraichir(); } return; }
