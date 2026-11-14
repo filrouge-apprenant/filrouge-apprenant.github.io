@@ -58,6 +58,23 @@ async def main():
             await page.wait_for_timeout(700)
             flag = await page.evaluate("() => window.__db.abdel_prospects.filter(r => r.id === 'p1').pop().data.partageAbdel")
             ok(not flag, "un second clic masque la fiche")
+            # Supprimer le devis accepté annule le contrat (CRM et espace d'Abdel)
+            await page.evaluate("""() => {
+              window.__db.abdel_prospects = [{ id: 'p2', data: { name: 'Contrat Fictif', city: 'Cenon', secu: true, status: 'gagne', reached: ['identifie','devis','gagne'], wonAt: '2026-11-14T10:00:00Z',
+                contractStart: '2026-12-01', partageAbdel: '2026-11-14T10:00:00Z', contratDevisId: 'dev_c', statutAvantContrat: 'devis',
+                history: [{ type: 'status', from: 'devis', to: 'gagne', ts: '2026-11-14T10:00:00Z' }] } }];
+              window.__db.abdel_devis = [{ id: 'dev_c', prospect_id: 'p2', data: { prospectId: 'p2', numero: 'D-2026-009', statut: 'accepte', transmisAbdel: '2026-11-14', societe: 'secu', date: '2026-11-14', dureeMois: 12, remisePct: 0, tvaPct: 20, client: { nom: 'Contrat Fictif' }, lignes: [{ libelle: 'Gardiennage', heures: 100, taux: 27 }], historique: [] } }];
+              sessionStorage.setItem('db', JSON.stringify(window.__db));
+            }""")
+            await page.goto("http://127.0.0.1:8772/dp-abdel/index.html#/prospect/p2/devis")
+            await page.reload()
+            await page.wait_for_selector("[data-action=devis-supprimer-liste]", timeout=8000)
+            await page.click("[data-action=devis-supprimer-liste][data-valeur=dev_c]")
+            ok(await page.is_visible("text=Le contrat lié sera annulé"), "la confirmation prévient que le contrat sera annulé")
+            await page.click(".dialogue button:has-text('Supprimer')")
+            await page.wait_for_timeout(900)
+            fiche = await page.evaluate("() => window.__db.abdel_prospects.filter(r => r.id === 'p2').pop().data")
+            ok(fiche["status"] == "devis" and not fiche.get("wonAt") and "gagne" not in fiche["reached"], "devis supprimé : le contrat est annulé, la fiche revient à « Devis envoyé »")
             await nav.close()
         ok(not erreurs, "aucune erreur JavaScript" + (": " + "; ".join(erreurs) if erreurs else ""))
     finally:

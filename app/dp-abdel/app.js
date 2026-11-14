@@ -1718,8 +1718,12 @@
     // Suppression directe depuis la liste des devis, quelle que soit l'étape (brouillon, validé, envoyé…).
     if (act === 'devis-supprimer-liste') {
       const x = S.devis[valeur]; if (!x) return;
-      const ok = await dialogue(`<h3>Supprimer le devis ${esc(x.numero)} ?</h3><p class="aide">Il sera effacé définitivement${x.transmisAbdel ? ' et disparaîtra de l\'espace d\'Abdel' : ''}.${x.statut === 'accepte' ? ' Le client reste en « Contrat gagné » : change son étape dans la fiche si besoin.' : ''}</p>`, [{ label: 'Supprimer', value: 'oui', cls: 'bouton-danger' }, { label: 'Annuler', value: '', cls: 'bouton-secondaire' }]);
-      if (ok && await effacer('abdel_devis', x.id)) { delete S.devis[x.id]; if (S.devisEdit && S.devisEdit.id === x.id) S.devisEdit = null; notif('Devis supprimé'); rafraichir(); }
+      const ok = await dialogue(`<h3>Supprimer le devis ${esc(x.numero)} ?</h3><p class="aide">Il sera effacé définitivement${x.transmisAbdel ? ' et disparaîtra de l\'espace d\'Abdel' : ''}.${x.statut === 'accepte' ? ' Le contrat lié sera annulé : la fiche revient à son étape précédente et disparaît des contrats, chez toi comme chez Abdel.' : ''}</p>`, [{ label: 'Supprimer', value: 'oui', cls: 'bouton-danger' }, { label: 'Annuler', value: '', cls: 'bouton-secondaire' }]);
+      if (ok && await effacer('abdel_devis', x.id)) {
+        delete S.devis[x.id]; if (S.devisEdit && S.devisEdit.id === x.id) S.devisEdit = null;
+        const annule = await annulerContratSiBesoin(x.prospectId, x.id, x.numero, 'supprimé');
+        notif(annule ? 'Devis supprimé et contrat annulé' : 'Devis supprimé'); rafraichir();
+      }
       return;
     }
     if (act === 'devis-fermer') { S.devisEdit = null; return rafraichir(); }
@@ -1745,8 +1749,12 @@
       return;
     }
     if (act === 'devis-supprimer') {
-      const ok = await dialogue(`<h3>Supprimer le devis ${esc(d.numero)} ?</h3><p class="aide">Il sera effacé définitivement${d.transmisAbdel ? ' et disparaîtra de l\'espace d\'Abdel' : ''}.${d.statut === 'accepte' ? ' Le client reste en « Contrat gagné » : change son étape dans la fiche si besoin.' : ''}</p>`, [{ label: 'Supprimer', value: 'oui', cls: 'bouton-danger' }, { label: 'Annuler', value: '', cls: 'bouton-secondaire' }]);
-      if (ok && (!S.devis[d.id] || await effacer('abdel_devis', d.id))) { delete S.devis[d.id]; S.devisEdit = null; notif('Devis supprimé'); rafraichir(); }
+      const ok = await dialogue(`<h3>Supprimer le devis ${esc(d.numero)} ?</h3><p class="aide">Il sera effacé définitivement${d.transmisAbdel ? ' et disparaîtra de l\'espace d\'Abdel' : ''}.${d.statut === 'accepte' ? ' Le contrat lié sera annulé : la fiche revient à son étape précédente et disparaît des contrats, chez toi comme chez Abdel.' : ''}</p>`, [{ label: 'Supprimer', value: 'oui', cls: 'bouton-danger' }, { label: 'Annuler', value: '', cls: 'bouton-secondaire' }]);
+      if (ok && (!S.devis[d.id] || await effacer('abdel_devis', d.id))) {
+        delete S.devis[d.id]; S.devisEdit = null;
+        const annule = await annulerContratSiBesoin(d.prospectId, d.id, d.numero, 'supprimé');
+        notif(annule ? 'Devis supprimé et contrat annulé' : 'Devis supprimé'); rafraichir();
+      }
       return;
     }
     if (act === 'devis-statut') return changerStatutDevis(d, valeur);
@@ -1765,8 +1773,26 @@
       return;
     }
   }
+  /* Un contrat « gagné » grâce à un devis est annulé si ce devis est supprimé ou n'est plus accepté :
+     la fiche revient à son étape d'avant et disparaît des contrats (CRM et espace d'Abdel). */
+  function devisAcceptesRestants(pid, saufId) { return Object.values(S.devis || {}).filter(x => x.prospectId === pid && x.id !== saufId && x.statut === 'accepte'); }
+  async function annulerContratSiBesoin(pid, devisId, numero, raison) {
+    const p0 = S.prospects[pid]; if (!p0 || p0.status !== 'gagne') return false;
+    const vientDuDevis = p0.contratDevisId ? p0.contratDevisId === devisId : (p0.history || []).some(h => /Devis .* : accepté/i.test(h.text || ''));
+    if (!vientDuDevis || devisAcceptesRestants(pid, devisId).length) return false;
+    const p = clone(p0);
+    const dernier = [...(p.history || [])].reverse().find(h => h.type === 'status' && h.to === 'gagne');
+    let retour = p.statutAvantContrat || (dernier && dernier.from) || 'devis';
+    if (retour === 'gagne') retour = 'devis';
+    avecStatut(p, retour);
+    p.reached = (p.reached || []).filter(r => r !== 'gagne');
+    p.wonAt = ''; p.contractStart = ''; delete p.contratDevisId; delete p.statutAvantContrat;
+    p.history = [...(p.history || []), { type: 'note', ts: nowISO(), text: `Contrat annulé : devis ${numero} ${raison}. La fiche revient à « ${C.STATUS_LABEL[retour] || retour} ».` }];
+    return !!(await enregistrerProspect(p));
+  }
   async function changerStatutDevis(d, vers) {
     if (d.statut === vers) return;
+    const ancien = d.statut;
     const t = totauxDevis(d);
     if (['pret', 'envoye', 'accepte'].includes(vers) && t.sousPlancher && !(d.historique || []).some(h => /validé par Abdel/.test(h.texte))) {
       const r = await dialogue(`<h3>Taux sous le tarif plancher</h3><p class="aide">Abdel doit valider ce devis avant l'envoi. Il t'a donné son accord ?</p>`, [{ label: 'Oui, Abdel a validé', value: 'oui' }, { label: 'Demander sa validation', value: 'demande', cls: 'bouton-secondaire' }]);
@@ -1793,7 +1819,8 @@
       if (vers === 'accepte') {
         if (d.societe === 'secu') { p.hoursSecu = t.heures; p.secu = true; } else { p.hoursNet = t.heures; p.net = true; p.netProduits = !!d.produits; }
         if (d.debut) p.contractStart = d.debut;
-        if (p.status !== 'gagne') avecStatut(p, 'gagne');
+        if (p.status !== 'gagne') { p.statutAvantContrat = p.status; avecStatut(p, 'gagne'); }
+        p.contratDevisId = d.id;
         change = true;
       }
       if (change || vers === 'envoye' || vers === 'accepte' || vers === 'refuse') {
@@ -1801,6 +1828,7 @@
         await enregistrerProspect(p);
       }
     }
+    if (ancien === 'accepte' && vers !== 'accepte' && await annulerContratSiBesoin(d.prospectId, d.id, d.numero, 'n\'est plus accepté')) notif('Contrat annulé : la fiche revient à son étape précédente');
     notif(`Devis ${d.numero} : ${STATUT_DEVIS[vers][1]}`);
     rafraichir();
   }
