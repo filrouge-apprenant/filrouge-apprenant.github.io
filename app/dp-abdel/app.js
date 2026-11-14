@@ -1519,7 +1519,7 @@
     return `<div class="pile-serree">
       <div class="actions">${boutons}</div>
       ${liste.length ? `<ul class="liste">${liste.map(d => { const t = totauxDevis(d); return `<li class="ligne"><button type="button" class="ligne-titre bouton-lien" data-action="devis-ouvrir" data-valeur="${esc(d.id)}">${esc(d.numero)} · ${d.societe === 'secu' ? '🛡 Sécurité' : '✦ Nettoyage'}</button>
-        <span class="pastilles">${pastilleDevis(d)}${t.sousPlancher ? '<span class="pastille p-orange">Sous le tarif plancher</span>' : ''}</span>
+        <span class="pastilles">${pastilleDevis(d)}${d.transmisAbdel ? '<span class="pastille p-vert">Transmis à Abdel</span>' : '<span class="pastille p-neutre">Privé</span>'}${t.sousPlancher ? '<span class="pastille p-orange">Sous le tarif plancher</span>' : ''}</span>
         <span class="ligne-detail">${fd(d.date)} · ${nf(t.heures)} h / mois · <b>${eur2(t.ht)} HT / mois</b> · ${eur(t.annuelHt)} HT / an</span></li>`; }).join('')}</ul>`
         : '<p class="aide">Aucun devis pour ce client. Crée-le après le rendez-vous : les heures estimées de la fiche et les tarifs d\'Abdel sont repris automatiquement, tu ajustes ensuite.</p>'}
     </div>`;
@@ -1534,7 +1534,7 @@
       : [!s.companyNet && 'nom légal', !s.netSiret && 'SIRET', !s.netAdresse && 'adresse'].filter(Boolean);
     return `<form class="pile-serree" id="f-devis" data-id="${esc(d.id)}" novalidate>
       <div class="entete-session"><p class="surtitre">${d.societe === 'secu' ? '🛡 Devis sécurité' : '✦ Devis nettoyage'} · ${esc(d.numero)}</p>
-        <div class="actions">${pastilleDevis(d)}<button class="bouton-lien" type="button" data-action="devis-fermer">← Tous les devis</button></div></div>
+        <div class="actions">${pastilleDevis(d)}${d.transmisAbdel ? '<span class="pastille p-vert">Transmis à Abdel</span>' : '<span class="pastille p-neutre">Privé</span>'}<button class="bouton-lien" type="button" data-action="devis-fermer">← Tous les devis</button></div></div>
       ${manque.length ? `<p class="message message-info">À compléter dans <a href="#/parametres">Paramètres › Devis</a> pour un devis conforme : ${manque.join(', ')}.</p>` : ''}
       ${verrou ? '<p class="message message-info">Ce devis a été envoyé : il n\'est plus modifiable. Duplique-le pour faire une nouvelle version.</p>' : ''}
       <div class="carte formulaire"><h3>Client</h3>
@@ -1560,7 +1560,10 @@
         ${verrou ? '' : '<button class="bouton" type="submit">Enregistrer</button>'}
         <button class="bouton bouton-secondaire" type="button" data-action="devis-apercu">👁 Aperçu et PDF</button>
         <button class="bouton bouton-secondaire" type="button" data-action="devis-dupliquer">Dupliquer</button>
-        ${d.statut === 'brouillon' ? '<button class="bouton-lien" type="button" data-action="devis-supprimer">Supprimer</button>' : ''}</div>
+        <button class="bouton bouton-danger" type="button" data-action="devis-supprimer">🗑 Supprimer le devis</button></div>
+      <div class="carte formulaire carte-transmission"><h3>Visible par Abdel ?</h3>
+        ${d.transmisAbdel ? `<p class="message message-info">✅ Transmis à Abdel le ${fdt(d.transmisAbdel)}. Il le verra dans son espace.</p><div class="actions"><button class="bouton bouton-secondaire" type="button" data-action="devis-retirer">Retirer de l'espace d'Abdel</button></div>`
+          : `<p class="aide">Ce devis est privé : Abdel ne le voit pas tant que tu ne l'as pas transmis.</p><div class="actions"><button class="bouton bouton-session" type="button" data-action="devis-transmettre">📤 Transmettre à Abdel</button></div>`}</div>
       <div class="carte formulaire"><h3>Étape du devis</h3>
         <div class="filtres">${STATUTS_DEVIS.map(([k, l]) => `<button type="button" class="filtre" data-action="devis-statut" data-valeur="${k}" aria-pressed="${d.statut === k}">${l}</button>`).join('')}</div>
         <p class="aide">« Accepté » passe le client en « Contrat gagné » avec les heures du devis. L'envoi par e-mail avec lien d'acceptation arrive à l'étape 3.</p>
@@ -1634,11 +1637,25 @@
       return;
     }
     if (act === 'devis-supprimer') {
-      const ok = await dialogue(`<h3>Supprimer le devis ${esc(d.numero)} ?</h3><p class="aide">Seuls les brouillons peuvent être supprimés.</p>`, [{ label: 'Supprimer', value: 'oui', cls: 'bouton-danger' }, { label: 'Annuler', value: '', cls: 'bouton-secondaire' }]);
+      const ok = await dialogue(`<h3>Supprimer le devis ${esc(d.numero)} ?</h3><p class="aide">Il sera effacé définitivement${d.transmisAbdel ? ' et disparaîtra de l\'espace d\'Abdel' : ''}.${d.statut === 'accepte' ? ' Le client reste en « Contrat gagné » : change son étape dans la fiche si besoin.' : ''}</p>`, [{ label: 'Supprimer', value: 'oui', cls: 'bouton-danger' }, { label: 'Annuler', value: '', cls: 'bouton-secondaire' }]);
       if (ok && (!S.devis[d.id] || await effacer('abdel_devis', d.id))) { delete S.devis[d.id]; S.devisEdit = null; notif('Devis supprimé'); rafraichir(); }
       return;
     }
     if (act === 'devis-statut') return changerStatutDevis(d, valeur);
+    if (act === 'devis-transmettre' || act === 'devis-retirer') {
+      const envoi = act === 'devis-transmettre';
+      if (envoi) {
+        const t = totauxDevis(d);
+        if (!t.heures) return notif('Indique les heures par mois avant de transmettre.', true);
+        const ok = await dialogue(`<h3>Transmettre le devis ${esc(d.numero)} à Abdel ?</h3><p class="aide">${eur2(t.ht)} HT / mois · ${nf(t.heures, 2)} h. Il pourra le consulter${t.sousPlancher ? ' et le valider (taux sous son tarif plancher)' : ''}.</p>`, [{ label: '📤 Transmettre', value: 'oui' }, { label: 'Annuler', value: '', cls: 'bouton-secondaire' }]);
+        if (!ok) return;
+      }
+      d.transmisAbdel = envoi ? new Date().toISOString() : '';
+      if (envoi && d.statut === 'brouillon' && totauxDevis(d).sousPlancher) d.statut = 'a_valider';
+      d.historique = (d.historique || []).concat([{ ts: new Date().toISOString(), texte: envoi ? 'Transmis à Abdel' : 'Retiré de l\'espace d\'Abdel' }]);
+      if (await ecrireDevis(d)) { S.devisEdit = clone(d); notif(envoi ? 'Devis transmis à Abdel' : 'Devis retiré de l\'espace d\'Abdel'); rafraichir(); }
+      return;
+    }
   }
   async function changerStatutDevis(d, vers) {
     if (d.statut === vers) return;
@@ -1646,10 +1663,15 @@
     if (['pret', 'envoye', 'accepte'].includes(vers) && t.sousPlancher && !(d.historique || []).some(h => /validé par Abdel/.test(h.texte))) {
       const r = await dialogue(`<h3>Taux sous le tarif plancher</h3><p class="aide">Abdel doit valider ce devis avant l'envoi. Il t'a donné son accord ?</p>`, [{ label: 'Oui, Abdel a validé', value: 'oui' }, { label: 'Demander sa validation', value: 'demande', cls: 'bouton-secondaire' }]);
       if (!r) return;
-      if (r === 'demande') vers = 'a_valider';
+      if (r === 'demande') { vers = 'a_valider'; if (!d.transmisAbdel) { d.transmisAbdel = new Date().toISOString(); d.historique.push({ ts: d.transmisAbdel, texte: 'Transmis à Abdel pour validation' }); } }
       else d.historique.push({ ts: new Date().toISOString(), texte: 'Tarif sous le plancher validé par Abdel (accord indiqué par ' + (S.params.userName || 'Émilie') + ')' });
     }
     if (!t.heures && ['pret', 'envoye', 'accepte'].includes(vers)) return notif('Indique les heures par mois avant de continuer.', true);
+    if (vers === 'a_valider' && !d.transmisAbdel) {
+      const r = await dialogue('<h3>Transmettre à Abdel pour validation ?</h3><p class="aide">Il ne voit pas ce devis tant qu\'il n\'est pas transmis.</p>', [{ label: '📤 Transmettre et demander sa validation', value: 'oui' }, { label: 'Juste changer l\'étape', value: 'non', cls: 'bouton-secondaire' }]);
+      if (!r) return;
+      if (r === 'oui') { d.transmisAbdel = new Date().toISOString(); d.historique = (d.historique || []).concat([{ ts: d.transmisAbdel, texte: 'Transmis à Abdel pour validation' }]); }
+    }
     d.statut = vers;
     d.historique = (d.historique || []).concat([{ ts: new Date().toISOString(), texte: 'Étape : ' + STATUT_DEVIS[vers][1] }]);
     if (vers === 'envoye') d.envoyeLe = today();
