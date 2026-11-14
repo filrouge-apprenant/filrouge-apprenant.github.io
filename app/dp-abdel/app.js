@@ -1426,8 +1426,8 @@
           <ul class="liens-site"><li><a href="../abdel/nettoyage/" target="_blank" rel="noopener">Simulateur nettoyage</a> · filrouge-apprenant.github.io/abdel/nettoyage/</li>
             <li><a href="../abdel/securite/" target="_blank" rel="noopener">Simulateur sécurité</a> · filrouge-apprenant.github.io/abdel/securite/ ${(s.cnaps || '').trim() && (s.companySecu || '').trim() ? '<span class="pastille p-vert">En ligne</span>' : '<span class="pastille p-rouge">Fermé tant que le nom légal et le n° CNAPS ne sont pas renseignés</span>'}</li>
             <li><a href="../abdel/" target="_blank" rel="noopener">Accueil du site</a> · 8 pages locales nettoyage (Bordeaux, Mérignac, Pessac…)</li></ul>
-          <div class="deux-colonnes">${c('sirenNet', 'SIREN de la société de nettoyage')}${c('sirenSecu', 'SIREN de la société de sécurité')}
-          ${c('adresseSiege', 'Adresse du siège (mentions légales)')}${c('responsablePublication', 'Responsable de la publication (nom du gérant)')}
+          <p class="aide">Les mentions légales du site reprennent les noms, SIRET, adresses et n° CNAPS saisis plus haut (« Entreprises » et « Devis : identité des sociétés »).</p>
+          <div class="deux-colonnes">${c('responsablePublication', 'Responsable de la publication (nom du gérant)')}
           ${c('emailPublic', 'E-mail affiché sur le site', 'email')}${c('telPublic', 'Téléphone affiché sur le site (bouton « Appeler »)', 'tel')}</div>
           <label class="case"><input type="checkbox" name="publierTarifNet" value="1"${s.publierTarifNet === false ? '' : ' checked'}> Afficher les tarifs nettoyage dans le simulateur (24 / 27 € HT de l'heure)</label>
           <label class="case"><input type="checkbox" name="publierTarifSecu" value="1"${s.publierTarifSecu ? ' checked' : ''}> Afficher le tarif sécurité dans le simulateur (à cocher seulement quand Abdel l'a validé)</label></div>

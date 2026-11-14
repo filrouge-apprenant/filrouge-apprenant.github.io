@@ -66,24 +66,27 @@ async function parametres(admin: ReturnType<typeof createClient>) {
   return (data?.data || {}) as Record<string, any>;
 }
 
+// SIREN = 9 premiers chiffres du SIRET saisi dans les Paramètres.
+const siren = (v: unknown) => { const c = String(v ?? "").replace(/\D/g, ""); return c.length >= 9 ? c.slice(0, 9).replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3") : ""; };
+
 function infosPubliques(p: Record<string, any>) {
   const cnaps = txt(p.cnaps, 80);
   const societeSecu = txt(p.companySecu, 120);
   return {
     securite: {
       actif: !!(cnaps && societeSecu),
-      societe: societeSecu, cnaps, siren: txt(p.sirenSecu, 20),
+      societe: societeSecu, cnaps, siren: siren(p.sirenSecu || p.secuSiret),
       tarif: p.publierTarifSecu ? nombre(p.rateSecu, 0, 200) || null : null,
     },
     nettoyage: {
       actif: true,
-      societe: txt(p.companyNet, 120) || "Abdel", siren: txt(p.sirenNet, 20),
+      societe: txt(p.companyNet, 120) || "Abdel", siren: siren(p.sirenNet || p.netSiret),
       tarifClient: p.publierTarifNet === false ? null : nombre(p.rateNetClient, 0, 200) || null,
       tarifProduits: p.publierTarifNet === false ? null : nombre(p.rateNetProduits, 0, 200) || null,
     },
     contact: { ville: txt(p.villePublique, 80) || "Bordeaux Métropole", email: txt(p.emailPublic, 120), telephone: txt(p.telPublic, 25) },
     responsable: txt(p.responsablePublication, 120),
-    adresse: txt(p.adresseSiege, 200),
+    adresse: txt(p.adresseSiege || p.netAdresse, 200),
   };
 }
 
