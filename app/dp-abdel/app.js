@@ -737,11 +737,13 @@
     // Le nom légal de la société de sécurité (Paramètres) remplace « (Société) » ; sinon le repère reste visible.
     const societe = (S.params.companySecu || '').trim() || '(Société)';
     // Espaces insécables : « ? », « ! », « : », « » » ne passent jamais seuls à la ligne sur téléphone.
-    const perso = s => s.replace(/Émilie/g, nom).replace(/\(Société\)/g, societe)
+    const entreprise = (S.params.companyNet || '').trim() || 'Abdel';
+    const tel = (S.params.userPhone || '').trim();
+    const perso = s => s.replace(/Émilie/g, nom).replace(/\(Société\)/g, societe).replace(/\(Entreprise\)/g, entreprise).replace(/\(téléphone\)/g, tel || '(ton téléphone)')
       .replace(/ ([?!:;»])/g, ' $1').replace(/« /g, '« ');
     const rappel = (p.secu || !p.net) && !(S.params.companySecu || '').trim()
       ? `<p class="message message-info">Renseigne le nom légal de la société de sécurité et le n° CNAPS dans <a href="#/parametres">Paramètres</a> : ils remplaceront « (Société) » dans le script.</p>` : '';
-    const objections = (p.secu || !p.net ? R.OBJECTIONS_SECU : []).concat(R.OBJECTIONS);
+    const objections = [].concat(p.secu || !p.net ? R.OBJECTIONS_SECU : [], p.net ? R.OBJECTIONS_NET : [], R.OBJECTIONS);
     return `<div class="pile">${rappel}${blocs.map(([t, sc]) => `<section class="pile-serree"><div class="section-titre"><h2>Script ${t}</h2></div>${sc.map(x => `<div class="script"><b>${esc(x.t)}</b>${esc(perso(x.x))}</div>`).join('')}</section>`).join('')}
       <section class="pile-serree"><div class="section-titre"><h2>Réponses aux objections</h2></div>${objections.map(o => `<div class="script"><b>${esc(o.o)}</b>${esc(perso(o.r))}</div>`).join('')}</section></div>`;
   }
