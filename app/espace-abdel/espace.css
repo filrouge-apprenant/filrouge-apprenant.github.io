@@ -1,18 +1,19 @@
 /* =============================================================================
    Espace Abdel — appli téléphone (rendez-vous, devis, contrats)
    Pensée pour être lue d'un coup d'œil : une carte = un client, gros titres,
-   infos clés en lignes courtes, actions en gros boutons. Fond blanc, couleurs vives,
+   infos clés en lignes courtes, actions en gros boutons. Fond blanc, couleurs sobres,
    aucun aplat foncé.
    ============================================================================= */
 :root {
   color-scheme: only light;
-  --fond: #ffffff; --fond-doux: #f7f8fc; --texte: #141a2b; --doux: #5d6478; --filet: #e7e9f2;
-  --bleu: #2050e0; --bleu-clair: #eaf0ff; --violet: #7b5cf0; --violet-clair: #f1ecff;
-  --vert: #0f9a62; --vert-clair: #e2f7ec; --orange: #d96a00; --orange-clair: #fff1e0;
-  --rouge: #e5384d; --rouge-clair: #ffeaed; --soleil: #ffb21e; --soleil-clair: #fff6dc;
-  --menthe: #0fae80; --menthe-clair: #e0f8ef;
+  /* Palette sobre (14/11, soir) : bleu nuit, vert sauge, sable chaud, terre cuite douce. Fond blanc, aucun dégradé. */
+  --fond: #ffffff; --fond-doux: #f8f6f2; --texte: #1d2430; --doux: #646b76; --filet: #e8e3da;
+  --bleu: #24405f; --bleu-clair: #edf1f5; --violet: #5b6b7d; --violet-clair: #eef0f2;
+  --vert: #4f7a5f; --vert-clair: #ebf2ec; --orange: #a8692b; --orange-clair: #f7efe4;
+  --rouge: #a9483f; --rouge-clair: #f6e9e6; --soleil: #c4a06a; --soleil-clair: #f7f1e6;
+  --menthe: #6f957d; --menthe-clair: #edf3ee;
   --titre: "Fraunces", Georgia, serif; --corps: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --rayon: 16px;
+  --rayon: 14px;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -25,16 +26,16 @@ p { margin: 0; }
 
 /* En-tête */
 .haut { position: sticky; top: 0; z-index: 20; background: #fff; padding-top: env(safe-area-inset-top); }
-.haut::after { content: ""; display: block; height: 4px; background: linear-gradient(90deg, var(--bleu), var(--violet), var(--rouge), var(--soleil), var(--menthe)); }
+.haut::after { content: ""; display: block; height: 4px; background: var(--soleil); height: 2px; }
 .haut-interieur { max-width: 46rem; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .7rem 1rem; }
 .logo { display: flex; align-items: center; gap: .6rem; text-decoration: none; color: var(--texte); }
-.logo-a { width: 2.3rem; height: 2.3rem; border-radius: 10px; background: var(--bleu); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 1.25rem; box-shadow: inset 0 -4px 0 var(--soleil); }
+.logo-a { width: 2.3rem; height: 2.3rem; border-radius: 10px; background: #fff; border: 1px solid var(--filet); color: var(--bleu); display: grid; place-items: center; font-weight: 700; font-size: 1.25rem; box-shadow: inset 0 -3px 0 var(--soleil); }
 .logo-nom { display: block; font-family: var(--titre); font-weight: 600; font-size: 1.2rem; line-height: 1; }
 .logo-sous { display: block; font-size: .78rem; color: var(--violet); font-weight: 700; letter-spacing: .04em; }
 .zone-compte { display: flex; align-items: center; gap: .8rem; font-size: .9rem; }
 .retour-crm { font-weight: 700; text-decoration: none; padding: .4rem .7rem; border-radius: 999px; background: var(--violet-clair); color: var(--violet); }
 .lien { background: none; border: 0; padding: 0; color: var(--bleu); text-decoration: underline; cursor: pointer; }
-.bandeau-apercu { background: var(--soleil-clair); color: #6b4a00; border-bottom: 1px solid #ffe3a3; padding: .55rem 1rem; font-size: .9rem; text-align: center; }
+.bandeau-apercu { background: var(--soleil-clair); color: #6e5530; border-bottom: 1px solid #ebdfc8; padding: .55rem 1rem; font-size: .9rem; text-align: center; }
 
 /* Contenu */
 .contenu { max-width: 46rem; margin: 0 auto; padding: 1.1rem 1rem calc(6.5rem + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 1.1rem; }
@@ -57,9 +58,9 @@ p { margin: 0; }
 
 /* Cartes client : lisibles d'un coup d'œil */
 .cartes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .75rem; }
-.carte { display: block; background: #fff; border: 1px solid var(--filet); border-radius: var(--rayon); padding: 1rem 1.05rem; text-decoration: none; color: var(--texte); box-shadow: 0 2px 10px rgba(32, 80, 224, .05); position: relative; overflow: hidden; }
+.carte { display: block; background: #fff; border: 1px solid var(--filet); border-radius: var(--rayon); padding: 1rem 1.05rem; text-decoration: none; color: var(--texte); box-shadow: 0 1px 6px rgba(29, 36, 48, .04); position: relative; overflow: hidden; }
 .carte::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--bleu); }
-.carte.net::before { background: var(--menthe); } .carte.mixte::before { background: linear-gradient(var(--bleu), var(--menthe)); }
+.carte.net::before { background: var(--menthe); } .carte.mixte::before { background: var(--soleil); }
 .carte:active { background: var(--fond-doux); }
 .carte-haut { display: flex; justify-content: space-between; align-items: flex-start; gap: .6rem; }
 .carte-nom { font-family: var(--titre); font-size: 1.2rem; font-weight: 600; line-height: 1.2; }
@@ -78,7 +79,7 @@ p { margin: 0; }
 .pastille { display: inline-flex; align-items: center; gap: .25rem; padding: .2rem .6rem; border-radius: 999px; font-size: .78rem; font-weight: 700; white-space: nowrap; background: var(--fond-doux); color: var(--doux); }
 .pastille.bleu { background: var(--bleu-clair); color: var(--bleu); } .pastille.violet { background: var(--violet-clair); color: var(--violet); }
 .pastille.vert { background: var(--vert-clair); color: var(--vert); } .pastille.orange { background: var(--orange-clair); color: var(--orange); }
-.pastille.rouge { background: var(--rouge-clair); color: var(--rouge); } .pastille.menthe { background: var(--menthe-clair); color: #0a7d5c; }
+.pastille.rouge { background: var(--rouge-clair); color: var(--rouge); } .pastille.menthe { background: var(--menthe-clair); color: #4a6f57; }
 .pastilles { display: flex; flex-wrap: wrap; gap: .35rem; }
 
 /* Fiche client */
@@ -113,17 +114,17 @@ textarea { min-height: 5.5rem; resize: vertical; }
 input.code { font-size: 1.5rem; letter-spacing: .3em; text-align: center; }
 .bouton { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; padding: .85rem 1.2rem; border-radius: 14px; border: 0; background: var(--bleu); color: #fff; font-weight: 800; text-decoration: none; cursor: pointer; font-size: 1rem; }
 .bouton.large { width: 100%; }
-.bouton.vert { background: var(--vert); } .bouton.violet { background: linear-gradient(90deg, var(--bleu), var(--violet)); }
+.bouton.vert { background: var(--vert); } .bouton.violet { background: var(--bleu); }
 .bouton.second { background: #fff; color: var(--bleu); border: 1.5px solid var(--bleu); }
 .bouton.danger { background: #fff; color: var(--rouge); border: 1.5px solid var(--rouge); }
 .bouton:disabled { opacity: .6; }
 .boutons { display: flex; flex-wrap: wrap; gap: .6rem; }
 .boutons .bouton { flex: 1 1 auto; }
 .message { border-radius: 12px; padding: .75rem .9rem; font-size: .95rem; }
-.message.erreur { background: var(--rouge-clair); color: #9c1d2d; }
-.message.info { background: var(--bleu-clair); color: #173a9e; }
-.message.alerte { background: var(--orange-clair); color: #8a4300; }
-.message.ok { background: var(--vert-clair); color: #0b6b44; }
+.message.erreur { background: var(--rouge-clair); color: #8a3a32; }
+.message.info { background: var(--bleu-clair); color: #24405f; }
+.message.alerte { background: var(--orange-clair); color: #85531f; }
+.message.ok { background: var(--vert-clair); color: #3f664d; }
 .aide { font-size: .85rem; color: var(--doux); font-weight: 400; }
 
 /* Filtres en pilules */

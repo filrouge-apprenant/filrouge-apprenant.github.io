@@ -1607,9 +1607,10 @@
     const boutons = `${p.secu || !p.net ? '<button class="bouton" type="button" data-action="devis-nouveau" data-valeur="secu">+ Devis sécurité</button>' : ''}${p.net ? '<button class="bouton" type="button" data-action="devis-nouveau" data-valeur="net">+ Devis nettoyage</button>' : ''}${p.secu && !p.net ? '<button class="bouton bouton-secondaire" type="button" data-action="devis-nouveau" data-valeur="net">+ Devis nettoyage</button>' : ''}`;
     return `<div class="pile-serree">
       <div class="actions">${boutons}</div>
-      ${liste.length ? `<ul class="liste">${liste.map(d => { const t = totauxDevis(d); return `<li class="ligne"><button type="button" class="ligne-titre bouton-lien" data-action="devis-ouvrir" data-valeur="${esc(d.id)}">${esc(d.numero)} · ${d.societe === 'secu' ? '🛡 Sécurité' : '✦ Nettoyage'}</button>
+      ${liste.length ? `<ul class="liste">${liste.map(d => { const t = totauxDevis(d); return `<li class="ligne ligne-devis-liste"><button type="button" class="ligne-titre bouton-lien" data-action="devis-ouvrir" data-valeur="${esc(d.id)}">${esc(d.numero)} · ${d.societe === 'secu' ? '🛡 Sécurité' : '✦ Nettoyage'}</button>
         <span class="pastilles">${pastilleDevis(d)}${d.transmisAbdel ? '<span class="pastille p-vert">Transmis à Abdel</span>' : '<span class="pastille p-neutre">Privé</span>'}${t.sousPlancher ? '<span class="pastille p-orange">Sous le tarif plancher</span>' : ''}</span>
-        <span class="ligne-detail">${fd(d.date)} · ${nf(t.heures)} h / mois · <b>${eur2(t.ht)} HT / mois</b> · ${eur(t.annuelHt)} HT / an</span></li>`; }).join('')}</ul>`
+        <span class="ligne-detail">${fd(d.date)} · ${nf(t.heures)} h / mois · <b>${eur2(t.ht)} HT / mois</b> · ${eur(t.annuelHt)} HT / an</span>
+        <span class="ligne-droite"><button type="button" class="bouton bouton-danger bouton-petit" data-action="devis-supprimer-liste" data-valeur="${esc(d.id)}" aria-label="Supprimer le devis ${esc(d.numero)}">🗑 Supprimer</button></span></li>`; }).join('')}</ul>`
         : '<p class="aide">Aucun devis pour ce client. Crée-le après le rendez-vous : les heures estimées de la fiche et les tarifs d\'Abdel sont repris automatiquement, tu ajustes ensuite.</p>'}
     </div>`;
   }
@@ -1703,6 +1704,13 @@
       S.devisEdit = nouveauDevis(p, valeur); return rafraichir();
     }
     if (act === 'devis-ouvrir') { S.devisEdit = clone(S.devis[valeur]); return rafraichir(); }
+    // Suppression directe depuis la liste des devis, quelle que soit l'étape (brouillon, validé, envoyé…).
+    if (act === 'devis-supprimer-liste') {
+      const x = S.devis[valeur]; if (!x) return;
+      const ok = await dialogue(`<h3>Supprimer le devis ${esc(x.numero)} ?</h3><p class="aide">Il sera effacé définitivement${x.transmisAbdel ? ' et disparaîtra de l\'espace d\'Abdel' : ''}.${x.statut === 'accepte' ? ' Le client reste en « Contrat gagné » : change son étape dans la fiche si besoin.' : ''}</p>`, [{ label: 'Supprimer', value: 'oui', cls: 'bouton-danger' }, { label: 'Annuler', value: '', cls: 'bouton-secondaire' }]);
+      if (ok && await effacer('abdel_devis', x.id)) { delete S.devis[x.id]; if (S.devisEdit && S.devisEdit.id === x.id) S.devisEdit = null; notif('Devis supprimé'); rafraichir(); }
+      return;
+    }
     if (act === 'devis-fermer') { S.devisEdit = null; return rafraichir(); }
     if (!S.devisEdit) return;
     if (f && !['envoye', 'accepte', 'refuse'].includes(S.devisEdit.statut)) S.devisEdit = lireFormDevis(f);
