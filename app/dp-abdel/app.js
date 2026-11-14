@@ -23,7 +23,7 @@
   /* État et utilitaires                                                 */
   /* ------------------------------------------------------------------ */
   const S = {
-    email: '', prospects: {}, ao: {}, params: { ...C.DEFAULT_SETTINGS }, pret: false,
+    email: '', prospects: {}, ao: {}, ev: {}, params: { ...C.DEFAULT_SETTINGS }, pret: false,
     filtres: {}, recherche: null, veille: null, calc: null, assistant: null, ongletFiche: {},
   };
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -182,7 +182,12 @@
     S.devis = {};
     try { (await lireTable('abdel_devis')).forEach(r => { S.devis[r.id] = { ...r.data, id: r.id }; }); } catch (_) { /* table absente : onglet Devis vide */ }
     S.chargeA = Date.now();
+    await chargerEvenements();
     await chargerCorbeille();
+  }
+  /* Événements (table facultative : si elle manque, l'écran reste vide). */
+  async function chargerEvenements() {
+    try { const ev = await lireTable('abdel_evenements'); S.ev = {}; ev.forEach(r => { S.ev[r.id] = { ...r.data, id: r.id }; }); } catch (_) { S.ev = {}; }
   }
   /* Corbeille de l'agent Tri (fiches et appels d'offres périmés, gardés 30 jours). Facultative : si la table manque, on l'ignore. */
   async function chargerCorbeille() {
@@ -307,7 +312,7 @@
   /* ------------------------------------------------------------------ */
   const MENU = [
     { titre: null, liens: [['', 'Tableau de bord', '◎'], ['session', 'Session d\'appels', '▶'], ['relances', 'Appels et relances', '☎'], ['pipeline', 'Pipeline commercial', '⇢']] },
-    { titre: 'Prospects', liens: [['securite', 'Prospects sécurité', '🛡', 'secu'], ['nettoyage', 'Prospects nettoyage', '✦'], ['recherche', 'Recherche de prospects', '⌕'], ['sites', 'Sites de prospection', '↗']] },
+    { titre: 'Prospects', liens: [['securite', 'Prospects sécurité', '🛡', 'secu'], ['nettoyage', 'Prospects nettoyage', '✦'], ['recherche', 'Recherche de prospects', '⌕'], ['evenements', 'Événements', '◷'], ['sites', 'Sites de prospection', '↗']] },
     { titre: 'Contrats', liens: [['contrats', 'Rendez-vous et contrats', '★'], ['ao', 'Appels d\'offres', '§'], ['calculateur', 'Calculateur de contrats', '∑']] },
     { titre: 'Pilotage', liens: [['stats', 'Statistiques', '▤'], ['assistant', 'Assistant', '✧'], ['parametres', 'Paramètres', '⚙']] },
   ];
@@ -329,7 +334,7 @@
     dessinerMenu(r);
     const pages = {
       '': pAccueil, relances: pRelances, pipeline: pPipeline, securite: () => pListe('secu'), nettoyage: () => pListe('net'),
-      recherche: pRecherche, sites: pSites, ao: pAO, calculateur: pCalc, stats: pStats, assistant: pAssistant, parametres: pParametres,
+      recherche: pRecherche, evenements: pEvenements, sites: pSites, ao: pAO, calculateur: pCalc, stats: pStats, assistant: pAssistant, parametres: pParametres,
       contrats: pContrats, prospect: () => pFiche(r.id, r.sous), nouveau: () => pNouveau(r.id), session: pSession,
     };
     contenu.innerHTML = (pages[r.nom] || pAccueil)(r);
@@ -410,7 +415,7 @@
     return `<div class="pile">
       ${tete('Tableau de bord', `Bonjour ${prenom()}`, 'Vue d\'ensemble de ta prospection pour Abdel. La sécurité passe en premier.')}
       ${alertes.join('')}
-      <div class="actions"><a class="bouton bouton-session" href="#/session">▶ Démarrer une session d'appels</a></div>
+      <div class="actions"><a class="bouton bouton-session" href="#/session">▶ Démarrer une session d'appels</a><a class="bouton bouton-secondaire" href="#/evenements">◷ Événements${(() => { const n = evs().filter(ev => fenetreEv(ev).k === 'maintenant' && compatEv(ev).k !== 'renfort' && ['a_etudier', 'a_contacter'].includes(ev.status || 'a_etudier')).length; return n ? ` · ${n} à contacter` : ''; })()}</a><a class="bouton bouton-secondaire" href="../abdel/nettoyage/" target="_blank" rel="noopener">🌐 Mon simulateur public</a></div>
       ${chauds.length ? `<section class="espace espace-feu"><div class="espace-tete"><h2>🔥 Signaux chauds</h2><span class="pastille p-feu">${chauds.length}</span></div>
         <p class="aide">Un besoin vient d'apparaître (offre d'emploi, appel d'offres, ouverture…) et tu n'as pas encore appelé : c'est le meilleur moment.</p>${listeProspects(chauds.slice(0, 8), 'signal')}</section>` : ''}
       ${liste().length ? '' : `<p class="message message-encre"><b>Ta base est vide.</b> Commence par la <a href="#/recherche">recherche de prospects</a> (entreprises réelles de la métropole, données officielles), ou importe un fichier Excel depuis <a href="#/parametres">Paramètres</a>.</p>`}
@@ -1035,7 +1040,7 @@
     const main = lignes('abdel_parametres').find(r => r.id === 'main');
     const s = (S.sauvegardes || []).find(x => String(x.id) === String(id));
     return { app: 'CRM Abdel', version: 1, exportedAt: s ? s.faite_le : nowISO(), settings: main ? main.data : null,
-      prospects: lignes('abdel_prospects').map(r => ({ ...r.data, id: r.id })), tenders: lignes('abdel_appels_offres').map(r => ({ ...r.data, id: r.id })) };
+      prospects: lignes('abdel_prospects').map(r => ({ ...r.data, id: r.id })), tenders: lignes('abdel_appels_offres').map(r => ({ ...r.data, id: r.id })), events: lignes('abdel_evenements').map(r => ({ ...r.data, id: r.id })) };
   }
 
   /* Enregistrement automatique des champs de la fiche */
@@ -1173,6 +1178,79 @@
         <label>Notes<textarea name="notes">${esc(v.notes || '')}</textarea></label>
         <div class="actions"><button class="bouton" type="submit">Enregistrer</button>${t && t.url ? `<a class="bouton bouton-secondaire" href="${esc(t.url)}" target="_blank" rel="noopener">Ouvrir l'annonce ↗</a>` : ''}<a class="bouton-lien" href="#/ao">Retour</a>
           ${t ? '<button class="bouton-lien danger" type="button" data-action="supprimer-ao">Supprimer</button>' : ''}</div></form></div>`;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Événements                                                          */
+  /* ------------------------------------------------------------------ */
+  // Abdel a une petite équipe (6 agents par défaut, modifiable dans Paramètres) :
+  // on ne garde en priorité que les événements qu'elle peut couvrir seule.
+  const EV_TYPES = [['salon', 'Salon, foire'], ['festival', 'Festival, concert'], ['sport', 'Événement sportif'], ['corporate', 'Séminaire, soirée d\'entreprise'], ['marche', 'Marché, braderie, fête locale'],
+    ['culture', 'Spectacle, exposition'], ['inauguration', 'Inauguration, ouverture'], ['asso', 'Gala, événement associatif'], ['autre', 'Autre']];
+  const EV_STATUTS = [['a_etudier', 'À étudier'], ['a_contacter', 'À contacter'], ['contacte', 'Organisateur contacté'], ['devis', 'Devis envoyé'], ['gagne', 'Gagné'], ['perdu', 'Perdu'], ['ecarte', 'Écarté']];
+  const EV_LIB = Object.fromEntries(EV_STATUTS);
+  const evs = () => Object.values(S.ev);
+  const capacite = () => C.num(S.params.equipeAgents) || 6;
+  function agentsEv(ev) {
+    if (C.num(ev.agents)) return C.num(ev.agents);
+    if (C.num(ev.jauge)) return Math.max(2, Math.ceil(C.num(ev.jauge) / 150)); // ordre de grandeur indicatif
+    return null;
+  }
+  function compatEv(ev) {
+    const a = agentsEv(ev);
+    if (ev.besoin === 'net') return { k: 'ok', l: 'Nettoyage', cls: 'p-menthe' };
+    if (a == null) return { k: 'inconnu', l: 'Taille à vérifier', cls: 'p-neutre' };
+    return a <= capacite() ? { k: 'ok', l: `≈ ${a} agent${a > 1 ? 's' : ''} : faisable`, cls: 'p-vert' } : { k: 'renfort', l: `≈ ${a} agents : renfort seulement`, cls: 'p-orange' };
+  }
+  function fenetreEv(ev) {
+    if (!ev.date) return { k: 'sans', l: 'Date à trouver', cls: 'p-neutre' };
+    const j = C.daysBetween(today(), ev.date);
+    const fin = ev.dateFin && ev.dateFin > ev.date ? ev.dateFin : ev.date;
+    if (C.daysBetween(today(), fin) < 0) return { k: 'passe', l: 'Passé', cls: 'p-neutre' };
+    if (j < 21) return { k: 'tard', l: `J-${Math.max(0, j)} · sans doute trop tard`, cls: 'p-rouge' };
+    if (j <= 150) return { k: 'maintenant', l: `J-${j} · à contacter maintenant`, cls: 'p-feu' };
+    return { k: 'plus_tard', l: `J-${j} · à contacter vers le ${fd(addDays(ev.date, -150))}`, cls: 'p-neutre' };
+  }
+  function pEvenements(r) {
+    if (r.id) return pEvFiche(r.id === 'nouveau' ? null : S.ev[r.id]);
+    const f = S.filtres.ev || (S.filtres.ev = { vue: 'compatibles' });
+    const tous = evs().filter(ev => fenetreEv(ev).k !== 'passe');
+    const arr = tous.filter(ev => f.vue === 'tous' || (compatEv(ev).k !== 'renfort' && !['perdu', 'ecarte'].includes(ev.status)))
+      .sort((a, b) => (fenetreEv(a).k === 'maintenant' ? 0 : 1) - (fenetreEv(b).k === 'maintenant' ? 0 : 1) || (a.date || '9').localeCompare(b.date || '9'));
+    const nbRenfort = tous.filter(ev => compatEv(ev).k === 'renfort').length;
+    const bouton = (v, l) => `<button type="button" class="bouton bouton-petit ${f.vue === v ? '' : 'bouton-secondaire'}" data-filtre="ev.vue" data-valeur="${v}">${l}</button>`;
+    return `<div class="pile">${tete('Prospects', 'Événements', `Salons, festivals, soirées d'entreprise, fêtes locales de la métropole. Abdel a ${capacite()} agents : on vise les événements qu'il peut couvrir seul, 2 à 5 mois avant la date.`, '<a class="bouton" href="#/evenements/nouveau">+ Ajouter un événement</a>')}
+      <p class="aide">L'agent Leads ajoute les événements qu'il trouve (2 fois par jour ouvré). Les gros événements (plus de ${capacite()} agents) ne sont gardés que pour proposer du <b>renfort</b> au prestataire principal.</p>
+      <div class="actions">${bouton('compatibles', 'Faisables par Abdel')}${bouton('tous', `Tous${nbRenfort ? ` (dont ${nbRenfort} en renfort)` : ''}`)}</div>
+      ${arr.length ? `<ul class="liste">${arr.map(ev => { const c = compatEv(ev), w = fenetreEv(ev); return `<li><a class="ligne sans-score" href="#/evenements/${encodeURIComponent(ev.id)}">
+        <div><div class="ligne-titre">${esc(ev.name)}</div><div class="ligne-detail">${[ev.date ? fd(ev.date) + (ev.dateFin && ev.dateFin !== ev.date ? ' → ' + fd(ev.dateFin) : '') : '', ev.commune, ev.organisateur ? 'org. ' + ev.organisateur : '', EV_LIB[ev.status] || ''].filter(Boolean).map(esc).join(' · ')}</div>
+        <div class="pastilles pastilles-gauche"><span class="pastille ${w.cls}">${esc(w.l)}</span><span class="pastille ${c.cls}">${esc(c.l)}</span>${ev.prospectId ? '<span class="pastille p-encre">Fiche créée</span>' : ''}</div></div></a></li>`; }).join('')}</ul>`
+        : '<p class="message message-info">Aucun événement à venir ici. Ajoute ceux que tu repères (affiches, agenda de ta mairie, réseaux sociaux) ou attends le prochain passage de l\'agent Leads.</p>'}
+      <section class="carte carte-sable pile-serree"><h3>Où trouver les événements</h3><p class="petit">Agendas des mairies de la métropole et de Bordeaux Métropole, office de tourisme de Bordeaux, programmation des salles (Rocher de Palmer, Le Pin Galant, Arkéa Arena pour le renfort), calendrier des salons du Parc des Expositions, clubs sportifs amateurs, associations de commerçants (marchés de Noël, braderies), entreprises qui annoncent une inauguration. Le bon interlocuteur : l'organisateur (association, agence événementielle, service événements de la mairie, entreprise).</p></section></div>`;
+  }
+  function pEvFiche(ev) {
+    const v = ev || { besoin: 'secu', status: 'a_etudier', type: 'autre' };
+    const c = (k, l, type, req, aide) => `<label>${l}${req ? ' *' : ''}<input type="${type || 'text'}" name="${k}" value="${esc(v[k] || '')}"${req ? ' required' : ''}${type === 'number' ? ' min="0" step="1"' : ''}>${aide ? `<span class="aide">${aide}</span>` : ''}</label>`;
+    const comp = ev ? compatEv(ev) : null, w = ev ? fenetreEv(ev) : null;
+    const p = ev && ev.prospectId ? S.prospects[ev.prospectId] : null;
+    return `<div class="pile">${tete('Événements', ev ? ev.name : 'Nouvel événement', ev ? `<span class="pastille ${w.cls}">${esc(w.l)}</span> <span class="pastille ${comp.cls}">${esc(comp.l)}</span>` : 'Un événement réel, avec un lien vers son annonce.')}
+      ${comp && comp.k === 'renfort' ? `<p class="message message-encre">Trop gros pour l'équipe d'Abdel seule (${capacite()} agents). L'angle : proposer du <b>renfort</b> au prestataire de sécurité principal, ou une mission précise (parking, montage / démontage, gardiennage de nuit du site).</p>` : ''}
+      <form class="carte formulaire" id="f-ev" data-id="${esc(v.id || '')}">
+        <div class="deux-colonnes">${c('name', 'Nom de l\'événement', 'text', true)}
+          <label>Type<select name="type">${EV_TYPES.map(t => opt(t[0], t[1], v.type)).join('')}</select></label>
+          ${c('date', 'Date (début)', 'date', true)}${c('dateFin', 'Date de fin', 'date')}
+          <label>Commune<select name="commune">${opt('', '—', v.commune)}${R.COMMUNES.map(x => opt(x[0], x[0], v.commune)).join('')}${opt('Autre', 'Hors métropole', v.commune)}</select></label>${c('lieu', 'Lieu (salle, parc, adresse)')}
+          ${c('jauge', 'Fréquentation attendue (personnes)', 'number', false, 'Sert à estimer le nombre d\'agents si on ne le connaît pas')}${c('agents', 'Agents nécessaires (si connu)', 'number', false, `Abdel peut en fournir ${capacite()}`)}
+          <label>Besoin<select name="besoin">${opt('secu', 'Sécurité', v.besoin)}${opt('net', 'Nettoyage', v.besoin)}${opt('both', 'Les deux', v.besoin)}</select></label>
+          <label>Statut<select name="status">${EV_STATUTS.map(t => opt(t[0], t[1], v.status)).join('')}</select></label>
+          ${c('organisateur', 'Organisateur')}${c('organisateurSite', 'Site ou page de l\'organisateur', 'url')}
+          ${c('contact', 'Contact chez l\'organisateur')}${c('url', 'Lien vers l\'annonce de l\'événement', 'url', true)}</div>
+        <label>Notes<textarea name="notes" placeholder="Édition précédente, prestataire actuel, contraintes (nuit, montage, parking)…">${esc(v.notes || '')}</textarea></label>
+        <div class="actions"><button class="bouton" type="submit">Enregistrer</button>
+          ${ev ? (p ? `<a class="bouton bouton-secondaire" href="#/prospect/${encodeURIComponent(p.id)}">Ouvrir la fiche de l'organisateur</a>` : `<button class="bouton bouton-secondaire" type="button" data-action="ev-prospect">Créer la fiche prospect de l'organisateur</button>`) : ''}
+          ${ev && ev.url ? `<a class="bouton-lien" href="${esc(ev.url)}" target="_blank" rel="noopener">Voir l'annonce ↗</a>` : ''}<a class="bouton-lien" href="#/evenements">Retour</a>
+          ${ev ? '<button class="bouton-lien danger" type="button" data-action="supprimer-ev">Supprimer</button>' : ''}</div></form>
+      <p class="aide">Estimation du nombre d'agents à partir de la fréquentation : environ 1 agent pour 150 personnes, 2 au minimum. C'est un ordre de grandeur : le dispositif réel dépend du lieu, de la préfecture et de l'organisateur.</p></div>`;
   }
 
   /* ------------------------------------------------------------------ */
@@ -1335,7 +1413,7 @@
           <p class="aide">Ne jamais proposer un tarif inférieur sans l'accord d'Abdel.</p></div>
         <div class="carte formulaire"><h3>Coûts (pour la marge)</h3><div class="deux-colonnes">${c('costHourSecu', 'Coût horaire chargé, agent de sécurité (€)', 'number', 'À demander à Abdel')}${c('costHourNet', 'Coût horaire chargé, agent de propreté (€)', 'number', 'À demander à Abdel')}
           ${c('nightCostPct', 'Surcoût de nuit (%)', 'number', 'Indicatif, à confirmer')}${c('sundayCostPct', 'Surcoût du dimanche (%)', 'number', 'Indicatif, à confirmer')}</div></div>
-        <div class="carte formulaire"><h3>Entreprises</h3><div class="deux-colonnes">${c('companySecu', 'Société de sécurité (nom légal)')}${c('cnaps', 'N° d\'autorisation d\'exercice CNAPS', 'text', 'Exigé dans les devis et appels d\'offres sécurité')}${c('companyNet', 'Société de nettoyage')}${c('userName', 'Ton prénom (scripts et e-mails)')}${c('userPhone', 'Ton téléphone professionnel (signature des e-mails)', 'tel')}</div></div>
+        <div class="carte formulaire"><h3>Entreprises</h3><div class="deux-colonnes">${c('companySecu', 'Société de sécurité (nom légal)')}${c('cnaps', 'N° d\'autorisation d\'exercice CNAPS', 'text', 'Exigé dans les devis et appels d\'offres sécurité')}${c('companyNet', 'Société de nettoyage')}${c('userName', 'Ton prénom (scripts et e-mails)')}${c('userPhone', 'Ton téléphone professionnel (signature des e-mails)', 'tel')}${c('equipeAgents', 'Agents disponibles chez Abdel (filtre des événements)', 'number', '6 par défaut')}</div></div>
         <div class="carte formulaire"><h3>Devis : identité des sociétés</h3>
           <div class="trois-colonnes">${c('secuSiret', 'SIRET société de sécurité')}${c('secuTva', 'N° TVA société de sécurité')}${c('secuAdresse', 'Adresse société de sécurité')}</div>
           <div class="trois-colonnes">${c('netSiret', 'SIRET société de nettoyage')}${c('netTva', 'N° TVA société de nettoyage')}${c('netAdresse', 'Adresse société de nettoyage')}</div>
@@ -1343,6 +1421,16 @@
           <p class="aide">Les noms légaux et le n° CNAPS se règlent dans « Entreprises » ci-dessus. Ces informations apparaissent en en-tête de chaque devis.</p></div>
         <div class="carte formulaire"><h3>Ma rémunération</h3><div class="trois-colonnes">${c('commHour', 'Commission par heure de contrat et par mois (€)', 'number', 'Offre actuelle d\'Abdel : 1 €')}${c('commMonths', 'Pendant combien de mois', 'number', '0 = tant que le client reste')}${c('commRdv', 'Prime par rendez-vous obtenu (€)', 'number', '0 si non prévue')}</div>
           <p class="aide">Sert à calculer ce que te rapportent les contrats dans « Rendez-vous et contrats ».</p></div>
+        <div class="carte formulaire"><h3>Site public et simulateurs</h3>
+          <p class="aide">Les prospects font leur estimation sur ces pages ; leur demande arrive ici en fiche « 🔥 Nouveau signal » (source « Simulateur du site ») et tu reçois un e-mail. À partager dans tes e-mails, sur la fiche Google et sur LinkedIn :</p>
+          <ul class="liens-site"><li><a href="../abdel/nettoyage/" target="_blank" rel="noopener">Simulateur nettoyage</a> · filrouge-apprenant.github.io/abdel/nettoyage/</li>
+            <li><a href="../abdel/securite/" target="_blank" rel="noopener">Simulateur sécurité</a> · filrouge-apprenant.github.io/abdel/securite/ ${(s.cnaps || '').trim() && (s.companySecu || '').trim() ? '<span class="pastille p-vert">En ligne</span>' : '<span class="pastille p-rouge">Fermé tant que le nom légal et le n° CNAPS ne sont pas renseignés</span>'}</li>
+            <li><a href="../abdel/" target="_blank" rel="noopener">Accueil du site</a> · 8 pages locales nettoyage (Bordeaux, Mérignac, Pessac…)</li></ul>
+          <div class="deux-colonnes">${c('sirenNet', 'SIREN de la société de nettoyage')}${c('sirenSecu', 'SIREN de la société de sécurité')}
+          ${c('adresseSiege', 'Adresse du siège (mentions légales)')}${c('responsablePublication', 'Responsable de la publication (nom du gérant)')}
+          ${c('emailPublic', 'E-mail affiché sur le site', 'email')}${c('telPublic', 'Téléphone affiché sur le site (bouton « Appeler »)', 'tel')}</div>
+          <label class="case"><input type="checkbox" name="publierTarifNet" value="1"${s.publierTarifNet === false ? '' : ' checked'}> Afficher les tarifs nettoyage dans le simulateur (24 / 27 € HT de l'heure)</label>
+          <label class="case"><input type="checkbox" name="publierTarifSecu" value="1"${s.publierTarifSecu ? ' checked' : ''}> Afficher le tarif sécurité dans le simulateur (à cocher seulement quand Abdel l'a validé)</label></div>
         <div class="actions"><button class="bouton" type="submit">Enregistrer les paramètres</button></div></form>
       <section class="carte pile-serree"><h3>Sauvegardes automatiques</h3>
         <p class="aide">Une copie complète de tes prospects, appels d'offres et paramètres est faite chaque dimanche vers 3 h. Les 8 dernières semaines sont gardées. « Restaurer » remet les fiches telles qu'elles étaient ce jour-là, sans supprimer celles créées depuis.</p>
@@ -1392,7 +1480,7 @@
     telecharger(`Abdel-prospects-${today()}.csv`, '﻿' + [h.join(';'), ...rows.map(r => h.map(k => cel(r[k])).join(';'))].join('\n'), 'text/csv;charset=utf-8');
   }
   async function sauvegarde() {
-    telecharger(`Sauvegarde-CRM-Abdel-${today()}.json`, JSON.stringify({ app: 'CRM Abdel', version: 1, exportedAt: nowISO(), settings: S.params, prospects: liste(), tenders: aos() }, null, 1), 'application/json');
+    telecharger(`Sauvegarde-CRM-Abdel-${today()}.json`, JSON.stringify({ app: 'CRM Abdel', version: 1, exportedAt: nowISO(), settings: S.params, prospects: liste(), tenders: aos(), events: evs() }, null, 1), 'application/json');
     S.params.lastBackup = nowISO(); await ecrire('abdel_parametres', 'main', S.params); notif('Sauvegarde téléchargée'); rafraichir();
   }
   function lireCsv(texte) {
@@ -1453,6 +1541,7 @@
     let n = 0;
     for (const p of d.prospects) if (p && p.id && await ecrire('abdel_prospects', p.id, p)) { S.prospects[p.id] = p; n++; }
     for (const t of d.tenders || []) if (t && t.id && await ecrire('abdel_appels_offres', t.id, t)) S.ao[t.id] = t;
+    for (const t of d.events || []) if (t && t.id && await ecrire('abdel_evenements', t.id, t)) S.ev[t.id] = t;
     notif(`${n} fiche(s) restaurée(s)`); rafraichir();
   }
 
@@ -1839,6 +1928,27 @@
       const doc = { id, idweb: x.idweb, object: x.objet, buyer: x.acheteur, type: x.type, deadline: x.dateLimite || '', url: x.lien, status: 'etude', place: '', createdAt: nowISO(), source: 'Veille BOAMP' };
       if (await ecrire('abdel_appels_offres', id, doc)) { S.ao[id] = doc; notif('Avis ajouté à ta liste'); rafraichir(); }
     }
+    if (act === 'supprimer-ev') {
+      const id = document.getElementById('f-ev').dataset.id;
+      const ok = await dialogue('<h3>Supprimer cet événement ?</h3>', [{ label: 'Supprimer', value: true, cls: 'bouton-danger' }, { label: 'Annuler', value: false, cls: 'bouton-secondaire' }]);
+      if (ok && await effacer('abdel_evenements', id)) { delete S.ev[id]; notif('Supprimé'); location.hash = '#/evenements'; }
+    }
+    if (act === 'ev-prospect') {
+      const ev = S.ev[document.getElementById('f-ev').dataset.id]; if (!ev) return;
+      const nom = (ev.organisateur || '').trim();
+      if (!nom) return notif('Renseigne d\'abord l\'organisateur, puis enregistre.', true);
+      const p = prospectVide(ev.besoin === 'net' ? 'net' : 'secu');
+      Object.assign(p, { name: nom, city: ev.commune && ev.commune !== 'Autre' ? ev.commune : '', website: ev.organisateurSite || '', sector: 'evenementiel', source: 'Événement',
+        secu: ev.besoin !== 'net', net: ev.besoin !== 'secu', need: `${ev.name} le ${fd(ev.date)}${ev.lieu ? ' (' + ev.lieu + ')' : ''} : ${compatEv(ev).l}. Annonce : ${ev.url || '—'}`,
+        notes: `[Événement] ${ev.name}, ${fd(ev.date)}${ev.jauge ? ', ' + ev.jauge + ' personnes attendues' : ''}. ${ev.notes || ''}`.trim(),
+        contacts: { ...p.contacts, site: ev.contact || '' }, criteria: { besoin: { on: true, proof: `Événement du ${fd(ev.date)} : ${ev.url || ''}` } } });
+      p.history = [{ type: 'note', ts: nowISO(), text: `Nouveau signal : événement « ${ev.name} » le ${fd(ev.date)}` }];
+      const dup = C.findDuplicate({ ...p, id: '__n' }, liste());
+      const doc = dup ? null : await enregistrerProspect(p);
+      const pid = dup ? dup.id : doc && doc.id; if (!pid) return;
+      const e2 = { ...ev, prospectId: pid, status: ev.status === 'a_etudier' ? 'a_contacter' : ev.status, updatedAt: nowISO() };
+      if (await ecrire('abdel_evenements', ev.id, e2)) { S.ev[ev.id] = e2; notif(dup ? 'Organisateur déjà dans le CRM : événement relié à sa fiche' : 'Fiche prospect créée'); location.hash = '#/prospect/' + encodeURIComponent(pid); }
+    }
     if (act === 'supprimer-ao') {
       const id = document.getElementById('f-ao').dataset.id;
       const ok = await dialogue('<h3>Supprimer cet appel d\'offres ?</h3>', [{ label: 'Supprimer', value: true, cls: 'bouton-danger' }, { label: 'Annuler', value: false, cls: 'bouton-secondaire' }]);
@@ -1904,10 +2014,20 @@
       d.historique = (d.historique || []).concat(S.devis[d.id] ? [] : [{ ts: new Date().toISOString(), texte: 'Premier enregistrement' }]);
       if (await ecrireDevis(d)) { S.devisEdit = clone(d); notif('Devis ' + d.numero + ' enregistré'); rafraichir(); }
     }
+    if (f.id === 'f-ev') {
+      e.preventDefault();
+      const d = Object.fromEntries(new FormData(f).entries());
+      if (!d.name.trim() || !d.date) return notif('Nom et date sont obligatoires.', true);
+      if (!/^https?:\/\//i.test(d.url || '')) return notif('Le lien vers l\'annonce de l\'événement est obligatoire.', true);
+      const id = f.dataset.id || uid();
+      const doc = { ...(S.ev[id] || { createdAt: nowISO(), source: 'Saisie manuelle' }), ...d, id, updatedAt: nowISO() };
+      if (await ecrire('abdel_evenements', id, doc)) { S.ev[id] = doc; notif('Événement enregistré'); location.hash = '#/evenements/' + encodeURIComponent(id); }
+    }
     if (f.id === 'f-parametres') {
       e.preventDefault();
       const d = { ...S.params };
-      new FormData(f).forEach((v, k) => { d[k] = ['rateSecu', 'rateNetClient', 'rateNetProduits', 'nightCostPct', 'sundayCostPct', 'commHour', 'commMonths', 'commRdv'].includes(k) ? C.num(v) : ['costHourSecu', 'costHourNet'].includes(k) ? (v === '' ? '' : C.num(v)) : v; });
+      d.publierTarifNet = false; d.publierTarifSecu = false;
+      new FormData(f).forEach((v, k) => { if (['publierTarifNet', 'publierTarifSecu'].includes(k)) { d[k] = true; return; } d[k] = ['rateSecu', 'rateNetClient', 'rateNetProduits', 'nightCostPct', 'sundayCostPct', 'commHour', 'commMonths', 'commRdv', 'equipeAgents'].includes(k) ? C.num(v) : ['costHourSecu', 'costHourNet'].includes(k) ? (v === '' ? '' : C.num(v)) : v; });
       if (await ecrire('abdel_parametres', 'main', d)) { S.params = d; S.calc = null; notif('Paramètres enregistrés'); }
     }
     if (f.id === 'f-assistant') { e.preventDefault(); const q = f.q.value.trim(); if (q) { S.assistant = { q, cle: intention(q) }; rafraichir(); } }

@@ -450,3 +450,7 @@ details.carte > summary { cursor: pointer; font-weight: 700; }
   body.impression-devis { background: #fff; }
   @page { margin: 14mm; }
 }
+
+.liens-site { margin: .4rem 0 .8rem; padding-left: 1.1rem; }
+.liens-site li { margin: .25rem 0; }
+.pastilles.pastilles-gauche { justify-content: flex-start; margin-top: .35rem; }

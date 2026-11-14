@@ -126,7 +126,7 @@
   ];
 
   const SOURCES = ['BOAMP / appel d\'offres', 'Annuaire des Entreprises', 'Google Maps', 'PagesJaunes', 'LinkedIn',
-    'Indeed / offre d\'emploi', 'BODACC / nouvelle implantation', 'Recommandation', 'Terrain', 'Import', 'Claude (recherche)', 'Autre'];
+    'Simulateur du site', 'Événement', 'Indeed / offre d\'emploi', 'BODACC / nouvelle implantation', 'Recommandation', 'Terrain', 'Import', 'Claude (recherche)', 'Autre'];
 
   const SIZES = ['TPE (< 10)', 'PME (10-249)', 'ETI (250-4999)', 'Grand groupe'];
   const TRANCHES = { '00': '0 salarié', '01': '1 à 2', '02': '3 à 5', '03': '6 à 9', '11': '10 à 19', '12': '20 à 49', '21': '50 à 99',
