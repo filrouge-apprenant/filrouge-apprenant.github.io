@@ -267,7 +267,57 @@
     return list.find(o => o.id !== p.id && dupKey(o) === k) || null;
   }
 
+  /* ---------- Interlocuteur à demander au téléphone ----------
+   * Les champs « Interlocuteurs » mélangent des personnes (« Prénom Nom — Fonction (source) »)
+   * et des consignes (« Nom non public — demander au standard… », « Achats possiblement centralisés… »).
+   * Seul un vrai nom de personne est renvoyé ; sinon la première consigne utile. */
+  const CONTACT_ORDER = {
+    secu: ['securite', 'site', 'sg', 'dirigeant', 'achats'],
+    net: ['sg', 'site', 'achats', 'dirigeant', 'securite'],
+  };
+  const MOT_NOM = /^(M\.|Mme|Mlle|Pr|Dr|[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*|de|du|des|la|le|van|von|d['’][A-Za-zÀ-ÖØ-öø-ÿ'’-]+)$/;
+  const PAS_UN_NOM = /\b(nom|non|standard|demander|responsable|directeur|directrice|service|achats?|accueil|siège|groupe|cellule|direction|contact|poste|linkedin|chargée?|gestionnaire|inconnu)\b/i;
+  const casse = s => s === s.toUpperCase() && /[A-Z]{2}/.test(s)
+    ? s.toLowerCase().replace(/(^|[\s'’-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()) : s;
+  function personName(texte) {
+    const v = String(texte || '').trim();
+    // Une personne est toujours suivie de sa fonction : « Nom — Fonction » ou « Nom (Fonction) ».
+    const sep = v.search(/\s+[—–]\s+|\s+-\s+|\s*\(/);
+    if (sep <= 0) return '';
+    let nom = v.slice(0, sep).trim().split(/\s+et\s+|\s*[,;/]\s*/)[0].trim();
+    if (!nom || nom.length > 50 || PAS_UN_NOM.test(nom) || /\d|:/.test(nom)) return '';
+    const mots = nom.split(/\s+/);
+    if (mots.length < 2 || mots.length > 5 || !mots.every(m => MOT_NOM.test(m))) return '';
+    if (!mots.some(m => /^[A-ZÀ-ÖØ-Þ]/.test(m) && !/^(M\.|Mme|Mlle|Pr|Dr)$/.test(m))) return '';
+    return mots.map(casse).join(' ');
+  }
+  function contactFunction(texte, nom) {
+    const v = String(texte || '').trim();
+    const apres = v.replace(/^[^—–(]*?(\s+[—–-]\s+|\s*\()/, '');
+    return apres === v ? '' : apres.split(/\s*[(;]|\)/)[0].trim().slice(0, 80);
+  }
+  function contactToCall(contacts, activite) {
+    const c = contacts || {};
+    const ordre = CONTACT_ORDER[activite === 'net' ? 'net' : 'secu'];
+    // Consigne du champ prioritaire (ex. « demander au standard le responsable sécurité ») : affichée en plus du nom.
+    const conseil = k => String(c[k] || '').trim().replace(/^nom non public[^—–-]*[—–-]\s*/i, '').slice(0, 160);
+    let consigne = '';
+    for (const k of ordre) {
+      const v = String(c[k] || '');
+      const nom = /non précisée/i.test(v) ? '' : personName(v);
+      if (nom) return { nom, fonction: contactFunction(v, nom), champ: k, consigne };
+      if (!consigne && v.trim()) consigne = conseil(k);
+    }
+    // Pas de nom : on garde la consigne la plus utile pour le standard (dans le même ordre).
+    for (const k of ordre) {
+      const v = String(c[k] || '').trim();
+      if (v) return { nom: '', fonction: '', champ: k, consigne: conseil(k) };
+    }
+    return { nom: '', fonction: '', champ: '', consigne: '' };
+  }
+
   const api = {
+    personName, contactToCall,
     STATUSES, STATUS_LABEL, STATUS_ORDER, COLUMNS, PROB, CLOSED, OPPORTUNITY, NOT_YET_CONTACTED,
     CRITERIA, DEFAULT_SETTINGS, num, totalHours, hasDecisionMaker, score, band, rateNet,
     monthlyValue, calcContract, today, daysBetween, dashboard, stats, normName, dupKey, findDuplicate,

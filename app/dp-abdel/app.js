@@ -802,7 +802,7 @@
     const entreprise = (S.params.companyNet || '').trim() || 'Abdel';
     const tel = (S.params.userPhone || '').trim();
     // Ce qui vient de la fiche appelée : surligné dans le script (repères \u0001…\u0002 posés avant l'échappement HTML).
-    const contact = interlocuteur(p);
+    const qui = aAppeler(p), contact = qui.nom;
     const m = v => '\u0001' + v + '\u0002';
     const prospect = (p.name || '').trim(), ville = (p.city || '').trim(), adresse = (p.address || '').trim();
     const perso = s => {
@@ -819,7 +819,8 @@
       ? `<p class="message message-info">Renseigne le nom légal de la société de sécurité et le n° CNAPS dans <a href="#/parametres">Paramètres</a> : ils remplaceront « (Société) » dans le script.</p>` : '';
     const fiche = `<div class="carte carte-sable pile-serree script-fiche"><p class="surtitre">📞 Tu appelles</p>
       <p><b>${esc(prospect || 'Entreprise sans nom')}</b>${ville ? ' · ' + esc(ville) : ''}${p.phone ? ' · ' + esc(p.phone) : ''}</p>
-      <p>${contact ? `Demande : <mark>${esc(contact)}</mark>` : 'Pas encore de nom : au standard, demande le responsable du site.'}</p>
+      <p>${contact ? `Demande : <mark>${esc(contact)}</mark>${qui.fonction ? ' — ' + esc(qui.fonction) : ''}` : 'Pas encore de nom de responsable.'}</p>
+      ${qui.consigne || !contact ? `<p class="aide">💡 Au standard, ${contact ? 'demande en priorité' : 'demande'} : ${esc((qui.consigne || 'le responsable du site').replace(/^demander\s+(au standard\s+)?/i, '').replace(/[.\s]+$/, ''))}.</p>` : ''}
       ${signalChaud(p) ? `<p class="aide">🔥 Ton accroche : ${esc(signalChaud(p).texte)}</p>` : ''}</div>`;
     const objections = [].concat(p.secu || !p.net ? R.OBJECTIONS_SECU : [], p.net ? R.OBJECTIONS_NET : [], R.OBJECTIONS);
     return `<div class="pile">${fiche}${rappel}${blocs.map(([t, sc]) => `<section class="pile-serree"><div class="section-titre"><h2>Script ${t}</h2></div>${sc.map((x, i) => (i === 1 ? standardNomme(t === 'Nettoyage' ? '(Entreprise)' : '(Société)') : '') + `<div class="script"><b>${esc(x.t)}</b>${rendre(x.x)}</div>`).join('')}</section>`).join('')}
@@ -836,17 +837,9 @@
     ['rdv', 'Confirmation de rendez-vous'],
     ['devis', 'Suivi de devis'],
   ];
-  /* Nom de la personne à qui écrire, tiré des interlocuteurs (« Prénom Nom — Fonction (source) »). */
-  function interlocuteur(p) {
-    const c = p.contacts || {};
-    for (const k of ['securite', 'sg', 'achats', 'site', 'dirigeant']) {
-      const v = String(c[k] || '').trim();
-      if (!v || /non public|standard/i.test(v)) continue;
-      const nom = v.split(/\s+[—–-]\s+|\s*\(/)[0].trim();
-      if (nom && nom.length <= 60 && /[a-zA-ZÀ-ÿ]/.test(nom)) return nom;
-    }
-    return '';
-  }
+  /* Personne à demander / à qui écrire : un vrai nom tiré des interlocuteurs (jamais une consigne ni un nom de groupe). */
+  function aAppeler(p) { return C.contactToCall(p.contacts, p.secu || !p.net ? 'secu' : 'net'); }
+  function interlocuteur(p) { return aAppeler(p).nom; }
   function dernierAppel(p) { return [...(p.history || [])].filter(e => e.type === 'call').sort((a, b) => (b.ts || '').localeCompare(a.ts || ''))[0] || null; }
   function signatureEmail(p) {
     const lignes = [prenom(), 'Abdel — ' + (p.secu && p.net ? 'sécurité privée et propreté' : p.net ? 'propreté et entretien des locaux' : 'sécurité privée')];
