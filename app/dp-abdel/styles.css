@@ -460,3 +460,12 @@ details.carte > summary { cursor: pointer; font-weight: 700; }
 .ligne.ligne-devis-liste { display: flex; flex-direction: column; align-items: flex-start; gap: .35rem; }
 .ligne-devis-liste .pastilles { justify-content: flex-start; }
 .ligne-devis-liste .ligne-droite { align-items: flex-start; }
+/* Interrupteur « Visible par Abdel » (fiche) */
+.interrupteur-abdel { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; padding: .7rem .9rem; border: 1px solid var(--filet-fort); border-radius: var(--rayon); background: var(--fond); }
+.interrupteur-abdel.actif { border-color: var(--vert); background: var(--vert-fond); }
+.bascule { display: inline-flex; align-items: center; gap: .6rem; background: none; border: 0; padding: 0; cursor: pointer; font-weight: 700; color: var(--texte); }
+.bascule-piste { width: 2.8rem; height: 1.55rem; border-radius: 999px; background: #c9c3b8; position: relative; transition: background .15s; flex: none; }
+.bascule-pastille { position: absolute; top: .2rem; left: .2rem; width: 1.15rem; height: 1.15rem; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: left .15s; }
+.interrupteur-abdel.actif .bascule-piste { background: var(--vert); }
+.interrupteur-abdel.actif .bascule-pastille { left: 1.45rem; }
+.interrupteur-abdel .aide { margin: 0; flex: 1 1 14rem; }

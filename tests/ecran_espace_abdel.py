@@ -16,7 +16,8 @@ DONNEES = """
 () => {
   window.__db.abdel_prospects = [
     { id: 'p_site', data: { name: 'Demande Simulateur Fictive', city: 'Pessac', net: true, status: 'besoin', reached: ['identifie','besoin'], source: 'Simulateur du site', history: [] } },
-    { id: 'p_gagne', data: { name: 'Entrepôt Signé Fictif', city: 'Mérignac', secu: true, status: 'gagne', reached: ['identifie','rdv','devis','gagne'], hoursSecu: 364, wonAt: '2026-11-10T10:00:00Z', contractStart: '2026-12-01', history: [] } } ];
+    { id: 'p_rdv', data: { name: 'Rendez-vous Non Partagé', city: 'Talence', secu: true, status: 'rdv', reached: ['identifie','rdv'], rdvDate: '2030-01-10T10:00', history: [] } },
+    { id: 'p_gagne', data: { name: 'Entrepôt Signé Fictif', city: 'Mérignac', secu: true, status: 'gagne', reached: ['identifie','rdv','devis','gagne'], hoursSecu: 364, partageAbdel: '2026-11-10T10:00:00Z', wonAt: '2026-11-10T10:00:00Z', contractStart: '2026-12-01', history: [] } } ];
   window.__db.abdel_devis = [ { id: 'dev_1', prospect_id: 'p_gagne', data: { prospectId: 'p_gagne', numero: 'D-2026-001', statut: 'accepte', transmisAbdel: '2026-11-09', dureeMois: 12, debut: '2026-12-01', remisePct: 0, tvaPct: 20,
       lignes: [{ libelle: 'Gardiennage de nuit', heures: 364, taux: 27 }], date: '2026-11-09' } } ];
   window.__db.abdel_parametres = [{ id: 'main', data: { rateSecu: 27, commHour: 1 } }];
@@ -49,6 +50,7 @@ async def main():
             await page.wait_for_timeout(400)
             t = await page.inner_text("body")
             ok("Entrepôt Signé Fictif" in t, "le client signé est visible")
+            ok("Rendez-vous Non Partagé" not in t, "un rendez-vous non rendu visible par Émilie reste caché")
             ok("Demande Simulateur Fictive" not in t, "la demande du simulateur (sans rendez-vous) n'est pas visible")
             await page.goto("http://127.0.0.1:8771/espace-abdel/index.html#/gains")
             await page.wait_for_timeout(800)

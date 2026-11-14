@@ -47,6 +47,17 @@ async def main():
             await page.wait_for_timeout(700)
             reste = await page.evaluate("() => (window.__db.abdel_devis || []).map(r => r.id)")
             ok(reste == ["dev_b"], "le devis validé et transmis est supprimé, le brouillon reste")
+            # Interrupteur « Visible par Abdel »
+            await page.click("[data-action=partage-abdel]")
+            await page.wait_for_timeout(700)
+            flag = await page.evaluate("() => window.__db.abdel_prospects.filter(r => r.id === 'p1').pop().data.partageAbdel")
+            ok(bool(flag), "l'interrupteur rend la fiche visible par Abdel")
+            ok(await page.is_visible("text=Visible par Abdel"), "l'interrupteur affiche « Visible par Abdel »")
+            await page.screenshot(path=os.path.join(SORTIE, "abdel-interrupteur.png"))
+            await page.click("[data-action=partage-abdel]")
+            await page.wait_for_timeout(700)
+            flag = await page.evaluate("() => window.__db.abdel_prospects.filter(r => r.id === 'p1').pop().data.partageAbdel")
+            ok(not flag, "un second clic masque la fiche")
             await nav.close()
         ok(not erreurs, "aucune erreur JavaScript" + (": " + "; ".join(erreurs) if erreurs else ""))
     finally:

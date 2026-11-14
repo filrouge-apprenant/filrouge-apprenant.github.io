@@ -379,7 +379,7 @@
       : mode === 'dernier' ? `<span class="petit doux">Dernier appel : ${fd(p.lastCallDate)}</span>` : '';
     return `<li><a class="ligne" href="#/prospect/${encodeURIComponent(p.id)}">${scoreRond(p)}
       <div><div class="ligne-titre">${esc(p.name)}${p.optOut ? ' <span class="pastille p-rouge">Ne plus contacter</span>' : ''}</div><div class="ligne-detail">${detail || '&nbsp;'}</div></div>
-      <div class="ligne-droite"><div class="pastilles">${sg ? `<span class="pastille p-feu" title="${esc(sg.texte)}">🔥 Nouveau signal · ${fd(sg.ts)}</span>` : ''}${pastillesAct(p)}${pastilleStatut(p)}</div>${droite || (v ? `<span class="ligne-montant">${eur(v)}<span class="petit doux"> /mois</span></span>` : '')}</div></a></li>`;
+      <div class="ligne-droite"><div class="pastilles">${p.partageAbdel ? '<span class="pastille p-vert" title="Visible dans l\'appli d\'Abdel">👁 Abdel</span>' : ''}${sg ? `<span class="pastille p-feu" title="${esc(sg.texte)}">🔥 Nouveau signal · ${fd(sg.ts)}</span>` : ''}${pastillesAct(p)}${pastilleStatut(p)}</div>${droite || (v ? `<span class="ligne-montant">${eur(v)}<span class="petit doux"> /mois</span></span>` : '')}</div></a></li>`;
   }
   const listeProspects = (arr, mode, vide) => arr.length ? `<ul class="liste">${arr.map(p => ligneProspect(p, mode)).join('')}</ul>` : `<p class="message message-info">${vide || 'Aucun prospect ici pour l\'instant.'}</p>`;
 
@@ -624,10 +624,20 @@
       <div class="entete"><div><p class="surtitre ${p.secu ? '' : 'menthe'}"><a class="bouton-lien" href="#/${p.secu ? 'securite' : 'nettoyage'}">${p.secu ? 'Prospects sécurité' : 'Prospects nettoyage'}</a></p><h1>${esc(p.name)}</h1>
         <p class="chapo">${[p.city, segLabel(p.sector), p.phone ? '☎ ' + esc(p.phone) : ''].filter(Boolean).join(' · ')}</p></div>
         <div class="actions"><span class="score ${sc.band.key}" title="${esc(sc.band.label)}">${sc.total}</span><div class="pastilles">${pastillesAct(p)}${pastilleStatut(p)}</div></div></div>
+      ${interrupteurAbdel(p)}
       <div class="compteurs trois">${compteur(eur(v), 'potentiel HT / mois', 'compteur-argent')}${compteur(nf(C.totalHours(p)) + ' h', 'volume estimé / mois', 'compteur-argent')}${compteur(p.nextDate ? fd(p.nextDate) : '—', 'prochaine relance', 'compteur-argent ' + (p.nextDate && p.nextDate < today() ? 'compteur-rouge' : ''))}</div>
       <nav class="onglets" aria-label="Rubriques de la fiche">${onglets.map(([k, l]) => `<a class="onglet" href="#/prospect/${encodeURIComponent(id)}/${k}"${onglet === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>
       <div id="corps-fiche" data-id="${esc(id)}">${corps}</div>
       <p class="aide" id="etat-sauvegarde">Les modifications s'enregistrent toutes seules.</p></div>${panneauNotes(p)}</div>`;
+  }
+
+  /* Visibilité dans l'espace d'Abdel : uniquement quand Émilie l'active, fiche par fiche. */
+  function interrupteurAbdel(p) {
+    const on = !!p.partageAbdel;
+    return `<div class="interrupteur-abdel${on ? ' actif' : ''}">
+      <button type="button" class="bascule" role="switch" aria-checked="${on}" data-action="partage-abdel" data-valeur="${esc(p.id)}"><span class="bascule-piste"><span class="bascule-pastille"></span></span>
+        <span class="bascule-texte">${on ? '👁 Visible par Abdel' : '🔒 Non visible par Abdel'}</span></button>
+      <span class="aide">${on ? `Abdel voit cette fiche dans son appli depuis le ${fd(p.partageAbdel)} (rendez-vous, devis transmis, contrat). Clique pour la masquer.` : 'Abdel ne voit pas cette fiche. Clique pour la rendre visible dans son appli.'}</span></div>`;
   }
 
   /* ------------------------------------------------------------------ */
@@ -1652,6 +1662,7 @@
         <button class="bouton bouton-secondaire" type="button" data-action="devis-dupliquer">Dupliquer</button>
         <button class="bouton bouton-danger" type="button" data-action="devis-supprimer">🗑 Supprimer le devis</button></div>
       <div class="carte formulaire carte-transmission"><h3>Visible par Abdel ?</h3>
+        ${S.prospects[d.prospectId] && !S.prospects[d.prospectId].partageAbdel ? '<p class="message message-info">La fiche de ce client est masquée pour Abdel : même transmis, ce devis n\'apparaîtra chez lui qu\'une fois la fiche rendue visible (interrupteur en haut de la fiche).</p>' : ''}
         ${d.transmisAbdel ? `<p class="message message-info">✅ Transmis à Abdel le ${fdt(d.transmisAbdel)}. Il le verra dans son espace.</p><div class="actions"><button class="bouton bouton-secondaire" type="button" data-action="devis-retirer">Retirer de l'espace d'Abdel</button></div>`
           : `<p class="aide">Ce devis est privé : Abdel ne le voit pas tant que tu ne l'as pas transmis.</p><div class="actions"><button class="bouton bouton-session" type="button" data-action="devis-transmettre">📤 Transmettre à Abdel</button></div>`}</div>
       <div class="carte formulaire"><h3>Étape du devis</h3>
@@ -1935,6 +1946,14 @@
       const id = uid();
       const doc = { id, idweb: x.idweb, object: x.objet, buyer: x.acheteur, type: x.type, deadline: x.dateLimite || '', url: x.lien, status: 'etude', place: '', createdAt: nowISO(), source: 'Veille BOAMP' };
       if (await ecrire('abdel_appels_offres', id, doc)) { S.ao[id] = doc; notif('Avis ajouté à ta liste'); rafraichir(); }
+    }
+    if (act === 'partage-abdel') {
+      const p = S.prospects[a.dataset.valeur]; if (!p) return;
+      const d = clone(p), on = !d.partageAbdel;
+      d.partageAbdel = on ? nowISO() : '';
+      d.history = [...(d.history || []), { type: 'note', ts: nowISO(), text: on ? 'Fiche rendue visible par Abdel' : 'Fiche masquée pour Abdel' }];
+      if (await enregistrerProspect(d)) { notif(on ? `${p.name} est visible par Abdel` : `${p.name} est masquée pour Abdel`); rafraichir(); }
+      return;
     }
     if (act === 'supprimer-ev') {
       const id = document.getElementById('f-ev').dataset.id;

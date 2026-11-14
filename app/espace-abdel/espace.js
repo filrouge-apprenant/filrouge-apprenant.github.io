@@ -1,6 +1,6 @@
 /* =============================================================================
  * Espace Abdel — appli téléphone
- * Abdel y voit uniquement les clients qu'Émilie lui apporte (dès le rendez-vous),
+ * Abdel y voit uniquement les clients qu'Émilie lui apporte (fiches rendues visibles une par une par Émilie),
  * les devis qu'elle lui a transmis et ceux qu'il crée, les contrats signés et la
  * rémunération d'Émilie (page commune). La base de données applique ces règles
  * (rôle « gérant ») ; l'appli applique les mêmes filtres pour l'aperçu d'Émilie.
@@ -34,7 +34,8 @@
   const carteLien = a => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(a);
 
   /* ---------- Règles de partage (identiques à la base) ---------- */
-  const partage = p => ['rdv', 'propo', 'devis', 'nego', 'gagne'].includes(p.status) || (p.reached || []).includes('rdv') || !!p.partageAbdel;
+  // Une fiche n'apparaît ici que si Émilie l'a rendue visible (interrupteur dans son CRM).
+  const partage = p => !!p.partageAbdel;
   const devisVisible = d => !!d.transmisAbdel || d.auteur === 'abdel';
   const ETAT = {
     rdv: ['Rendez-vous', 'violet'], propo: ['Devis à faire', 'orange'], devis: ['Devis envoyé', 'bleu'], nego: ['Négociation', 'orange'],
@@ -165,7 +166,7 @@
   async function charger() {
     const [p, d] = await Promise.all([lire('abdel_prospects'), lire('abdel_devis').catch(() => [])]);
     S.prospects = {}; p.forEach(r => { const x = { ...r.data, id: r.id }; if (partage(x)) S.prospects[r.id] = x; });
-    S.devis = {}; d.forEach(r => { const x = { ...r.data, id: r.id }; if (devisVisible(x)) S.devis[r.id] = x; });
+    S.devis = {}; d.forEach(r => { const x = { ...r.data, id: r.id }; if (devisVisible(x) && S.prospects[x.prospectId]) S.devis[r.id] = x; });
     let prm = await sb.rpc('abdel_espace_parametres');
     if (prm.error) { const r = await sb.from('abdel_parametres').select('data').eq('id', 'main').maybeSingle(); prm = { data: r.data ? r.data.data : {} }; }
     S.params = { ...C.DEFAULT_SETTINGS, ...(prm.data || {}) };
