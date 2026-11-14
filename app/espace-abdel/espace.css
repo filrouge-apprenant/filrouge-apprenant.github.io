@@ -230,3 +230,69 @@ input:focus, select:focus, textarea:focus { border-color: var(--or); box-shadow:
 .notif { border-width: 1px; border-color: var(--filet); box-shadow: 0 8px 24px rgba(28, 36, 48, .08); }
 .logo-sous, .retour-crm { white-space: nowrap; }
 .carte-devis .carte-lieu, .doc-devis { font-variant-numeric: tabular-nums; }
+
+/* =============================================================================
+   Thème « bleu OM » (14/11, soir) : bleu ciel olympien, filets fins dorés et noirs,
+   fond clair à rayures fines. Design moderne, cartes blanches qui flottent.
+   ============================================================================= */
+:root {
+  --om: #2faee0; --om-fonce: #0a78b8; --om-nuit: #0b5c8c; --om-clair: #e8f6fc;
+  --or: #c2a36b; --or-clair: #f8f1e3; --noir: #111111;
+  --bleu: #0a78b8; --bleu-clair: #e8f6fc; --violet: #0a78b8; --violet-clair: #e8f6fc;
+  --texte: #121820; --doux: #5e6772; --filet: #e2dccf;
+}
+body {
+  background-color: #f5fafd;
+  background-image:
+    repeating-linear-gradient(135deg, rgba(47, 174, 224, .07) 0 1px, transparent 1px 22px),
+    repeating-linear-gradient(135deg, rgba(194, 163, 107, .35) 0 1px, transparent 1px 176px),
+    repeating-linear-gradient(45deg, rgba(17, 17, 17, .035) 0 1px, transparent 1px 88px);
+  background-attachment: fixed;
+}
+/* En-tête bleu OM avec rayures fines dorées */
+.haut {
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, .10) 0 1px, transparent 1px 14px),
+    repeating-linear-gradient(135deg, rgba(194, 163, 107, .55) 0 1px, transparent 1px 84px),
+    linear-gradient(120deg, var(--om) 0%, #1f9bd4 55%, var(--om-fonce) 100%);
+  border-bottom: 2px solid var(--or);
+  color: #fff;
+}
+.haut .logo { color: #fff; }
+.logo-a { background: #fff; color: var(--om-fonce); border: 1.5px solid var(--or); }
+.logo-sous { color: #fff4dc; }
+.retour-crm { background: rgba(255, 255, 255, .15); border: 1px solid rgba(255, 255, 255, .55); color: #fff; }
+.haut .lien { color: #fff; }
+.bandeau-apercu { background: rgba(248, 241, 227, .95); }
+
+.titre-page h1 { color: var(--noir); }
+.surtitre { color: #a8884d; }
+.titre-page .surtitre::after { content: ""; display: block; width: 2.2rem; height: 1px; background: var(--noir); margin-top: .45rem; }
+
+/* Cartes blanches, filet fin, légère ombre bleutée */
+.carte, .bloc, .chiffres { background: #fff; border-color: var(--filet); box-shadow: 0 6px 22px rgba(10, 120, 184, .07); }
+.carte { border-left: 2px solid var(--om); }
+.carte.net { border-left-color: var(--or); }
+.carte-montant { border-top-color: var(--filet); }
+.carte-montant b, .chiffre b { color: var(--noir); }
+.chiffre.vert b { color: var(--om-fonce); }
+.chiffre { box-shadow: inset -1px -1px 0 var(--filet); }
+.carte-rdv { background: var(--om-clair); border-left: 2px solid var(--om); }
+.carte-rdv .jour { color: var(--om-nuit); }
+.bloc h2 { border-bottom-color: var(--or); }
+.vide { background: rgba(255, 255, 255, .85); border-color: var(--filet); }
+
+.pastille.vert, .pastille.menthe { background: var(--om-clair); color: var(--om-nuit); border-color: #bfe3f4; }
+.action .ico { color: var(--om-fonce); }
+.action { box-shadow: 0 3px 12px rgba(10, 120, 184, .06); }
+
+.bouton, .bouton.vert, .bouton.violet { background: var(--om-fonce); color: #fff; box-shadow: 0 4px 14px rgba(10, 120, 184, .22); }
+.bouton.second { background: #fff; color: var(--om-fonce); border-color: var(--om-fonce); box-shadow: none; }
+.bouton.danger { background: #fff; box-shadow: none; }
+.filtre { background: #fff; }
+.filtre[aria-pressed="true"] { background: var(--om-fonce); border-color: var(--om-fonce); }
+input:focus, select:focus, textarea:focus { border-color: var(--om); box-shadow: 0 0 0 3px var(--om-clair); }
+
+.onglets-bas { background: rgba(255, 255, 255, .96); border-top: 1px solid var(--or); backdrop-filter: blur(8px); }
+.onglet[aria-current="page"] { color: var(--om-fonce); box-shadow: inset 0 2px 0 var(--om); }
+.onglet .badge { background: var(--om-fonce); }
