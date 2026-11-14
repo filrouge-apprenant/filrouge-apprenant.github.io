@@ -757,6 +757,7 @@
     const morceaux = brut.split("/").filter(Boolean);
     if (morceaux[0] === "prospection") return { nom: "prospection", etape: ETAPES.includes(morceaux[1]) ? morceaux[1] : null };
     if (morceaux[0] === "nouveau") return { nom: "nouveau" };
+    if (morceaux[0] === "recherche-centres") return { nom: "recherche-centres" };
     if (morceaux[0] === "organisme" && UUID.test(morceaux[1] || "")) return { nom: "organisme", id: morceaux[1], onglet: morceaux[2] || null };
     if (morceaux[0] === "rappels") return { nom: "rappels", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "import") return { nom: "import", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
@@ -875,6 +876,7 @@
     if (route.nom === "devis") return ecranDevis();
     if (route.nom === "prospection") return ecranProspection(route.etape);
     if (route.nom === "nouveau") return ecranNouvelOrganisme();
+    if (route.nom === "recherche-centres") return ecranRechercheCentres();
     if (route.nom === "organisme") return ecranOrganisme(route.id);
     if (route.nom === "rappels") return ecranRappels(route.id);
     if (route.nom === "import") return ecranImport(route.id);
@@ -1116,6 +1118,7 @@
             h("h1", {}, "Vos organismes")),
           h("div", { class: "actions-ligne" },
             h("a", { href: "#/scripts-vente", class: "bouton bouton-secondaire bouton-petit" }, "📋 Scripts de vente"),
+            h("a", { href: "#/recherche-centres", class: "bouton bouton-secondaire bouton-petit" }, "🔎 Trouver des centres"),
             h("a", { href: "#/nouveau", class: "bouton bouton-petit" }, "+ Ajouter"))),
 
         aRelancer.length
@@ -1215,6 +1218,174 @@
           h("p", { class: "surtitre" }, lienInterne("prospection", "← Prospection")),
           h("h1", {}, "Ajouter un organisme")),
         h("div", { class: "carte carte-large" }, formulaire))
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // CRM : rechercher des centres de formation à démarcher
+  // ---------------------------------------------------------------------------
+  // Source : API publique « Recherche d'entreprises » (SIRENE, RNE, liste publique
+  // des organismes de formation, Qualiopi), interrogée par la fonction serveur
+  // filrouge-recherche. Rien n'est inventé : chaque fiche reprend le registre.
+
+  // Hors champ : YouSchool (employeur) et ses concurrents directs sur les CAP.
+  const HORS_CHAMP = /you\s*school|hupso|formalis|espace[\s-]*concours|cours\s+minerve/i;
+  const TRANCHES_EFFECTIF = {
+    "00": "0 salarié", "01": "1-2 salariés", "02": "3-5 salariés", "03": "6-9 salariés", "11": "10-19 salariés",
+    "12": "20-49 salariés", "21": "50-99 salariés", "22": "100-199 salariés", "31": "200-249 salariés",
+    "32": "250-499 salariés", "41": "500-999 salariés", "42": "1 000-1 999 salariés", "51": "2 000-4 999 salariés",
+  };
+  const TAILLES_CENTRE = {
+    cible: { libelle: "Cœur de cible : 10 à 99 salariés", tranches: ["11", "12", "21"] },
+    petits: { libelle: "Petits centres : 3 à 19 salariés", tranches: ["02", "03", "11"] },
+    grands: { libelle: "Grands centres : 100 salariés et plus", tranches: ["22", "31", "32", "41", "42", "51"] },
+    toutes: { libelle: "Toutes les tailles", tranches: [] },
+  };
+  const REGIONS = {
+    "": "Toute la France", "84": "Auvergne-Rhône-Alpes", "27": "Bourgogne-Franche-Comté", "53": "Bretagne",
+    "24": "Centre-Val de Loire", "94": "Corse", "44": "Grand Est", "32": "Hauts-de-France", "11": "Île-de-France",
+    "28": "Normandie", "75": "Nouvelle-Aquitaine", "76": "Occitanie", "52": "Pays de la Loire",
+    "93": "Provence-Alpes-Côte d'Azur",
+  };
+  const MOTS_DISTANCE = /distance|en ligne|online|e-?learning|digital|num[ée]rique|academy|acad[ée]mie|[ée]cole|institut|campus|cours/i;
+
+  // Note d'adéquation sur 100, expliquée : distance, taille, Qualiopi, ancienneté.
+  function noteCentre(r) {
+    const raisons = [];
+    let note = 0;
+    if (r.qualiopi) { note += 25; raisons.push("Qualiopi"); }
+    if (["11", "12", "21"].includes(r.effectif)) { note += 30; raisons.push("taille cœur de cible"); }
+    else if (["03", "22"].includes(r.effectif)) { note += 15; raisons.push("taille proche de la cible"); }
+    if (MOTS_DISTANCE.test(r.nom)) { note += 20; raisons.push("nom évoquant la formation à distance"); }
+    if (r.creation && r.creation <= `${new Date().getFullYear() - 3}`) { note += 15; raisons.push("plus de 3 ans d'existence"); }
+    if (r.ca && r.ca.montant >= 300000) { note += 10; raisons.push("chiffre d'affaires connu ≥ 300 k€"); }
+    return { note: Math.min(note, 100), raisons };
+  }
+
+  async function ecranRechercheCentres() {
+    const zone = h("div");
+    const resultats = h("div");
+    const motCle = champTexte("rc-mot", "Mot-clé dans le nom (facultatif)", "", { placeholder: "Ex. : distance, école, academy, e-learning" });
+    const region = champChoix("rc-region", "Région du siège", REGIONS, "");
+    const taille = champChoix("rc-taille", "Taille", Object.fromEntries(Object.entries(TAILLES_CENTRE).map(([k, v]) => [k, v.libelle])), "cible");
+    const qualiopi = h("input", { type: "checkbox", id: "rc-qualiopi" });
+    qualiopi.checked = true;
+    const bouton = h("button", { class: "bouton", type: "submit" }, "Rechercher");
+    let page = 1;
+    let existants = { sirens: new Set(), noms: new Set() };
+
+    const normaliser = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\(.*?\)/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+
+    async function chargerExistants() {
+      const { data } = await sb.from("organismes").select("nom, organismes_suivi_commercial ( siren )");
+      existants = { sirens: new Set(), noms: new Set() };
+      for (const o of data || []) {
+        existants.noms.add(normaliser(o.nom));
+        const sr = o.organismes_suivi_commercial && o.organismes_suivi_commercial.siren;
+        if (sr) existants.sirens.add(sr);
+      }
+    }
+
+    async function ajouter(r, boutonAjout, zoneLigne) {
+      occupe(boutonAjout, true, "Ajout…");
+      const notes = [
+        `Trouvé via la recherche de centres (registre public) le ${new Date().toLocaleDateString("fr-FR")}.`,
+        r.dirigeants.length ? `Dirigeant(s) au registre : ${r.dirigeants.join(", ")}.` : null,
+        r.nda ? `Déclaration d'activité : ${r.nda}.` : null,
+        `Qualiopi : ${r.qualiopi ? "oui" : "non"} · Effectif : ${TRANCHES_EFFECTIF[r.effectif] || "non diffusé"}${r.ville ? ` · Siège : ${r.ville}` : ""}.`,
+        r.opposition ? "⚠ Opposition à la prospection commerciale inscrite au registre : pas de démarchage à froid." : null,
+        "Contact décideur à identifier (directeur·rice pédagogique ou responsable des apprenants).",
+      ].filter(Boolean).join("\n");
+      const nom = r.nom.replace(/\s*\(.*$/, "").trim() || r.nom;
+      const { data, error } = await sb.rpc("creer_organisme", {
+        p_nom: nom, p_etape: "prospect", p_contact_nom: "", p_contact_fonction: "",
+        p_contact_email: "", p_contact_telephone: "", p_prochaine_relance: null, p_notes: notes,
+      });
+      if (error) { occupe(boutonAjout, false); return signaler(zoneLigne, "erreur", texteErreur(error)); }
+      await sb.from("organismes_suivi_commercial").upsert({ organisme_id: data, siren: r.siren });
+      existants.sirens.add(r.siren);
+      existants.noms.add(normaliser(nom));
+      boutonAjout.replaceWith(lienInterne(`organisme/${data}`, "✓ Ajouté : ouvrir la fiche"));
+      chargerMenu();
+    }
+
+    function ligneCentre(r) {
+      const { note, raisons } = noteCentre(r);
+      const horsChamp = HORS_CHAMP.test(r.nom);
+      const deja = existants.sirens.has(r.siren) || existants.noms.has(normaliser(r.nom.replace(/\s*\(.*$/, "")));
+      const zoneLigne = h("div", { class: "ligne-edition" });
+      const boutonAjout = h("button", { type: "button", class: "bouton bouton-petit" }, "+ Ajouter à mes prospects");
+      boutonAjout.addEventListener("click", () => ajouter(r, boutonAjout, zoneLigne));
+      const couleur = note >= 70 ? "vert" : note >= 45 ? "orange" : "neutre";
+      return h("li", { class: "ligne" },
+        h("span", { class: "ligne-titre" }, r.nom),
+        h("span", { class: "pastilles" },
+          pastille(couleur, `${note}/100`),
+          r.qualiopi ? pastille("vert", "Qualiopi") : null,
+          r.opposition ? pastille("rouge", "Opposition au démarchage") : null,
+          horsChamp ? pastille("rouge", "Hors champ (YouSchool)") : null,
+          deja ? pastille("neutre", "Déjà dans ta liste") : null),
+        h("span", { class: "ligne-detail" },
+          [r.ville, TRANCHES_EFFECTIF[r.effectif] || "effectif non diffusé",
+            r.ca ? `CA ${r.ca.annee} : ${Math.round(r.ca.montant / 1000).toLocaleString("fr-FR")} k€` : null,
+            r.etablissements > 1 ? `${r.etablissements} établissements` : null,
+            r.creation ? `créé en ${r.creation.slice(0, 4)}` : null].filter(Boolean).join(" · ")),
+        h("span", { class: "ligne-detail" },
+          r.dirigeants.length ? `Dirigeant(s) : ${r.dirigeants.join(", ")}` : "Dirigeant non diffusé",
+          " · ", h("a", { href: lienPappers(r.nom, r.siren), target: "_blank", rel: "noopener" }, "🏢 Pappers"),
+          " · ", h("a", { href: `https://annuaire-entreprises.data.gouv.fr/entreprise/${r.siren}`, target: "_blank", rel: "noopener" }, "📋 Annuaire")),
+        raisons.length ? h("span", { class: "ligne-detail" }, `Pourquoi : ${raisons.join(", ")}.`) : null,
+        h("span", { class: "ligne-detail" },
+          horsChamp ? "Écarté : reste hors du champ de YouSchool."
+            : deja ? "Déjà suivi dans ta prospection."
+            : r.opposition ? h("span", {}, "Pas d'appel à froid (opposition inscrite). ", boutonAjout)
+            : boutonAjout),
+        zoneLigne);
+    }
+
+    async function chercher() {
+      signaler(zone);
+      occupe(bouton, true, "Recherche…");
+      if (page === 1) await chargerExistants();
+      const { data, error } = await sb.functions.invoke("filrouge-recherche", { body: {
+        action: "organismes", q: motCle.champ.value, region: region.champ.value,
+        tranches: TAILLES_CENTRE[taille.champ.value].tranches, qualiopi: qualiopi.checked, page,
+      } });
+      occupe(bouton, false);
+      if (error) return signaler(zone, "erreur", await messageFonction(error));
+      const rang = (r) => (HORS_CHAMP.test(r.nom) ? -1000 : 0) + noteCentre(r).note;
+      const tries = data.resultats.slice().sort((a, b) => rang(b) - rang(a));
+      const suivant = h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit" }, "Page suivante →");
+      suivant.addEventListener("click", () => { page += 1; chercher(); });
+      const precedent = h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit" }, "← Page précédente");
+      precedent.addEventListener("click", () => { page = Math.max(1, page - 1); chercher(); });
+      resultats.replaceChildren(
+        h("div", { class: "section-titre" },
+          h("h2", {}, `${data.total.toLocaleString("fr-FR")} centre${data.total > 1 ? "s" : ""} trouvé${data.total > 1 ? "s" : ""}`),
+          h("p", {}, `page ${data.page} sur ${Math.max(1, data.pages)}, les mieux notés en premier`)),
+        tries.length ? h("ul", { class: "liste" }, tries.map(ligneCentre))
+          : message("info", "Aucun centre avec ces critères. Élargis la taille ou retire le mot-clé."),
+        data.pages > 1 ? h("div", { class: "actions-ligne" }, page > 1 ? precedent : null, page < data.pages ? suivant : null) : "");
+    }
+
+    const formulaire = h("form", { novalidate: true, class: "formulaire" },
+      motCle.bloc,
+      h("div", { class: "deux-colonnes" }, region.bloc, taille.bloc),
+      h("label", { class: "case", for: "rc-qualiopi" }, qualiopi,
+        h("span", {}, h("span", { class: "case-titre" }, "Uniquement les centres certifiés Qualiopi"),
+          h("span", { class: "case-aide" }, "Ils financent leurs formations par le CPF ou les OPCO et doivent prouver le suivi des apprenants : ton argument."))),
+      zone, bouton);
+    formulaire.addEventListener("submit", (e) => { e.preventDefault(); page = 1; chercher(); });
+
+    afficher(
+      navigationAdmin("prospection"),
+      h("div", { class: "pile" },
+        h("div", {},
+          h("p", { class: "surtitre" }, lienInterne("prospection", "← Prospection")),
+          h("h1", {}, "Trouver des centres à démarcher"),
+          h("p", { class: "chapo" }, "Registre officiel des organismes de formation (déclaration d'activité, Qualiopi, effectif, dirigeants). Chaque centre reçoit une note d'adéquation et s'ajoute à ta prospection en un clic, sans doublon.")),
+        h("div", { class: "carte carte-large" }, formulaire),
+        resultats)
     );
   }
 
@@ -4441,6 +4612,7 @@
         lien("entrainement", "Entraînement aux appels")),
       groupe("prospects", "Prospects", [
         lien("prospection", "Tous les centres à démarcher"),
+        lien("recherche-centres", "🔎 Trouver des centres"),
         lien("scripts-vente", "Scripts de vente"),
         lien("nouveau", "Ajouter un centre"),
         d.prospects.length ? h("div", { class: "menu-liste" }, d.prospects.map((o) => lien(`organisme/${o.id}`, o.nom))) : vide("Aucun centre en cours."),

@@ -35,6 +35,7 @@
       order() { return q; }, not() { return q; }, is() { return q; }, or() { return q; }, limit() { return q; }, in() { return q; }, lt() { return q; }, neq() { return q; },
       update(v) { action = "update"; valeurs = v; return q; },
       insert(v) { action = "insert"; valeurs = v; return q; },
+      upsert(v) { action = "insert"; valeurs = v; db[table] = db[table] || []; return q; },
       delete() { action = "delete"; return q; },
       single() { unique = "single"; return q; }, maybeSingle() { unique = "maybe"; return q; },
       then(ok, ko) {
@@ -59,12 +60,16 @@
             const resultat = p.p_statuts.includes("joint") ? "joint" : p.p_statuts.includes("repondeur") ? "messagerie" : "injoignable";
             db.appels.push({ id: uuid(), apprenant_id: p.p_apprenant, date_appel: p.p_date_appel || new Date().toISOString(), statuts: p.p_statuts, resultat, canal: p.p_canal || "telephone" });
           }
+          if (nom === "creer_organisme") { const id = uuid(); (db.organismes = db.organismes || []).push({ id, nom: p.p_nom }); window.__crees = (window.__crees || []).concat([p]); sauver(); return Promise.resolve({ data: id, error: null }); }
           if (nom === "noter_appel") db.appels.push({ id: uuid(), apprenant_id: p.p_apprenant, date_appel: p.p_date_appel, statuts: [], resultat: p.p_resultat, canal: p.p_canal, note_client: p.p_note_client });
           sauver();
           return Promise.resolve({ data: nom === "comptes_acces" ? [] : nom === "abdel_suis_membre" ? true : null, error: null });
         },
         functions: {
           invoke(nom, { body }) {
+            if (nom === "filrouge-recherche") return Promise.resolve({ data: { total: 2, page: 1, pages: 1, resultats: [
+              { siren: "111111111", nom: "ACADEMIE DISTANCE PRO (ADP)", effectif: "12", qualiopi: true, opposition: false, ville: "LYON", creation: "2015-03-01", etablissements: 1, ca: { annee: "2024", montant: 900000 }, dirigeants: ["Claire Dupont (Présidente de SAS)"], nda: "84691234569" },
+              { siren: "222222222", nom: "HUPSO FORMATION", effectif: "21", qualiopi: true, opposition: true, ville: "PARIS", creation: "2012-01-01", etablissements: 1, ca: null, dirigeants: [], nda: null }] }, error: null });
             if (nom !== "envoyer-email") return Promise.resolve({ data: null, error: null });
             if (body.action === "etat") return Promise.resolve({ data: { brevo: window.__brevo }, error: null });
             window.__envois.push(body); sauver();
