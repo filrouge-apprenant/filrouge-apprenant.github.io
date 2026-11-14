@@ -1,6 +1,6 @@
 -- Espace Abdel (étape 2) : rôle « gérant » limité aux clients transmis.
 -- Abdel n'est PAS membre du CRM (prive.abdel_membres) : il ne voit que ce qui suit.
--- À appliquer une fois validé par Émilie (le 14/11, la demande de confirmation est restée sans réponse).
+-- Appliquée le 14/11/2026 au soir, à la demande d'Émilie (« je veux qu'il ait accès à tous les rendez-vous et contrats »).
 create table if not exists prive.abdel_gerants (
   user_id uuid primary key references auth.users(id) on delete cascade,
   ajoute_le timestamptz not null default now()

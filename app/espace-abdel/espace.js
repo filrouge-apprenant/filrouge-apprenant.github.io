@@ -357,6 +357,18 @@
     return d;
   }
 
+  /* Tarif et durée d'un contrat signé : d'après le devis accepté, sinon d'après la fiche. */
+  function infosContrat(p) {
+    const d = devisDe(p.id).find(x => x.statut === 'accepte');
+    const h = d ? totaux(d).heures : C.totalHours(p);
+    const taux = d && h ? totaux(d).ht / h : (C.totalHours(p) ? valeurMois(p) / C.totalHours(p) : 0);
+    const debut = p.contractStart || (d && d.debut) || '';
+    const duree = d ? num(d.dureeMois) : 0;
+    let fin = '';
+    if (debut && duree) { const x = new Date(debut + 'T12:00:00'); x.setMonth(x.getMonth() + duree); x.setDate(x.getDate() - 1); fin = x.toISOString().slice(0, 10); }
+    return (taux ? `<span class="info">Tarif : <b>${eur2(taux)} HT / h</b></span>` : '')
+      + `<span class="info">Durée : <b>${duree ? nf(duree) + ' mois' : 'sans date de fin'}</b>${fin ? ` (jusqu'au ${fd(fin)})` : ''}</span>`;
+  }
   function pGains() {
     const cl = clients(), signes = cl.filter(p => p.status === 'gagne').sort((a, b) => (b.wonAt || '').localeCompare(a.wonAt || ''));
     const heures = signes.reduce((a, p) => a + C.totalHours(p), 0), ca = signes.reduce((a, p) => a + valeurMois(p), 0);
@@ -367,7 +379,7 @@
       <div class="chiffres">${chiffre(nf(signes.length), 'contrats signés', 'vert', '#/gains')}${chiffre(nf(heures) + ' h', 'heures / mois', '', '#/gains')}${chiffre(eur(ca), 'CA HT / mois', 'vert', '#/gains')}${chiffre(eur(ca * 12), 'CA HT / an', 'violet', '#/gains')}</div>
       ${signes.length ? `<ul class="cartes">${signes.map(p => `<li><a class="carte ${activite(p)}" href="#/client/${encodeURIComponent(p.id)}"><div class="carte-haut"><div><div class="carte-nom">${esc(p.name)}</div><div class="carte-lieu">Signé le ${fd(p.wonAt)}${p.contractStart ? ' · début ' + fd(p.contractStart) : ''}</div></div><span class="pastille vert">Signé ✓</span></div>
         <div class="carte-montant"><span>${nf(C.totalHours(p))} h / mois</span><b>${eur(valeurMois(p))} <small>HT / mois</small></b></div>
-        <div class="carte-infos"><span class="info">Part d'Émilie : <b>${eur2(remuneration(p).parMois)}</b> / mois</span></div></a></li>`).join('')}</ul>` : '<p class="vide">Pas encore de contrat signé.</p>'}
+        <div class="carte-infos">${infosContrat(p)}<span class="info">Part d'Émilie : <b>${eur2(remuneration(p).parMois)}</b> / mois</span></div></a></li>`).join('')}</ul>` : '<p class="vide">Pas encore de contrat signé.</p>'}
       <div class="bloc"><h2>Rémunération d'Émilie</h2><dl class="lignes-info"><div><dt>Par mois</dt><dd>${eur2(em)}</dd></div><div><dt>Rendez-vous obtenus</dt><dd>${nf(nbRdv)}</dd></div><div><dt>Depuis le début</dt><dd>${eur2(deja)}</dd></div></dl></div>`;
   }
 
