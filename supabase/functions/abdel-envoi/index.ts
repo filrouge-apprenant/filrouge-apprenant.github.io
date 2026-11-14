@@ -41,7 +41,7 @@ function cleBrevo(): string {
 // Mise en page : fond blanc, filet doré, lien du simulateur en bouton bleu.
 function html(texte: string, lien: string, bouton: string) {
   const blocs = echapper(texte).split(/\n{2,}/).map((p) => {
-    if (p.includes(echapper(lien))) {
+    if (p.includes("[[SIMULATEUR]]") || p.includes(echapper(lien))) {
       return `<p style="margin:18px 0;"><a href="${echapper(lien)}" style="display:inline-block;background:#0a78b8;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:10px;">${echapper(bouton)}</a></p>`;
     }
     return `<p style="margin:0 0 14px;">${p.replace(/\n/g, "<br>")}</p>`;
@@ -84,13 +84,15 @@ Deno.serve(async (req: Request) => {
   let texte = String(d.texte || "").trim().slice(0, 5000);
   if (!objet || !texte) return rep(o, 400, { erreur: "Objet et message sont obligatoires." });
   const lien = String(d.lien || "").startsWith(SITE) ? String(d.lien) : SITE + (act === "secu" ? "securite/" : "nettoyage/");
-  if (!texte.includes(lien)) texte += `\n\n${lien}`;
+  // Le repère [[SIMULATEUR]] devient un bouton dans l'e-mail (et le lien dans la version texte).
+  if (!texte.includes("[[SIMULATEUR]]") && !texte.includes(lien)) texte += "\n\n[[SIMULATEUR]]";
   const societe = act === "secu" ? societeSecu : (String(P.companyNet || "").trim() || "Abdel");
   const pied = [
     act === "secu" ? `${societeSecu} — autorisation d'exercice CNAPS n° ${cnaps}. L'autorisation d'exercice délivrée par le CNAPS ne confère aucune prérogative de puissance publique à l'entreprise ou aux personnes qui en bénéficient.` : "",
     `Vous recevez ce message en tant que professionnel, au sujet des services de ${societe}. Pour ne plus être contacté, répondez simplement « STOP ».`,
   ].filter(Boolean).join("\n");
   const texteFinal = `${texte}\n\n${pied}`;
+  const texteBrut = texteFinal.split("[[SIMULATEUR]]").join(lien);
 
   const cle = cleBrevo();
   if (!cle) return rep(o, 200, { ok: false, raison: "sans_cle" });
@@ -104,7 +106,7 @@ Deno.serve(async (req: Request) => {
       replyTo: { email: REPONSE },
       subject: objet,
       htmlContent: html(texteFinal, lien, act === "secu" ? "Faire la comparaison en 1 minute" : "Estimer mon budget en 1 minute"),
-      textContent: texteFinal,
+      textContent: texteBrut,
       tags: ["abdel-simulateur"],
     }),
   });

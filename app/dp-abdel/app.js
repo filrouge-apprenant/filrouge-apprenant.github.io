@@ -644,20 +644,20 @@
     return base + (q.toString() ? '?' + q.toString() : '');
   }
   function brouillonSimulateur(p, act) {
-    const nom = interlocuteur(p), lien = lienSimulateur(p, act);
+    const nom = interlocuteur(p);
     const bonjour = nom ? `Bonjour ${nom},` : 'Bonjour,';
     const tel = (S.params.userPhone || '').trim();
     if (act === 'secu') return {
       objet: 'Recruter un agent de sécurité ou externaliser ? Le comparatif en 1 minute',
-      texte: `${bonjour}\n\nAvant de recruter un agent de sécurité ou de renouveler votre prestataire, voici un outil simple : vous indiquez vos horaires de surveillance et vous voyez tout de suite le coût complet d'un agent en interne (salaires, nuits, dimanches, congés, remplacements), comparé à une prestation.\n\n${lien}\n\nSi vous souhaitez un comparatif chiffré pour votre site, il suffit de laisser vos coordonnées sur la page : nous vous répondons sous 24 h ouvrées.\n\nBelle journée,\n${prenom()}\n${S.params.companySecu || 'Abdel'} — sécurité privée, Bordeaux Métropole${tel ? '\n' + tel : ''}`,
+      texte: `${bonjour}\n\nAvant de recruter un agent de sécurité ou de renouveler votre prestataire, voici un outil simple : vous indiquez vos horaires de surveillance et vous voyez tout de suite le coût complet d'un agent en interne (salaires, nuits, dimanches, congés, remplacements), comparé à une prestation.\n\n[[SIMULATEUR]]\n\nSi vous souhaitez un comparatif chiffré pour votre site, il suffit de laisser vos coordonnées sur la page : nous vous répondons sous 24 h ouvrées.\n\nBelle journée,\n${prenom()}\n${S.params.companySecu || 'Abdel'} — sécurité privée, Bordeaux Métropole${tel ? '\n' + tel : ''}`,
     };
     return {
       objet: 'Estimez en 1 minute le budget d\'entretien de vos locaux',
-      texte: `${bonjour}\n\nJe vous propose un outil simple : en indiquant la surface de vos locaux et le nombre de passages souhaités, vous obtenez tout de suite une estimation du budget d'entretien, sans engagement et sans inscription.\n\n${lien}\n\nSi l'estimation vous convient, il suffit de laisser vos coordonnées sur la page : nous vous proposons une visite gratuite et un devis écrit sous 24 h ouvrées.\n\nBelle journée,\n${prenom()}\n${S.params.companyNet || 'Abdel'} — nettoyage professionnel, Bordeaux Métropole${tel ? '\n' + tel : ''}`,
+      texte: `${bonjour}\n\nJe vous propose un outil simple : en indiquant la surface de vos locaux et le nombre de passages souhaités, vous obtenez tout de suite une estimation du budget d'entretien, sans engagement et sans inscription.\n\n[[SIMULATEUR]]\n\nSi l'estimation vous convient, il suffit de laisser vos coordonnées sur la page : nous vous proposons une visite gratuite et un devis écrit sous 24 h ouvrées.\n\nBelle journée,\n${prenom()}\n${S.params.companyNet || 'Abdel'} — nettoyage professionnel, Bordeaux Métropole${tel ? '\n' + tel : ''}`,
     };
   }
   function fSimulateur(p) {
-    const actDefaut = p.secu && secuOuverte() ? 'secu' : 'net';
+    const actDefaut = p.secu ? 'secu' : 'net';
     if (!S.simu || S.simu.id !== p.id) S.simu = { id: p.id, act: actDefaut, ...brouillonSimulateur(p, actDefaut) };
     const m = S.simu, lien = lienSimulateur(p, m.act);
     const envois = (p.history || []).filter(h => /Simulateur envoyé par e-mail/.test(h.text || '')).reverse();
@@ -665,16 +665,18 @@
       <div class="carte formulaire" id="f-simu">
         <h3>Envoyer le simulateur au prospect</h3>
         <p class="aide">Le prospect reçoit un e-mail avec un bouton vers le simulateur. La page s'ouvre avec le nom de son entreprise et sa commune déjà remplis. S'il laisse ses coordonnées, sa demande revient ici en 🔥 et tu reçois un e-mail.</p>
-        <div class="filtres"><button type="button" class="filtre" data-action="simu-act" data-valeur="net" aria-pressed="${m.act === 'net'}">✦ Nettoyage</button>
-          <button type="button" class="filtre" data-action="simu-act" data-valeur="secu" aria-pressed="${m.act === 'secu'}"${secuOuverte() ? '' : ' disabled title="Ouvert dès que le nom légal et le n° CNAPS sont dans Paramètres"'}>🛡 Sécurité${secuOuverte() ? '' : ' (fermé)'}</button></div>
-        ${secuOuverte() ? '' : '<p class="aide">Simulateur sécurité fermé tant que le nom légal et le n° CNAPS ne sont pas dans Paramètres (obligation légale).</p>'}
+        ${p.secu && p.net ? `<div class="filtres"><button type="button" class="filtre" data-action="simu-act" data-valeur="secu" aria-pressed="${m.act === 'secu'}">🛡 Simulateur sécurité</button><button type="button" class="filtre" data-action="simu-act" data-valeur="net" aria-pressed="${m.act === 'net'}">✦ Simulateur nettoyage</button></div>`
+          : `<p class="surtitre">${m.act === 'secu' ? '🛡 Simulateur sécurité : recruter ou externaliser ?' : '✦ Simulateur nettoyage : budget d\'entretien'}</p>`}
+        ${m.act === 'secu' && !secuOuverte() ? `<div class="message message-action"><b>Dernière étape pour ouvrir le simulateur sécurité.</b> La loi impose que toute publicité de sécurité privée affiche le nom de la société et son n° d'autorisation CNAPS (article L612-14 du Code de la sécurité intérieure). Renseigne-les ici une seule fois : la page et l'envoi s'ouvrent aussitôt.
+          <div class="deux-colonnes" style="margin-top:.6rem"><label>Nom légal de la société de sécurité<input id="simu-societe" value="${esc(S.params.companySecu || '')}" placeholder="Ex. ABDEL SÉCURITÉ SAS"></label><label>N° d'autorisation CNAPS<input id="simu-cnaps" value="${esc(S.params.cnaps || '')}" placeholder="AUT-033-…"></label></div>
+          <div class="actions"><button class="bouton" type="button" data-action="simu-ouvrir-secu">Enregistrer et ouvrir le simulateur sécurité</button></div></div>` : ''}
         <label>E-mail du prospect<input type="email" id="simu-email" value="${esc(p.email || '')}" placeholder="adresse professionnelle"></label>
         ${p.optOut ? '<p class="message message-erreur">Fiche marquée « Ne plus contacter » : aucun envoi possible.</p>' : ''}
         <label>Objet<input id="simu-objet" value="${esc(m.objet)}"></label>
         <label>Message<textarea id="simu-texte" rows="12">${esc(m.texte)}</textarea></label>
-        <p class="aide">Lien envoyé : <a href="${esc(lien)}" target="_blank" rel="noopener">${esc(lien.split('?')[0])}</a>. En bas du message, une ligne « Pour ne plus être contacté, répondez STOP » est ajoutée automatiquement. Les réponses du prospect arrivent sur ta boîte e-mail.</p>
-        <div class="actions"><button class="bouton" type="button" data-action="simu-envoyer"${p.optOut ? ' disabled' : ''}>📧 Envoyer par e-mail</button>
-          <button class="bouton bouton-secondaire" type="button" data-action="simu-messagerie">Ouvrir dans ma messagerie</button>
+        <p class="aide">[[SIMULATEUR]] devient un bouton bleu « ${m.act === 'secu' ? 'Faire la comparaison en 1 minute' : 'Estimer mon budget en 1 minute'} » dans l'e-mail : le prospect ne voit pas d'adresse de site, juste le bouton. <a href="${esc(lien)}" target="_blank" rel="noopener">Voir la page ${m.act === 'secu' ? 'sécurité' : 'nettoyage'}</a>. En bas du message, « Pour ne plus être contacté, répondez STOP » est ajouté automatiquement. Les réponses arrivent sur ta boîte e-mail.</p>
+        <div class="actions"><button class="bouton" type="button" data-action="simu-envoyer"${p.optOut || (m.act === 'secu' && !secuOuverte()) ? ' disabled' : ''}>📧 Envoyer par e-mail</button>
+          <button class="bouton bouton-secondaire" type="button" data-action="simu-messagerie"${m.act === 'secu' && !secuOuverte() ? ' disabled' : ''}>Ouvrir dans ma messagerie</button>
           <button class="bouton bouton-secondaire" type="button" data-action="simu-copier">Copier le lien</button>
           <button class="bouton-lien" type="button" data-action="simu-reinit">Remettre le texte d'origine</button></div>
       </div>
@@ -685,7 +687,14 @@
     const zoneF = document.getElementById('corps-fiche'); if (!zoneF) return;
     const p = S.prospects[zoneF.dataset.id]; if (!p || !S.simu) return;
     const lire = () => { const o = document.getElementById('simu-objet'), t = document.getElementById('simu-texte'); if (o) S.simu.objet = o.value; if (t) S.simu.texte = t.value; };
-    if (act === 'simu-act') { if (valeur === 'secu' && !secuOuverte()) return; S.simu = { id: p.id, act: valeur, ...brouillonSimulateur(p, valeur) }; return rafraichir(); }
+    if (act === 'simu-ouvrir-secu') {
+      const societe = (document.getElementById('simu-societe').value || '').trim(), cnaps = (document.getElementById('simu-cnaps').value || '').trim();
+      if (!societe || !cnaps) return notif('Indique le nom légal et le n° CNAPS.', true);
+      const d = { ...S.params, companySecu: societe, cnaps };
+      if (await ecrire('abdel_parametres', 'main', d)) { S.params = d; notif('Simulateur sécurité ouvert'); rafraichir(); }
+      return;
+    }
+    if (act === 'simu-act') { S.simu = { id: p.id, act: valeur, ...brouillonSimulateur(p, valeur) }; return rafraichir(); }
     if (act === 'simu-reinit') { S.simu = { id: p.id, act: S.simu.act, ...brouillonSimulateur(p, S.simu.act) }; return rafraichir(); }
     lire();
     const lien = lienSimulateur(p, S.simu.act);
@@ -698,7 +707,7 @@
     const nomAct = S.simu.act === 'secu' ? 'sécurité' : 'nettoyage';
     if (act === 'simu-messagerie') {
       await noter(`Simulateur ${nomAct} préparé dans ma messagerie pour ${email}`);
-      location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(S.simu.objet)}&body=${encodeURIComponent(S.simu.texte)}`;
+      location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(S.simu.objet)}&body=${encodeURIComponent(S.simu.texte.split('[[SIMULATEUR]]').join(lien))}`;
       return;
     }
     if (act === 'simu-envoyer') {
