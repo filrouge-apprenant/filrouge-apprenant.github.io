@@ -1,0 +1,19 @@
+{
+  "name": "Espace Abdel",
+  "short_name": "Abdel",
+  "description": "Rendez-vous, devis et contrats apportés par Émilie.",
+  "id": "/espace-abdel/",
+  "start_url": "/espace-abdel/?source=appli",
+  "scope": "/espace-abdel/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "lang": "fr",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    { "src": "icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icone-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

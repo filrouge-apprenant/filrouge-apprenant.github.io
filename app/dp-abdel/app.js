@@ -1861,7 +1861,7 @@
         <p class="aide">Change la règle appliquée dans <a href="#/parametres">Paramètres › Ma rémunération</a> quand vous serez d'accord avec Abdel.</p></section>`;
     };
 
-    return `<div class="pile">${tete('Contrats', 'Rendez-vous et contrats', 'Les prospects qui ont accepté un rendez-vous, les devis en cours et les contrats signés, avec les heures, le chiffre d\'affaires d\'Abdel et ta rémunération. Règle appliquée : ' + esc(regleTexte) + '.')}
+    return `<div class="pile">${tete('Contrats', 'Rendez-vous et contrats', 'Les prospects qui ont accepté un rendez-vous, les devis en cours et les contrats signés, avec les heures, le chiffre d\'affaires d\'Abdel et ta rémunération. Règle appliquée : ' + esc(regleTexte) + '.', '<a class="bouton bouton-secondaire" href="../espace-abdel/">📱 Voir l\'espace d\'Abdel</a>')}
       <div class="compteurs">${compteur(nf(nbRdv), 'rendez-vous obtenus')}${compteur(nf(signes.length), 'contrats signés', 'compteur-vert')}${compteur(nf(heures) + ' h', 'heures signées / mois', 'compteur-argent')}${compteur(eur(caAbdel), 'CA HT / mois pour Abdel', 'compteur-argent')}${compteur(eur2(moiMois), 'pour toi / mois', 'compteur-vert')}${compteur(eur2(moiPercu), 'pour toi depuis le début', 'compteur-vert')}</div>
       <section class="carte pile-serree"><div class="section-titre"><h2>★ Contrats signés</h2><p>${signes.length}</p></div>
         ${signes.length ? `<div class="defile"><table class="tableau"><thead><tr><th>Client</th><th class="n">Heures</th><th class="n">CA Abdel / mois</th><th class="n">Pour toi / mois</th><th class="n">Déjà gagné</th></tr></thead><tbody>${signes.map(ligneSigne).join('')}</tbody>

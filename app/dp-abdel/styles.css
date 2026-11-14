@@ -454,3 +454,6 @@ details.carte > summary { cursor: pointer; font-weight: 700; }
 .liens-site { margin: .4rem 0 .8rem; padding-left: 1.1rem; }
 .liens-site li { margin: .25rem 0; }
 .pastilles.pastilles-gauche { justify-content: flex-start; margin-top: .35rem; }
+.bascule-espace { display: inline-flex; align-items: center; gap: .2rem; padding: .35rem .75rem; border-radius: 999px; border: 1.5px solid var(--violet); color: var(--violet); background: #fff; font-weight: 700; font-size: .85rem; text-decoration: none; white-space: nowrap; }
+.bascule-espace:hover { background: var(--violet-clair); }
+@media (max-width: 40rem) { .bascule-espace .bascule-texte { display: none; } }
