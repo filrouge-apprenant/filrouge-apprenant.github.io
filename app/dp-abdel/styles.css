@@ -469,3 +469,84 @@ details.carte > summary { cursor: pointer; font-weight: 700; }
 .interrupteur-abdel.actif .bascule-piste { background: var(--vert); }
 .interrupteur-abdel.actif .bascule-pastille { left: 1.45rem; }
 .interrupteur-abdel .aide { margin: 0; flex: 1 1 14rem; }
+
+/* =============================================================================
+   Thème « bleu OM » (14/11/2026, soir) — même style que l'appli d'Abdel :
+   bleu ciel olympien, filets fins dorés et noirs, arabesques très légères,
+   fond clair, cartes blanches. Remplace la palette « couleurs vives ».
+   ============================================================================= */
+:root {
+  --om: #2faee0; --om-fonce: #0a78b8; --om-nuit: #0b5c8c; --om-clair: #e8f6fc;
+  --or: #c2a36b; --or-clair: #f8f1e3; --noir: #111111;
+  --encre: #0a78b8; --encre-moyen: #2f9fd6; --encre-clair: #e8f6fc;
+  --safran: #c2a36b; --safran-clair: #f8f1e3; --safran-fort: #ecdcbc;
+  --menthe: #1d8f84; --menthe-clair: #e6f4f2;
+  --corail: #c46a4f; --corail-clair: #f9ece6;
+  --violet: #0b5c8c; --violet-clair: #eaf3f9;
+  --filet: #e6e0d3; --filet-fort: #d6ccb8;
+  --sable: #faf7f1; --sable-fort: #f3ecdf;
+  --texte: #121820; --texte-doux: #5e6772;
+  --orange: #9a6a2f; --rouge: #b0453a; --rouge-fond: #f8ebe8; --vert: #1f7a55; --vert-fond: #e8f4ee;
+}
+body { background-color: #f5fafd; background-image: url("arabesques-fond.svg"); background-size: 260px 260px; background-attachment: fixed; }
+.bandeau {
+  background: url("arabesques-blanc.svg") 0 0 / 180px 180px repeat, linear-gradient(120deg, var(--om) 0%, #1f9bd4 55%, var(--om-fonce) 100%);
+  border-bottom: 2px solid var(--or); color: #fff;
+}
+.bandeau::after { display: none; }
+.marque, .marque-nom { color: #fff; }
+.marque-sous { color: #fff4dc; }
+.marque-trait path { stroke: var(--or); }
+.zone-compte, .zone-compte .compte-libelle { color: #fff; }
+.zone-compte .bouton-lien { color: #fff; }
+.bouton-menu { background: rgba(255, 255, 255, .15); color: #fff; border-color: rgba(255, 255, 255, .55); }
+.pied { background: rgba(255, 255, 255, .85); border-top: 1px solid var(--or); }
+
+h1 { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--noir); font-weight: 500; }
+.surtitre, .menu-titre { color: #a8884d; }
+.section-titre { border-image: none; border-bottom: 1px solid var(--or); }
+.section-titre.menthe { border-image: none; border-bottom-color: var(--menthe); }
+
+.menu-lateral { background: rgba(255, 255, 255, .92); border-right: 1px solid var(--filet-fort); }
+.menu-lien[aria-current="page"] { background: var(--om-clair); border-left-color: var(--om); color: var(--om-nuit); }
+.menu-lien:hover { background: var(--om-clair); }
+.menu-lien .ico, .menu-lien.secu .ico { color: var(--om-fonce); }
+
+.carte, .compteur, .espace-secu, .espace-net, .espace-feu, .interrupteur-abdel, .dialogue {
+  background-color: #fff; background-image: url("arabesques.svg"); background-size: 220px 220px;
+}
+.carte, .compteur { box-shadow: 0 6px 22px rgba(10, 120, 184, .06); }
+.carte-sable { background-color: var(--sable); }
+.compteur, .compteurs .compteur:nth-child(n) { border-top: 2px solid var(--om); }
+.compteurs .compteur:nth-child(2n) { border-top-color: var(--or); }
+.compteur-encre .compteur-valeur { color: var(--om-fonce); }
+.compteur-safran .compteur-valeur { color: #a8884d; }
+.espace-secu { border: 1px solid var(--om); border-left: 3px solid var(--om); }
+.espace-net { border: 1px solid var(--menthe); border-left: 3px solid var(--menthe); }
+.espace-feu { border: 1px solid var(--corail); border-left: 3px solid var(--corail); }
+.espace-feu h2 { color: var(--corail); }
+.liste { background: rgba(255, 255, 255, .88); border-radius: var(--rayon); }
+
+.bouton { background: var(--om-fonce); border-color: var(--om-fonce); color: #fff; box-shadow: 0 4px 14px rgba(10, 120, 184, .2); }
+.bouton:hover { background: var(--om-nuit); }
+.bouton-secondaire { background: #fff; color: var(--om-fonce); box-shadow: none; }
+.bouton-secondaire:hover { background: var(--om-clair); }
+.bouton-danger { background: #fff; color: var(--rouge); border-color: var(--rouge); box-shadow: none; }
+.bouton-session { background: var(--om-fonce); border: 1px solid var(--or); }
+.bouton-session:hover { background: var(--om-nuit); filter: none; }
+.bouton-appel { background: var(--om-fonce); border-color: var(--om-fonce); }
+.bouton-appel:hover { background: var(--om-nuit); }
+.filtre[aria-pressed="true"], .filtre[aria-current="true"] { background: var(--om-fonce); border-color: var(--om-fonce); color: #fff; }
+.onglet[aria-current="page"] { color: var(--om-fonce); border-bottom-color: var(--om); }
+
+.p-encre { background: var(--om-clair); color: var(--om-nuit); }
+.p-safran { background: var(--or-clair); color: #8a6b35; }
+.p-feu { background: var(--corail-clair); color: var(--corail); border-color: #ecc9bc; }
+.score.chaud { border-color: var(--or); background: var(--or-clair); }
+.score.travail { border-color: var(--om); color: var(--om-nuit); background: var(--om-clair); }
+.message-encre { background: var(--om-clair); border-left-color: var(--om); }
+.message-action { background: var(--or-clair); border-left-color: var(--or); }
+.message-feu { background: var(--corail-clair); border-left-color: var(--corail); }
+input:focus, select:focus, textarea:focus { outline-color: var(--om); border-color: var(--om); }
+.interrupteur-abdel.actif { border-color: var(--om); background-color: var(--om-clair); }
+.interrupteur-abdel.actif .bascule-piste { background: var(--om-fonce); }

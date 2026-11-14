@@ -301,3 +301,13 @@ input:focus, select:focus, textarea:focus { border-color: var(--om); box-shadow:
 .chiffres.arabesques, .carte.arabesques, .bloc.arabesques { background-color: #fff; background-image: url("arabesques.svg"); background-size: 220px 220px; background-repeat: repeat; }
 .chiffres.arabesques .chiffre { background: rgba(255, 255, 255, .55); }
 .carte.arabesques .carte-montant { border-top-color: rgba(194, 163, 107, .45); }
+
+/* Arabesques partout (14/11, soir) : remplacent les rayures droites, sur le fond et dans toutes les cartes. */
+body { background-color: #f5fafd; background-image: url("arabesques-fond.svg"); background-size: 260px 260px; background-attachment: fixed; }
+.haut {
+  background: url("arabesques-blanc.svg") 0 0 / 180px 180px repeat,
+    linear-gradient(120deg, var(--om) 0%, #1f9bd4 55%, var(--om-fonce) 100%);
+}
+.carte, .bloc, .chiffres, .vide, .action { background-color: #fff; background-image: url("arabesques.svg"); background-size: 220px 220px; }
+.chiffres .chiffre { background: rgba(255, 255, 255, .55); }
+.vide { background-color: rgba(255, 255, 255, .9); }
