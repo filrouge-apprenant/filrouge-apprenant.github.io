@@ -160,3 +160,73 @@ input.code { font-size: 1.5rem; letter-spacing: .3em; text-align: center; }
   .contenu { padding-bottom: 7rem; }
   .chiffres { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+
+/* =============================================================================
+   Thème « classe » (14/11, soir) : ivoire, encre, champagne. Filets fins, pas de
+   bandes de couleur, chiffres en romain, petites capitales espacées.
+   ============================================================================= */
+:root {
+  --fond: #ffffff; --fond-doux: #faf8f4; --texte: #1c2430; --doux: #6f6a62; --filet: #ebe5da;
+  --bleu: #1f2e3e; --bleu-clair: #f3f0ea; --violet: #1f2e3e; --violet-clair: #f3f0ea;
+  --or: #a88a5c; --or-clair: #f7f2e9;
+  --vert: #4e6d58; --vert-clair: #eff3ee; --orange: #94672f; --orange-clair: #f8f1e6;
+  --rouge: #94463c; --rouge-clair: #f7ecea; --soleil: #a88a5c; --soleil-clair: #f7f2e9;
+  --menthe: #6d8b77; --menthe-clair: #eff3ee;
+  --rayon: 12px;
+}
+body, html { background: #fff; }
+h1 { font-weight: 500; letter-spacing: -.015em; }
+h2 { font-weight: 500; }
+.haut { border-bottom: 1px solid var(--filet); }
+.haut::after { height: 0; }
+.logo-a { border-radius: 50%; border: 1px solid var(--or); box-shadow: none; font-family: var(--titre); font-weight: 500; color: var(--bleu); }
+.logo-nom { font-weight: 500; }
+.logo-sous { color: var(--or); font-weight: 600; letter-spacing: .14em; text-transform: uppercase; font-size: .66rem; margin-top: .15rem; }
+.retour-crm { background: none; border: 1px solid var(--filet); color: var(--bleu); font-weight: 600; }
+.bandeau-apercu { background: var(--or-clair); color: #6a5636; border-bottom: 1px solid #ece2cf; font-size: .85rem; }
+.surtitre { color: var(--or); font-weight: 600; letter-spacing: .16em; font-size: .72rem; }
+
+.chiffres { gap: 0; border: 1px solid var(--filet); border-radius: var(--rayon); overflow: hidden; background: #fff; }
+.chiffre { background: #fff; border-top: 0; border-radius: 0; padding: 1rem 1.05rem; box-shadow: inset -1px -1px 0 var(--filet); }
+.chiffre b { font-weight: 500; font-size: 1.55rem; color: var(--bleu); }
+.chiffre span { text-transform: uppercase; letter-spacing: .1em; font-size: .68rem; font-weight: 600; }
+.chiffre.vert b { color: var(--vert); }
+
+.carte { border-radius: var(--rayon); box-shadow: none; padding: 1.05rem 1.15rem; }
+.carte::before { width: 0; }
+.carte-nom { font-weight: 500; }
+.carte-rdv { background: var(--or-clair); border-radius: 8px; }
+.carte-rdv .jour { color: var(--bleu); font-weight: 600; }
+.carte-montant b { font-weight: 500; color: var(--bleu); }
+
+.pastille { background: #fff; border: 1px solid var(--filet); font-weight: 600; letter-spacing: .02em; font-size: .74rem; }
+.pastille.bleu, .pastille.violet { background: #fff; color: var(--bleu); border-color: #d7d2c8; }
+.pastille.vert, .pastille.menthe { background: var(--vert-clair); color: var(--vert); border-color: #d5e0d6; }
+.pastille.orange { background: var(--orange-clair); color: var(--orange); border-color: #ead9bf; }
+.pastille.rouge { background: var(--rouge-clair); color: var(--rouge); border-color: #ebd2cd; }
+
+.action, .action.vert, .action.violet { background: #fff; border: 1px solid var(--filet); color: var(--bleu); font-weight: 600; border-radius: 10px; }
+.action .ico { display: grid; place-items: center; color: var(--or); }
+.bloc { border-radius: var(--rayon); }
+.bloc h2 { font-size: 1.05rem; padding-bottom: .5rem; border-bottom: 1px solid var(--filet); }
+.fil li.appel, .fil li.note, .fil li.abdel, .fil li.devis { border-left-color: var(--filet); }
+.fil li.abdel { border-left-color: var(--or); }
+
+.bouton { border-radius: 10px; font-weight: 600; letter-spacing: .01em; }
+.bouton.vert { background: var(--bleu); }
+.bouton.second { border-width: 1px; }
+.bouton.danger { border-width: 1px; }
+input, select, textarea { border-width: 1px; border-radius: 10px; }
+input:focus, select:focus, textarea:focus { border-color: var(--or); box-shadow: 0 0 0 3px var(--or-clair); }
+.filtre { border-width: 1px; font-weight: 600; }
+.filtre[aria-pressed="true"] { background: var(--bleu); border-color: var(--bleu); color: #fff; }
+.message.info { background: var(--fond-doux); color: var(--texte); border: 1px solid var(--filet); }
+
+.onglets-bas { box-shadow: none; }
+.onglet { font-weight: 600; letter-spacing: .02em; border-radius: 0; }
+.onglet .ico { display: grid; place-items: center; height: 1.6rem; }
+.onglet[aria-current="page"] { background: none; color: var(--bleu); box-shadow: inset 0 2px 0 var(--or); }
+.onglet .badge { background: var(--or); }
+.notif { border-width: 1px; border-color: var(--filet); box-shadow: 0 8px 24px rgba(28, 36, 48, .08); }
+.logo-sous, .retour-crm { white-space: nowrap; }
+.carte-devis .carte-lieu, .doc-devis { font-variant-numeric: tabular-nums; }

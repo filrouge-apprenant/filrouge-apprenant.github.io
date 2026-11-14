@@ -58,6 +58,12 @@ async def main():
             ok("27,00 € HT / h" in t, "contrat : tarif horaire affiché")
             ok("12 mois" in t and "30/11/2027" in t, "contrat : durée et date de fin affichées")
             await page.screenshot(path=os.path.join(SORTIE, "espace-abdel-contrats.png"), full_page=True)
+            await page.goto("http://127.0.0.1:8771/espace-abdel/index.html#/")
+            await page.wait_for_timeout(600)
+            await page.screenshot(path=os.path.join(SORTIE, "espace-abdel-accueil.png"), full_page=True)
+            await page.goto("http://127.0.0.1:8771/espace-abdel/index.html#/client/p_gagne")
+            await page.wait_for_timeout(600)
+            await page.screenshot(path=os.path.join(SORTIE, "espace-abdel-client.png"), full_page=True)
             await nav.close()
         ok(not erreurs, "aucune erreur JavaScript" + (": " + "; ".join(erreurs) if erreurs else ""))
     finally:

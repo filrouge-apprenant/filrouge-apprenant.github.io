@@ -39,12 +39,12 @@
   const devisVisible = d => !!d.transmisAbdel || d.auteur === 'abdel';
   const ETAT = {
     rdv: ['Rendez-vous', 'violet'], propo: ['Devis à faire', 'orange'], devis: ['Devis envoyé', 'bleu'], nego: ['Négociation', 'orange'],
-    gagne: ['Signé ✓', 'vert'], perdu: ['Perdu', 'rouge'], relance: ['À relancer plus tard', ''],
+    gagne: ['Signé', 'vert'], perdu: ['Perdu', 'rouge'], relance: ['À relancer plus tard', ''],
   };
   const etat = p => ETAT[p.status] || ['En cours', 'bleu'];
-  const STATUT_DEVIS = { brouillon: ['Brouillon', ''], a_valider: ['À valider', 'orange'], pret: ['Prêt à envoyer', 'bleu'], envoye: ['Envoyé', 'violet'], accepte: ['Accepté ✓', 'vert'], refuse: ['Refusé', 'rouge'] };
+  const STATUT_DEVIS = { brouillon: ['Brouillon', ''], a_valider: ['À valider', 'orange'], pret: ['Prêt à envoyer', 'bleu'], envoye: ['Envoyé', 'violet'], accepte: ['Accepté', 'vert'], refuse: ['Refusé', 'rouge'] };
   const activite = p => p.secu && p.net ? 'mixte' : p.net ? 'net' : 'secu';
-  const activiteTexte = p => [p.secu ? '🛡 Sécurité' : '', p.net ? '✦ Nettoyage' : ''].filter(Boolean).join(' + ') || '🛡 Sécurité';
+  const activiteTexte = p => [p.secu ? 'Sécurité' : '', p.net ? 'Nettoyage' : ''].filter(Boolean).join(' + ') || 'Sécurité';
   const interlocuteur = p => { const c = p.contacts || {}; const v = c.securite || c.sg || c.site || c.achats || c.dirigeant || ''; return String(v).split(/[—(,]/)[0].trim(); };
   const fonctionContact = p => { const c = p.contacts || {}; const v = c.securite || c.sg || c.site || c.achats || c.dirigeant || ''; const m = String(v).match(/—\s*([^()]+)/); return m ? m[1].trim() : ''; };
   const adresse = p => [p.address, [p.cp, p.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || p.city || '';
@@ -180,7 +180,8 @@
   }
 
   /* ---------- Navigation ---------- */
-  const ONGLETS = [['', 'Accueil', '⌂'], ['clients', 'Clients', '👥'], ['devis', 'Devis', '📄'], ['gains', 'Contrats', '★']];
+  const ICONES = {"accueil": "<svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 10.5 12 3l9 7.5\"/><path d=\"M5 9.5V21h14V9.5\"/></svg>", "clients": "<svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"9\" cy=\"8\" r=\"3.2\"/><path d=\"M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6\"/><path d=\"M16 4.5a3 3 0 0 1 0 6M18 14c2 .7 3 2.6 3 6\"/></svg>", "devis": "<svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M7 3h7l4 4v14H7z\"/><path d=\"M14 3v4h4M10 12h5M10 16h5\"/></svg>", "contrats": "<svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.6 9.6l5.8-.8z\"/></svg>", "tel": "<svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z\"/></svg>", "route": "<svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z\"/><circle cx=\"12\" cy=\"10\" r=\"2.2\"/></svg>", "mail": "<svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"2\"/><path d=\"m4 7 8 6 8-6\"/></svg>"};
+  const ONGLETS = [['', 'Accueil', ICONES.accueil], ['clients', 'Clients', ICONES.clients], ['devis', 'Devis', ICONES.devis], ['gains', 'Contrats', ICONES.contrats]];
   function dessinerOnglets(nom) {
     const aValider = Object.values(S.devis).filter(d => d.statut === 'a_valider').length;
     onglets.innerHTML = ONGLETS.map(([k, l, i]) => `<a class="onglet" href="#/${k}"${(nom || '') === k || (k === 'clients' && nom === 'client') ? ' aria-current="page"' : ''}><span class="ico" aria-hidden="true">${i}</span>${l}${k === 'devis' && aValider ? `<span class="badge">${aValider}</span>` : ''}</a>`).join('');
@@ -202,7 +203,7 @@
     const qui = interlocuteur(p);
     return `<li><a class="carte ${activite(p)}" href="#/client/${encodeURIComponent(p.id)}">
       <div class="carte-haut"><div><div class="carte-nom">${esc(p.name)}</div><div class="carte-lieu">${esc(p.city || '')}${p.city ? ' · ' : ''}${activiteTexte(p)}</div></div><span class="pastille ${coul}">${lib}</span></div>
-      ${rdvAVenir ? `<div class="carte-rdv"><span aria-hidden="true">📅</span><span class="jour">${esc(jourLong(p.rdvDate))}</span></div>` : ''}
+      ${rdvAVenir ? `<div class="carte-rdv"><span class="jour">${esc(jourLong(p.rdvDate))}</span></div>` : ''}
       <div class="carte-infos">${qui ? `<span class="info">👤 <b>${esc(qui)}</b></span>` : ''}${p.need ? `<span class="info">🎯 ${esc(String(p.need).slice(0, 70))}</span>` : ''}</div>
       ${h ? `<div class="carte-montant"><span>${nf(h)} h / mois</span><b>${eur(v)} <small>HT / mois</small></b></div>` : ''}
     </a></li>`;
@@ -225,10 +226,10 @@
     const ca = signes.reduce((a, p) => a + valeurMois(p), 0);
     const enCours = cl.filter(p => ['rdv', 'propo', 'devis', 'nego'].includes(p.status));
     const prenom = apercu() ? 'Abdel' : (S.email.split('@')[0].split(/[._-]/)[0] || '');
-    return `<div class="titre-page"><p class="surtitre">${esc(jourLong(t))}</p><h1>Bonjour ${esc(prenom.charAt(0).toUpperCase() + prenom.slice(1))} 👋</h1><p class="chapo">Voici les clients qu'Émilie t'a apportés.</p></div>
+    return `<div class="titre-page"><p class="surtitre">${esc(jourLong(t))}</p><h1>Bonjour ${esc(prenom.charAt(0).toUpperCase() + prenom.slice(1))}</h1><p class="chapo">Voici les clients qu'Émilie t'a apportés.</p></div>
       <div class="chiffres">${chiffre(nf(rdv.length), 'rendez-vous à venir', 'violet', '#/clients')}${chiffre(nf(aValider.length), 'devis à valider', aValider.length ? 'rouge' : 'soleil', '#/devis')}${chiffre(nf(signes.length), 'contrats signés', 'vert', '#/gains')}${chiffre(eur(ca), 'CA HT / mois signé', 'vert', '#/gains')}</div>
-      ${aValider.length ? `<section class="section"><div class="section-tete"><h2>⚠ Devis à valider</h2><span class="compte">${aValider.length}</span></div><ul class="cartes">${aValider.map(carteDevis).join('')}</ul></section>` : ''}
-      <section class="section"><div class="section-tete"><h2>📅 Prochains rendez-vous</h2><span class="compte">${rdv.length}</span></div>
+      ${aValider.length ? `<section class="section"><div class="section-tete"><h2>Devis à valider</h2><span class="compte">${aValider.length}</span></div><ul class="cartes">${aValider.map(carteDevis).join('')}</ul></section>` : ''}
+      <section class="section"><div class="section-tete"><h2>Prochains rendez-vous</h2><span class="compte">${rdv.length}</span></div>
         ${rdv.length ? `<ul class="cartes">${rdv.slice(0, 5).map(carteClient).join('')}</ul>` : '<p class="vide">Aucun rendez-vous à venir pour le moment.</p>'}</section>
       <section class="section"><div class="section-tete"><h2>En cours</h2><span class="compte">${enCours.length} · ${eur(enCours.reduce((a, p) => a + valeurMois(p), 0))} HT / mois possibles</span></div>
         ${enCours.length ? `<ul class="cartes">${enCours.filter(p => !rdv.includes(p)).slice(0, 5).map(carteClient).join('') || '<p class="aide">Tous ont un rendez-vous ci-dessus.</p>'}</ul>` : '<p class="vide">Rien en cours.</p>'}</section>`;
@@ -262,12 +263,12 @@
     const h = C.totalHours(p);
     return `<a class="lien" href="#/clients">← Mes clients</a>
       <div class="fiche-tete"><div class="pastilles"><span class="pastille ${coul}">${lib}</span><span class="pastille ${activite(p) === 'net' ? 'menthe' : 'bleu'}">${activiteTexte(p)}</span></div>
-        <h1>${esc(p.name)}</h1>${adr ? `<p class="chapo">📍 ${esc(adr)}</p>` : ''}</div>
+        <h1>${esc(p.name)}</h1>${adr ? `<p class="chapo">${esc(adr)}</p>` : ''}</div>
       <div class="actions-rapides">
-        <a class="action vert" href="${p.phone ? telLien(p.phone) : '#'}"${p.phone ? '' : ' aria-disabled="true"'}><span class="ico">☎</span>Appeler</a>
-        <a class="action" href="${adr ? carteLien(p.name + ' ' + adr) : '#'}" target="_blank" rel="noopener"${adr ? '' : ' aria-disabled="true"'}><span class="ico">🧭</span>Itinéraire</a>
-        <a class="action violet" href="${p.email ? 'mailto:' + esc(p.email) : '#'}"${p.email ? '' : ' aria-disabled="true"'}><span class="ico">✉</span>E-mail</a></div>
-      ${p.rdvDate ? `<div class="bloc"><h2>📅 Rendez-vous</h2><p class="carte-rdv"><span class="jour">${esc(jourLong(p.rdvDate))}</span></p>${qui ? `<p>Avec <b>${esc(qui)}</b>${fct ? `, ${esc(fct)}` : ''}</p>` : ''}</div>` : ''}
+        <a class="action vert" href="${p.phone ? telLien(p.phone) : '#'}"${p.phone ? '' : ' aria-disabled="true"'}><span class="ico">${ICONES.tel}</span>Appeler</a>
+        <a class="action" href="${adr ? carteLien(p.name + ' ' + adr) : '#'}" target="_blank" rel="noopener"${adr ? '' : ' aria-disabled="true"'}><span class="ico">${ICONES.route}</span>Itinéraire</a>
+        <a class="action violet" href="${p.email ? 'mailto:' + esc(p.email) : '#'}"${p.email ? '' : ' aria-disabled="true"'}><span class="ico">${ICONES.mail}</span>E-mail</a></div>
+      ${p.rdvDate ? `<div class="bloc"><h2>Rendez-vous</h2><p class="carte-rdv"><span class="jour">${esc(jourLong(p.rdvDate))}</span></p>${qui ? `<p>Avec <b>${esc(qui)}</b>${fct ? `, ${esc(fct)}` : ''}</p>` : ''}</div>` : ''}
       <div class="bloc"><h2>L'essentiel</h2><dl class="lignes-info">
         ${qui ? `<div><dt>Interlocuteur</dt><dd>${esc(qui)}${fct ? ` · ${esc(fct)}` : ''}</dd></div>` : ''}
         ${p.phone ? `<div><dt>Téléphone</dt><dd><a href="${telLien(p.phone)}">${esc(p.phone)}</a></dd></div>` : ''}
@@ -276,10 +277,10 @@
         <div><dt>Volume estimé</dt><dd>${h ? `${nf(h)} h / mois · ${eur(valeurMois(p))} HT` : 'À préciser au rendez-vous'}</dd></div>
         ${p.nextAction ? `<div><dt>Prochaine étape</dt><dd>${esc(p.nextAction)}${p.nextDate ? ' · ' + fd(p.nextDate) : ''}</dd></div>` : ''}
       </dl></div>
-      <div class="bloc"><div class="section-tete"><h2>📄 Devis</h2><span class="compte">${dv.length}</span></div>
+      <div class="bloc"><div class="section-tete"><h2>Devis</h2><span class="compte">${dv.length}</span></div>
         ${dv.length ? `<ul class="cartes">${dv.map(carteDevis).join('')}</ul>` : '<p class="aide">Pas encore de devis.</p>'}
         <div class="boutons">${p.secu || !p.net ? `<a class="bouton" href="#/devis/nouveau/${encodeURIComponent(id)}?secu">+ Devis sécurité</a>` : ''}${p.net ? `<a class="bouton vert" href="#/devis/nouveau/${encodeURIComponent(id)}?net">+ Devis nettoyage</a>` : ''}</div></div>
-      <div class="bloc"><h2>💬 Échanges avec le client</h2>
+      <div class="bloc"><h2>Échanges avec le client</h2>
         <form class="formulaire" id="f-note" data-id="${esc(id)}"><label>Ajouter une note (après le rendez-vous, un appel…)<textarea name="texte" placeholder="Ex. : visite faite, il veut 2 agents la nuit du vendredi au dimanche."></textarea></label><button class="bouton second" type="submit">Enregistrer la note</button></form>
         ${hist.length ? `<ul class="fil">${hist.map(ligneHist).join('')}</ul>` : '<p class="aide">Aucun échange noté.</p>'}</div>`;
   }
@@ -378,7 +379,7 @@
     const regle = `${eur2(S.params.commHour)} par heure et par mois${num(S.params.commMonths) ? ` pendant ${nf(S.params.commMonths)} mois` : ', tant que le client reste'}${num(S.params.commRdv) ? ` + ${eur(S.params.commRdv)} par rendez-vous` : ''}`;
     return `<div class="titre-page"><p class="surtitre">Contrats</p><h1>Contrats signés</h1><p class="chapo">Les mêmes chiffres que ceux d'Émilie. Rémunération convenue : ${esc(regle)}.</p></div>
       <div class="chiffres">${chiffre(nf(signes.length), 'contrats signés', 'vert', '#/gains')}${chiffre(nf(heures) + ' h', 'heures / mois', '', '#/gains')}${chiffre(eur(ca), 'CA HT / mois', 'vert', '#/gains')}${chiffre(eur(ca * 12), 'CA HT / an', 'violet', '#/gains')}</div>
-      ${signes.length ? `<ul class="cartes">${signes.map(p => `<li><a class="carte ${activite(p)}" href="#/client/${encodeURIComponent(p.id)}"><div class="carte-haut"><div><div class="carte-nom">${esc(p.name)}</div><div class="carte-lieu">Signé le ${fd(p.wonAt)}${p.contractStart ? ' · début ' + fd(p.contractStart) : ''}</div></div><span class="pastille vert">Signé ✓</span></div>
+      ${signes.length ? `<ul class="cartes">${signes.map(p => `<li><a class="carte ${activite(p)}" href="#/client/${encodeURIComponent(p.id)}"><div class="carte-haut"><div><div class="carte-nom">${esc(p.name)}</div><div class="carte-lieu">Signé le ${fd(p.wonAt)}${p.contractStart ? ' · début ' + fd(p.contractStart) : ''}</div></div><span class="pastille vert">Signé</span></div>
         <div class="carte-montant"><span>${nf(C.totalHours(p))} h / mois</span><b>${eur(valeurMois(p))} <small>HT / mois</small></b></div>
         <div class="carte-infos">${infosContrat(p)}<span class="info">Part d'Émilie : <b>${eur2(remuneration(p).parMois)}</b> / mois</span></div></a></li>`).join('')}</ul>` : '<p class="vide">Pas encore de contrat signé.</p>'}
       <div class="bloc"><h2>Rémunération d'Émilie</h2><dl class="lignes-info"><div><dt>Par mois</dt><dd>${eur2(em)}</dd></div><div><dt>Rendez-vous obtenus</dt><dd>${nf(nbRdv)}</dd></div><div><dt>Depuis le début</dt><dd>${eur2(deja)}</dd></div></dl></div>`;
