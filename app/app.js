@@ -1094,19 +1094,28 @@
       h("a", { href: cle ? `#/prospection/${cle}` : "#/prospection", class: "filtre", "aria-current": (filtre || null) === cle ? "true" : null },
         texte, h("span", { class: "filtre-nombre" }, String(n)));
 
+    // Une carte par organisme, lisible d'un coup d'œil : le nom, l'étape, la personne
+    // à joindre, puis la prochaine relance en évidence. Toute la carte ouvre la fiche.
     const ligneOrganisme = (l) => {
-      const enRetard = l.prochaine_relance && l.prochaine_relance <= ajd && l.etape !== "perdu";
-      return h("li", { class: "ligne" },
-        h("span", { class: "ligne-titre" }, nomAvecImpaye(lienInterne(`organisme/${l.id}`, l.nom), impayes.get(l.id))),
-        h("span", { class: "pastilles" }, pastille(COULEUR_ETAPE[l.etape], LIBELLE_ETAPE_UNE[l.etape]),
-          l.etape !== "client" && (l.bant_budget || l.bant_autorite || l.bant_besoin || l.bant_timing) ? (() => { const v = verdictBant(l); return pastille(v.couleur, v.court); })() : null),
-        h("span", { class: "ligne-detail" },
-          [l.contact_nom, l.contact_fonction].filter(Boolean).join(" · ") || "Contact à identifier",
-          l.site_web ? [" · ", h("a", { href: l.site_web, target: "_blank", rel: "noopener" }, "🌐 Site")] : null,
-          " · ", h("a", { href: lienPappers(l.nom, l.siren), target: "_blank", rel: "noopener" }, "🏢 Pappers"),
-          l.prochaine_relance
-            ? h("span", { class: enRetard ? "relance relance-retard" : "relance" }, ` · Relance ${ecartJours(l.prochaine_relance)}`)
-            : null));
+      const enRetard = l.prochaine_relance && l.prochaine_relance < ajd && l.etape !== "perdu";
+      const ajdRelance = l.prochaine_relance === ajd && l.etape !== "perdu";
+      const bant = l.etape !== "client" && (l.bant_budget || l.bant_autorite || l.bant_besoin || l.bant_timing) ? verdictBant(l) : null;
+      const contact = [l.contact_nom, l.contact_fonction].filter(Boolean);
+      const relance = l.prochaine_relance && l.etape !== "perdu"
+        ? h("span", { class: "orga-relance " + (enRetard ? "orga-relance-retard" : ajdRelance ? "orga-relance-jour" : "") },
+            enRetard || ajdRelance ? "🔔 " : "📅 ", `Relance ${ecartJours(l.prochaine_relance)}`)
+        : l.etape !== "perdu" && l.etape !== "client" ? h("span", { class: "orga-relance orga-relance-vide" }, "Aucune relance prévue") : null;
+      return h("li", { class: `orga orga-${l.etape}` },
+        h("a", { class: "orga-lien", href: `#/organisme/${l.id}` },
+          h("span", { class: "orga-haut" },
+            h("span", { class: "orga-nom" }, nomAvecImpaye(l.nom, impayes.get(l.id))),
+            pastille(COULEUR_ETAPE[l.etape], LIBELLE_ETAPE_UNE[l.etape])),
+          h("span", { class: "orga-contact" + (contact.length ? "" : " orga-contact-vide") },
+            contact.length ? ["👤 ", h("strong", {}, contact[0]), contact[1] ? ` · ${contact[1]}` : ""] : "👤 Contact à identifier"),
+          h("span", { class: "orga-bas" }, relance, bant ? pastille(bant.couleur, bant.court) : null)),
+        h("span", { class: "orga-liens" },
+          l.site_web ? h("a", { href: l.site_web, target: "_blank", rel: "noopener", title: "Site internet" }, "🌐 Site") : null,
+          h("a", { href: lienPappers(l.nom, l.siren), target: "_blank", rel: "noopener", title: "Fiche entreprise" }, "🏢 Pappers")));
     };
 
     afficher(
@@ -1126,7 +1135,7 @@
               h("div", { class: "section-titre" },
                 h("h2", {}, "À relancer"),
                 h("p", {}, "aujourd'hui ou en retard")),
-              h("ul", { class: "liste" }, aRelancer.map(ligneOrganisme)))
+              h("ul", { class: "orgas" }, aRelancer.map(ligneOrganisme)))
           : message("info", "Aucune relance prévue aujourd'hui."),
 
         h("section", {},
@@ -1135,7 +1144,7 @@
             filtreBouton(null, "Tous", lignes.length),
             ETAPES.map((e) => filtreBouton(e, LIBELLES_ETAPE[e], compte[e] || 0))),
           visibles.length
-            ? h("ul", { class: "liste" }, visibles.map(ligneOrganisme))
+            ? h("ul", { class: "orgas" }, visibles.map(ligneOrganisme))
             : message("info", filtre ? "Aucun organisme à cette étape." : "Aucun organisme pour le moment. Ajoutez votre premier prospect."))
       )
     );
