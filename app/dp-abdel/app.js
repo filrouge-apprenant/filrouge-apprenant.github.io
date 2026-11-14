@@ -306,7 +306,7 @@
   const MENU = [
     { titre: null, liens: [['', 'Tableau de bord', '◎'], ['session', 'Session d\'appels', '▶'], ['relances', 'Appels et relances', '☎'], ['pipeline', 'Pipeline commercial', '⇢']] },
     { titre: 'Prospects', liens: [['securite', 'Prospects sécurité', '🛡', 'secu'], ['nettoyage', 'Prospects nettoyage', '✦'], ['recherche', 'Recherche de prospects', '⌕'], ['sites', 'Sites de prospection', '↗']] },
-    { titre: 'Contrats', liens: [['ao', 'Appels d\'offres', '§'], ['calculateur', 'Calculateur de contrats', '∑']] },
+    { titre: 'Contrats', liens: [['contrats', 'Rendez-vous et contrats', '★'], ['ao', 'Appels d\'offres', '§'], ['calculateur', 'Calculateur de contrats', '∑']] },
     { titre: 'Pilotage', liens: [['stats', 'Statistiques', '▤'], ['assistant', 'Assistant', '✧'], ['parametres', 'Paramètres', '⚙']] },
   ];
   function routeActuelle() {
@@ -328,7 +328,7 @@
     const pages = {
       '': pAccueil, relances: pRelances, pipeline: pPipeline, securite: () => pListe('secu'), nettoyage: () => pListe('net'),
       recherche: pRecherche, sites: pSites, ao: pAO, calculateur: pCalc, stats: pStats, assistant: pAssistant, parametres: pParametres,
-      prospect: () => pFiche(r.id, r.sous), nouveau: () => pNouveau(r.id), session: pSession,
+      contrats: pContrats, prospect: () => pFiche(r.id, r.sous), nouveau: () => pNouveau(r.id), session: pSession,
     };
     contenu.innerHTML = (pages[r.nom] || pAccueil)(r);
     apresRendu(r);
@@ -785,6 +785,7 @@
         <div class="carte formulaire"><h3>Étape et rendez-vous</h3>
           <label>Étape du pipeline<select data-champ="status">${C.STATUSES.map(x => opt(x[0], x[1], p.status)).join('')}</select></label>
           <div class="deux-colonnes">${champ(p, 'nextDate', 'Prochaine relance', 'date')}${champ(p, 'rdvDate', 'Rendez-vous', 'datetime-local')}</div>
+          ${p.status === 'gagne' ? `<div class="deux-colonnes">${champ(p, 'contractStart', 'Début du contrat', 'date')}${champ(p, C.num(p.hoursSecu) || !p.net ? 'hoursSecu' : 'hoursNet', C.num(p.hoursSecu) || !p.net ? 'Heures de sécurité signées / mois' : 'Heures de nettoyage signées / mois', 'number', 'min="0" step="any"')}</div><p class="aide">Retrouve ce contrat dans <a href="#/contrats">Rendez-vous et contrats</a>.</p>` : ''}
           ${champ(p, 'nextAction', 'Prochaine action')}
           <p class="aide">Dernier appel : ${fd(p.lastCallDate)} · ${C.num(p.callCount)} appel(s) au total.</p></div>
         ${enSession ? `<details class="carte"><summary>Historique (${hist.length})</summary>${historique}</details>` : ''}
@@ -1333,6 +1334,8 @@
         <div class="carte formulaire"><h3>Coûts (pour la marge)</h3><div class="deux-colonnes">${c('costHourSecu', 'Coût horaire chargé, agent de sécurité (€)', 'number', 'À demander à Abdel')}${c('costHourNet', 'Coût horaire chargé, agent de propreté (€)', 'number', 'À demander à Abdel')}
           ${c('nightCostPct', 'Surcoût de nuit (%)', 'number', 'Indicatif, à confirmer')}${c('sundayCostPct', 'Surcoût du dimanche (%)', 'number', 'Indicatif, à confirmer')}</div></div>
         <div class="carte formulaire"><h3>Entreprises</h3><div class="deux-colonnes">${c('companySecu', 'Société de sécurité (nom légal)')}${c('cnaps', 'N° d\'autorisation d\'exercice CNAPS', 'text', 'Exigé dans les devis et appels d\'offres sécurité')}${c('companyNet', 'Société de nettoyage')}${c('userName', 'Ton prénom (scripts et e-mails)')}${c('userPhone', 'Ton téléphone professionnel (signature des e-mails)', 'tel')}</div></div>
+        <div class="carte formulaire"><h3>Ma rémunération</h3><div class="trois-colonnes">${c('commHour', 'Commission par heure de contrat et par mois (€)', 'number', 'Offre actuelle d\'Abdel : 1 €')}${c('commMonths', 'Pendant combien de mois', 'number', '0 = tant que le client reste')}${c('commRdv', 'Prime par rendez-vous obtenu (€)', 'number', '0 si non prévue')}</div>
+          <p class="aide">Sert à calculer ce que te rapportent les contrats dans « Rendez-vous et contrats ».</p></div>
         <div class="actions"><button class="bouton" type="submit">Enregistrer les paramètres</button></div></form>
       <section class="carte pile-serree"><h3>Sauvegardes automatiques</h3>
         <p class="aide">Une copie complète de tes prospects, appels d'offres et paramètres est faite chaque dimanche vers 3 h. Les 8 dernières semaines sont gardées. « Restaurer » remet les fiches telles qu'elles étaient ce jour-là, sans supprimer celles créées depuis.</p>
@@ -1444,6 +1447,85 @@
     for (const p of d.prospects) if (p && p.id && await ecrire('abdel_prospects', p.id, p)) { S.prospects[p.id] = p; n++; }
     for (const t of d.tenders || []) if (t && t.id && await ecrire('abdel_appels_offres', t.id, t)) S.ao[t.id] = t;
     notif(`${n} fiche(s) restaurée(s)`); rafraichir();
+  }
+
+
+  /* ------------------------------------------------------------------ */
+  /* Rendez-vous et contrats : ce que ça rapporte à Abdel et à Émilie     */
+  /* ------------------------------------------------------------------ */
+  const ETAPES_RDV = ['rdv', 'propo', 'devis', 'nego'];
+  const moisEntre = (debut, fin) => {
+    if (!debut) return 0;
+    const a = new Date(debut), b = new Date(fin);
+    return Math.max(0, (b.getFullYear() - a.getFullYear()) * 12 + b.getMonth() - a.getMonth() + (b.getDate() >= a.getDate() ? 1 : 0));
+  };
+  // Rémunération d'Émilie selon un barème { heure, mois, rdv }.
+  function remuneration(p, b) {
+    const h = C.totalHours(p);
+    const parMois = h * C.num(b.heure);
+    const debut = p.contractStart || (p.wonAt || '').slice(0, 10);
+    const ecoules = p.status === 'gagne' ? moisEntre(debut, today()) : 0;
+    const moisPayes = C.num(b.mois) ? Math.min(ecoules, C.num(b.mois)) : ecoules;
+    return {
+      parMois, parAn: parMois * (C.num(b.mois) ? Math.min(12, C.num(b.mois)) : 12),
+      total: C.num(b.mois) ? parMois * C.num(b.mois) : null,
+      percu: parMois * moisPayes, moisPayes, debut,
+      fin: C.num(b.mois) && debut ? addMonths(debut, C.num(b.mois)) : '',
+    };
+  }
+  function addMonths(iso, n) { const d = new Date(iso); d.setMonth(d.getMonth() + n); return d.toISOString().slice(0, 10); }
+  const aEuRdv = p => (p.reached || []).includes('rdv') || ETAPES_RDV.includes(p.status) || p.status === 'gagne' || !!p.rdvDate;
+
+  function pContrats() {
+    const s = S.params;
+    const bareme = { heure: s.commHour, mois: s.commMonths, rdv: s.commRdv };
+    const contre = { heure: 2, mois: 12, rdv: 30 };
+    const tous = liste();
+    const signes = tous.filter(p => p.status === 'gagne').sort((a, b) => (b.wonAt || '').localeCompare(a.wonAt || ''));
+    const enCours = tous.filter(p => ETAPES_RDV.includes(p.status)).sort((a, b) => (a.rdvDate || '9').localeCompare(b.rdvDate || '9'));
+    const nbRdv = tous.filter(aEuRdv).length;
+    const heures = signes.reduce((a, p) => a + C.totalHours(p), 0);
+    const caAbdel = signes.reduce((a, p) => a + C.monthlyValue(p, s), 0);
+    const moiMois = signes.reduce((a, p) => a + remuneration(p, bareme).parMois, 0);
+    const moiPercu = signes.reduce((a, p) => a + remuneration(p, bareme).percu, 0) + nbRdv * C.num(s.commRdv);
+    const potentielHeures = enCours.reduce((a, p) => a + C.totalHours(p), 0);
+    const potentielCa = enCours.reduce((a, p) => a + C.monthlyValue(p, s), 0);
+    const sansHeures = p => !C.totalHours(p) ? `<a class="pastille p-rouge" href="#/prospect/${encodeURIComponent(p.id)}/qualification">Heures à renseigner</a>` : '';
+    const act = p => [p.secu ? '🛡 Sécurité' : '', p.net ? '✦ Nettoyage' : ''].filter(Boolean).join(' + ');
+    const detailHeures = p => [C.num(p.hoursSecu) ? nf(p.hoursSecu) + ' h sécu' : '', C.num(p.hoursNet) ? nf(p.hoursNet) + ' h nett.' : ''].filter(Boolean).join(' · ') || '—';
+    const regleTexte = `${eur2(s.commHour)} par heure et par mois${C.num(s.commMonths) ? ` pendant ${nf(s.commMonths)} mois` : ', tant que le client reste'}${C.num(s.commRdv) ? ` + ${eur(s.commRdv)} par rendez-vous` : ''}`;
+
+    const ligneSigne = p => {
+      const r = remuneration(p, bareme);
+      return `<tr><td><a href="#/prospect/${encodeURIComponent(p.id)}/suivi"><b>${esc(p.name)}</b></a><div class="ligne-detail">${act(p)} · signé le ${fd(p.wonAt)}${p.contractStart ? ' · début ' + fd(p.contractStart) : ''}</div>${sansHeures(p)}</td>
+        <td class="n">${detailHeures(p)}<div class="ligne-detail">${nf(C.totalHours(p))} h / mois</div></td>
+        <td class="n"><b>${eur(C.monthlyValue(p, s))}</b><div class="ligne-detail">${eur(C.monthlyValue(p, s) * 12)} / an</div></td>
+        <td class="n"><b class="texte-menthe">${eur2(r.parMois)}</b><div class="ligne-detail">${r.fin ? 'jusqu\'au ' + fd(r.fin) : 'sans limite'}</div></td>
+        <td class="n">${eur2(r.percu)}<div class="ligne-detail">${r.moisPayes} mois</div></td></tr>`;
+    };
+    const ligneEnCours = p => {
+      const r = remuneration(p, bareme);
+      return `<tr><td><a href="#/prospect/${encodeURIComponent(p.id)}/suivi"><b>${esc(p.name)}</b></a><div class="ligne-detail">${act(p)} · ${esc(C.STATUS_LABEL[p.status])}${p.rdvDate ? ' · RDV ' + fdt(p.rdvDate) : ''}</div>${sansHeures(p)}</td>
+        <td class="n">${nf(C.totalHours(p))} h</td><td class="n">${eur(C.monthlyValue(p, s))}</td><td class="n">${eur2(r.parMois)}</td></tr>`;
+    };
+    const comparer = () => {
+      const a = signes.reduce((x, p) => x + remuneration(p, bareme).parAn, 0) + nbRdv * C.num(bareme.rdv);
+      const b = signes.reduce((x, p) => x + remuneration(p, contre).parAn, 0) + nbRdv * C.num(contre.rdv);
+      return `<section class="carte pile-serree"><h3>Comparer les rémunérations (sur 12 mois, contrats signés et rendez-vous actuels)</h3>
+        <div class="compteurs deux">${compteur(eur(a), 'règle actuelle : ' + regleTexte)}${compteur(eur(b), 'ta contre-proposition : 2 € / h pendant 12 mois + 30 € par rendez-vous', 'compteur-vert')}</div>
+        <p class="aide">Change la règle appliquée dans <a href="#/parametres">Paramètres › Ma rémunération</a> quand vous serez d'accord avec Abdel.</p></section>`;
+    };
+
+    return `<div class="pile">${tete('Contrats', 'Rendez-vous et contrats', 'Les prospects qui ont accepté un rendez-vous, les devis en cours et les contrats signés, avec les heures, le chiffre d\'affaires d\'Abdel et ta rémunération. Règle appliquée : ' + esc(regleTexte) + '.')}
+      <div class="compteurs">${compteur(nf(nbRdv), 'rendez-vous obtenus')}${compteur(nf(signes.length), 'contrats signés', 'compteur-vert')}${compteur(nf(heures) + ' h', 'heures signées / mois', 'compteur-argent')}${compteur(eur(caAbdel), 'CA HT / mois pour Abdel', 'compteur-argent')}${compteur(eur2(moiMois), 'pour toi / mois', 'compteur-vert')}${compteur(eur2(moiPercu), 'pour toi depuis le début', 'compteur-vert')}</div>
+      <section class="carte pile-serree"><div class="section-titre"><h2>★ Contrats signés</h2><p>${signes.length}</p></div>
+        ${signes.length ? `<div class="defile"><table class="tableau"><thead><tr><th>Client</th><th class="n">Heures</th><th class="n">CA Abdel / mois</th><th class="n">Pour toi / mois</th><th class="n">Déjà gagné</th></tr></thead><tbody>${signes.map(ligneSigne).join('')}</tbody>
+          <tfoot><tr><th>Total</th><th class="n">${nf(heures)} h</th><th class="n">${eur(caAbdel)}</th><th class="n">${eur2(moiMois)}</th><th class="n">${eur2(moiPercu - nbRdv * C.num(s.commRdv))}</th></tr></tfoot></table></div>`
+          : '<p class="aide">Aucun contrat signé pour l\'instant. Quand un client signe, passe sa fiche à l\'étape « Contrat gagné » et renseigne les heures par mois : il apparaîtra ici.</p>'}</section>
+      <section class="carte pile-serree"><div class="section-titre"><h2>Rendez-vous et devis en cours</h2><p>${enCours.length} · potentiel ${nf(potentielHeures)} h et ${eur(potentielCa)} / mois</p></div>
+        ${enCours.length ? `<div class="defile"><table class="tableau"><thead><tr><th>Prospect</th><th class="n">Heures estimées</th><th class="n">CA Abdel / mois</th><th class="n">Pour toi / mois si signé</th></tr></thead><tbody>${enCours.map(ligneEnCours).join('')}</tbody></table></div>`
+          : '<p class="aide">Aucun rendez-vous en cours. Dès qu\'un prospect accepte un rendez-vous (résultat « Rendez-vous pris »), il apparaît ici.</p>'}</section>
+      ${comparer()}</div>`;
   }
 
   /* ------------------------------------------------------------------ */
@@ -1560,7 +1642,7 @@
     if (f.id === 'f-parametres') {
       e.preventDefault();
       const d = { ...S.params };
-      new FormData(f).forEach((v, k) => { d[k] = ['rateSecu', 'rateNetClient', 'rateNetProduits', 'nightCostPct', 'sundayCostPct'].includes(k) ? C.num(v) : ['costHourSecu', 'costHourNet'].includes(k) ? (v === '' ? '' : C.num(v)) : v; });
+      new FormData(f).forEach((v, k) => { d[k] = ['rateSecu', 'rateNetClient', 'rateNetProduits', 'nightCostPct', 'sundayCostPct', 'commHour', 'commMonths', 'commRdv'].includes(k) ? C.num(v) : ['costHourSecu', 'costHourNet'].includes(k) ? (v === '' ? '' : C.num(v)) : v; });
       if (await ecrire('abdel_parametres', 'main', d)) { S.params = d; S.calc = null; notif('Paramètres enregistrés'); }
     }
     if (f.id === 'f-assistant') { e.preventDefault(); const q = f.q.value.trim(); if (q) { S.assistant = { q, cle: intention(q) }; rafraichir(); } }

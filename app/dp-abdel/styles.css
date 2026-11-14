@@ -414,3 +414,6 @@ details.carte > summary { cursor: pointer; font-weight: 700; }
   .bouton-notes-mobile { position: fixed; right: 16px; bottom: 16px; z-index: 19; box-shadow: 0 6px 20px rgba(16, 21, 31, .2); }
   body.notes-ouvertes .bouton-notes-mobile { display: none; }
 }
+.compteurs.deux { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.texte-menthe { color: var(--menthe); }
+@media (max-width: 40rem) { .compteurs.deux { grid-template-columns: 1fr; } }

@@ -115,6 +115,9 @@
     cnaps: '',
     userName: 'Émilie',
     lastBackup: '',
+    commHour: 1,     // ma commission : € par heure de contrat et par mois (offre d'Abdel)
+    commMonths: 0,   // durée de la commission en mois (0 = tant que le client reste)
+    commRdv: 0,      // prime par rendez-vous obtenu (€)
   };
 
   function rateNet(p, s) { return p.netProduits ? num(s.rateNetProduits) : num(s.rateNetClient); }
