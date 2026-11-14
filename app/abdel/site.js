@@ -142,6 +142,28 @@
     } finally { b.disabled = false; b.textContent = t; }
   }
 
+  /* Page « réponse » : boutons de l'e-mail (Je préfère être rappelé / Ne plus recevoir de message).
+     On demande une confirmation : les robots qui ouvrent les liens des e-mails ne déclenchent rien. */
+  function pageReponse() {
+    const q = new URLSearchParams(location.search), jeton = q.get('t') || '', choix = q.get('r');
+    const m = $('#message-demande');
+    const fin = (ok, texte) => { m.className = 'message ' + (ok ? 'ok' : 'erreur'); m.innerHTML = texte; m.hidden = false; };
+    if (!/^[a-f0-9]{32}$/.test(jeton) || !['rappel', 'stop'].includes(choix)) return fin(false, 'Ce lien est incomplet. Vous pouvez simplement répondre à notre e-mail.');
+    const envoyer = async (corps, bouton, zone, merci) => {
+      bouton.disabled = true;
+      try { await appel({ action: 'reponse', jeton, choix, ...corps }); zone.hidden = true; fin(true, merci); }
+      catch (e) { bouton.disabled = false; fin(false, esc(e.message)); }
+    };
+    if (choix === 'rappel') {
+      const z = $('#rep-rappel'); z.hidden = false;
+      $('#f-rappel').addEventListener('submit', e => { e.preventDefault(); const f = e.target;
+        envoyer({ telephone: f.telephone.value, creneau: f.creneau.value }, f.querySelector('button'), z, '<b>Merci, c\'est noté.</b> Nous vous appelons sous 24 h ouvrées.'); });
+    } else {
+      const z = $('#rep-stop'); z.hidden = false;
+      $('#b-stop').addEventListener('click', e => envoyer({}, e.target, z, 'C\'est noté : vous ne recevrez plus de message de notre part.'));
+    }
+  }
+
   /* Champs publics (mentions légales, bouton d'appel) remplis depuis les Paramètres du CRM. */
   function remplirChamps() {
     const i = INFOS, val = {
@@ -173,6 +195,7 @@
     brancher('#sim-secu', rendreSecu);
     brancher('#sim-net', rendreNet);
     document.querySelectorAll('form.demande').forEach(f => f.addEventListener('submit', envoyer));
+    if (page === 'reponse') pageReponse();
     const c = document.body.dataset.commune; const sel = $('form.demande [name="commune"]');
     if (c && sel) sel.value = c;
     // Lien reçu par e-mail : l'entreprise et la commune du prospect sont déjà remplies.

@@ -643,17 +643,38 @@
     const q = new URLSearchParams(); if (p.name) q.set('entreprise', p.name); if (p.city) q.set('commune', p.city);
     return base + (q.toString() ? '?' + q.toString() : '');
   }
+  /* Accroche personnalisée d'après le signal de la fiche (offre d'emploi, implantation, événement…).
+     Priorité à la phrase écrite par l'agent Leads (p.accroche), sinon règle simple. */
+  function accrocheSignal(p, act) {
+    if ((p.accroche || '').trim()) return { texte: p.accroche.trim(), source: 'phrase préparée par l\'agent Leads' };
+    const src = (p.source || '').toLowerCase(), besoin = (p.need || '').toLowerCase();
+    const lieu = p.city ? ` à ${p.city}` : '';
+    if (src.includes('indeed') || src.includes('emploi') || /recrut|offre d'emploi|cdi|cdd/.test(besoin)) {
+      const poste = act === 'secu' ? (/ssiap/.test(besoin) ? 'un agent SSIAP' : /cynophile/.test(besoin) ? 'un agent cynophile' : 'un agent de sécurité') : (/femme de chambre|valet/.test(besoin) ? 'du personnel d\'entretien' : 'un agent d\'entretien');
+      return { texte: `J'ai vu que vous recrutez ${poste}${lieu}. Avant de finaliser ce recrutement, voici de quoi comparer en une minute avec une prestation.`, source: 'offre d\'emploi' };
+    }
+    if (src.includes('bodacc') || src.includes('implantation') || /ouverture|nouveau site|nouveaux locaux|s'installe|chantier/.test(besoin)) {
+      return { texte: `J'ai appris l'ouverture de votre nouveau site${lieu}. Pour la mise en route, voici de quoi estimer en une minute ${act === 'secu' ? 'le coût de la surveillance' : 'le budget d\'entretien de vos locaux'}.`, source: 'nouvelle implantation' };
+    }
+    if (src.includes('événement') || src.includes('evenement')) {
+      return { texte: `Pour votre prochain événement${lieu}, voici de quoi estimer en une minute ${act === 'secu' ? 'le dispositif de sécurité' : 'le nettoyage avant et après'}.`, source: 'événement' };
+    }
+    return null;
+  }
   function brouillonSimulateur(p, act) {
     const nom = interlocuteur(p);
+    const acc = accrocheSignal(p, act);
     const bonjour = nom ? `Bonjour ${nom},` : 'Bonjour,';
     const tel = (S.params.userPhone || '').trim();
     if (act === 'secu') return {
       objet: 'Recruter un agent de sécurité ou externaliser ? Le comparatif en 1 minute',
-      texte: `${bonjour}\n\nAvant de recruter un agent de sécurité ou de renouveler votre prestataire, voici un outil simple : vous indiquez vos horaires de surveillance et vous voyez tout de suite le coût complet d'un agent en interne (salaires, nuits, dimanches, congés, remplacements), comparé à une prestation.\n\n[[SIMULATEUR]]\n\nSi vous souhaitez un comparatif chiffré pour votre site, il suffit de laisser vos coordonnées sur la page : nous vous répondons sous 24 h ouvrées.\n\nBelle journée,\n${prenom()}\n${S.params.companySecu || 'Abdel'} — sécurité privée, Bordeaux Métropole${tel ? '\n' + tel : ''}`,
+      accroche: acc && acc.source,
+      texte: `${bonjour}\n\n${acc ? acc.texte + '\n\nLe principe :' : 'Avant de recruter un agent de sécurité ou de renouveler votre prestataire, voici un outil simple :'} vous indiquez vos horaires de surveillance et vous voyez tout de suite le coût complet d'un agent en interne (salaires, nuits, dimanches, congés, remplacements), comparé à une prestation.\n\n[[SIMULATEUR]]\n\nSi vous souhaitez un comparatif chiffré pour votre site, il suffit de laisser vos coordonnées sur la page : nous vous répondons sous 24 h ouvrées.\n\nBelle journée,\n${prenom()}\n${S.params.companySecu || 'Abdel'} — sécurité privée, Bordeaux Métropole${tel ? '\n' + tel : ''}`,
     };
     return {
       objet: 'Estimez en 1 minute le budget d\'entretien de vos locaux',
-      texte: `${bonjour}\n\nJe vous propose un outil simple : en indiquant la surface de vos locaux et le nombre de passages souhaités, vous obtenez tout de suite une estimation du budget d'entretien, sans engagement et sans inscription.\n\n[[SIMULATEUR]]\n\nSi l'estimation vous convient, il suffit de laisser vos coordonnées sur la page : nous vous proposons une visite gratuite et un devis écrit sous 24 h ouvrées.\n\nBelle journée,\n${prenom()}\n${S.params.companyNet || 'Abdel'} — nettoyage professionnel, Bordeaux Métropole${tel ? '\n' + tel : ''}`,
+      accroche: acc && acc.source,
+      texte: `${bonjour}\n\n${acc ? acc.texte + '\n\nLe principe :' : 'Je vous propose un outil simple :'} en indiquant la surface de vos locaux et le nombre de passages souhaités, vous obtenez tout de suite une estimation du budget d'entretien, sans engagement et sans inscription.\n\n[[SIMULATEUR]]\n\nSi l'estimation vous convient, il suffit de laisser vos coordonnées sur la page : nous vous proposons une visite gratuite et un devis écrit sous 24 h ouvrées.\n\nBelle journée,\n${prenom()}\n${S.params.companyNet || 'Abdel'} — nettoyage professionnel, Bordeaux Métropole${tel ? '\n' + tel : ''}`,
     };
   }
   function fSimulateur(p) {
@@ -670,11 +691,13 @@
         ${m.act === 'secu' && !secuOuverte() ? `<div class="message message-action"><b>Dernière étape pour ouvrir le simulateur sécurité.</b> La loi impose que toute publicité de sécurité privée affiche le nom de la société et son n° d'autorisation CNAPS (article L612-14 du Code de la sécurité intérieure). Renseigne-les ici une seule fois : la page et l'envoi s'ouvrent aussitôt.
           <div class="deux-colonnes" style="margin-top:.6rem"><label>Nom légal de la société de sécurité<input id="simu-societe" value="${esc(S.params.companySecu || '')}" placeholder="Ex. ABDEL SÉCURITÉ SAS"></label><label>N° d'autorisation CNAPS<input id="simu-cnaps" value="${esc(S.params.cnaps || '')}" placeholder="AUT-033-…"></label></div>
           <div class="actions"><button class="bouton" type="button" data-action="simu-ouvrir-secu">Enregistrer et ouvrir le simulateur sécurité</button></div></div>` : ''}
+        ${m.accroche ? `<p class="message message-encre">✍️ Accroche personnalisée d'après le signal de la fiche (${esc(m.accroche)}). Vérifie qu'elle est juste avant d'envoyer.</p>` : ''}
+        ${/boamp/i.test(p.source || '') ? '<p class="message message-action">Marché public : l\'acheteur choisit son prestataire via l\'appel d\'offres. Réponds d\'abord à l\'avis ; l\'e-mail ne remplace pas la candidature.</p>' : ''}
         <label>E-mail du prospect<input type="email" id="simu-email" value="${esc(p.email || '')}" placeholder="adresse professionnelle"></label>
         ${p.optOut ? '<p class="message message-erreur">Fiche marquée « Ne plus contacter » : aucun envoi possible.</p>' : ''}
         <label>Objet<input id="simu-objet" value="${esc(m.objet)}"></label>
         <label>Message<textarea id="simu-texte" rows="12">${esc(m.texte)}</textarea></label>
-        <p class="aide">[[SIMULATEUR]] devient un bouton bleu « ${m.act === 'secu' ? 'Faire la comparaison en 1 minute' : 'Estimer mon budget en 1 minute'} » dans l'e-mail : le prospect ne voit pas d'adresse de site, juste le bouton. <a href="${esc(lien)}" target="_blank" rel="noopener">Voir la page ${m.act === 'secu' ? 'sécurité' : 'nettoyage'}</a>. En bas du message, « Pour ne plus être contacté, répondez STOP » est ajouté automatiquement. Les réponses arrivent sur ta boîte e-mail.</p>
+        <p class="aide">[[SIMULATEUR]] devient un bouton bleu « ${m.act === 'secu' ? 'Faire la comparaison en 1 minute' : 'Estimer mon budget en 1 minute'} » dans l'e-mail : le prospect ne voit pas d'adresse de site, juste le bouton. <a href="${esc(lien)}" target="_blank" rel="noopener">Voir la page ${m.act === 'secu' ? 'sécurité' : 'nettoyage'}</a>. Sous ce bouton, l'e-mail ajoute « 📞 Je préfère être rappelé » (un clic, la fiche passe en 🔥 et tu reçois une alerte) et, tout en bas, « Ne plus recevoir de message » (la fiche passe en « Ne plus contacter »). Les réponses arrivent sur ta boîte e-mail.</p>
         <div class="actions"><button class="bouton" type="button" data-action="simu-envoyer"${p.optOut || (m.act === 'secu' && !secuOuverte()) ? ' disabled' : ''}>📧 Envoyer par e-mail</button>
           <button class="bouton bouton-secondaire" type="button" data-action="simu-messagerie"${m.act === 'secu' && !secuOuverte() ? ' disabled' : ''}>Ouvrir dans ma messagerie</button>
           <button class="bouton bouton-secondaire" type="button" data-action="simu-copier">Copier le lien</button>
@@ -724,7 +747,8 @@
       }
       occupe(bouton, false);
       if (!data || !data.ok) return notif(data && data.raison === 'sans_cle' ? 'Envoi automatique indisponible : utilise « Ouvrir dans ma messagerie ».' : 'L\'envoi a échoué : réessaie ou utilise « Ouvrir dans ma messagerie ».', true);
-      await noter(`Simulateur envoyé par e-mail (${nomAct}) à ${email}`);
+      // La fonction serveur a déjà noté l'envoi et le jeton des boutons « rappel / pas intéressé » sur la fiche.
+      if (data.fiche) S.prospects[p.id] = { ...data.fiche, id: p.id }; else await noter(`Simulateur envoyé par e-mail (${nomAct}) à ${email}`);
       notif('Simulateur envoyé à ' + email); rafraichir();
     }
   }

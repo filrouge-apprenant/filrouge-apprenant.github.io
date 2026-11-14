@@ -264,6 +264,31 @@ def page_mentions(rel):
 {pied(rel)}"""
 
 
+def page_reponse(rel):
+    return f"""{tete('Votre réponse · Abdel', 'Réponse à notre message.', 'reponse/', rel, noindex=True)}
+<body data-page="reponse" data-racine="{rel}">
+{entete(rel, '')}
+<main><div class="contenant" style="max-width:34rem;padding-top:2rem">
+  <div id="rep-rappel" class="carte encre" hidden>
+    <p class="surtitre">Rappel</p><h1>Vous souhaitez être rappelé ?</h1>
+    <p class="aide">Indiquez si vous le voulez un numéro et un moment pratique. Nous vous appelons sous 24 h ouvrées.</p>
+    <form id="f-rappel" novalidate>
+      <label for="r-tel">Téléphone (facultatif)</label><input id="r-tel" name="telephone" type="tel" maxlength="25" autocomplete="tel">
+      <label for="r-creneau">Le meilleur moment</label>
+      <select id="r-creneau" name="creneau"><option>Peu importe</option><option>Le matin</option><option>Le midi</option><option>L'après-midi</option><option>En fin de journée</option></select>
+      <button class="bouton large" type="submit">Oui, rappelez-moi</button>
+    </form>
+  </div>
+  <div id="rep-stop" class="carte" hidden>
+    <p class="surtitre">Désinscription</p><h1>Ne plus recevoir de message ?</h1>
+    <p class="aide">Vous ne serez plus contacté au sujet de nos services.</p>
+    <button id="b-stop" class="bouton secondaire large" type="button">Confirmer</button>
+  </div>
+  <div id="message-demande" class="message" hidden role="status"></div>
+</div></main>
+{pied(rel)}"""
+
+
 def ecrire(rel_chemin, contenu):
     f = RACINE / rel_chemin
     f.parent.mkdir(parents=True, exist_ok=True)
@@ -275,6 +300,7 @@ def main():
     ecrire("nettoyage/index.html", page_net("nettoyage/", "../"))
     ecrire("securite/index.html", page_secu("../"))
     ecrire("mentions-legales/index.html", page_mentions("../"))
+    ecrire("reponse/index.html", page_reponse("../"))
     for slug in LOCALES:
         ecrire(f"nettoyage/{slug}/index.html", page_net(f"nettoyage/{slug}/", "../../", slug))
     urls = ["", "nettoyage/", "securite/"] + [f"nettoyage/{s}/" for s in LOCALES]

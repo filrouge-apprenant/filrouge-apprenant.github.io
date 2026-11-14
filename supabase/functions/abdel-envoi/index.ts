@@ -38,14 +38,16 @@ function cleBrevo(): string {
   return "";
 }
 
-// Mise en page : fond blanc, filet doré, lien du simulateur en bouton bleu.
-function html(texte: string, lien: string, bouton: string) {
+// Mise en page : fond blanc, filet doré, lien du simulateur en bouton bleu,
+// puis « Je veux être rappelé » (bouton clair) et « Pas intéressé » (petit lien en bas).
+function html(texte: string, lien: string, bouton: string, rappel: string, stop: string) {
   const blocs = echapper(texte).split(/\n{2,}/).map((p) => {
     if (p.includes("[[SIMULATEUR]]") || p.includes(echapper(lien))) {
-      return `<p style="margin:18px 0;"><a href="${echapper(lien)}" style="display:inline-block;background:#0a78b8;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:10px;">${echapper(bouton)}</a></p>`;
+      return `<p style="margin:18px 0 10px;"><a href="${echapper(lien)}" style="display:inline-block;background:#0a78b8;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:10px;">${echapper(bouton)}</a></p>
+      <p style="margin:0 0 18px;"><a href="${echapper(rappel)}" style="display:inline-block;background:#ffffff;color:#0a78b8;text-decoration:none;font-weight:bold;padding:11px 19px;border-radius:10px;border:1px solid #0a78b8;">📞 Je préfère être rappelé</a></p>`;
     }
     return `<p style="margin:0 0 14px;">${p.replace(/\n/g, "<br>")}</p>`;
-  }).join("");
+  }).join("") + `<p style="margin:22px 0 0;font-size:12px;color:#6b7280;">Pas concerné ? <a href="${echapper(stop)}" style="color:#6b7280;">Ne plus recevoir de message</a></p>`;
   return `<div style="background:#ffffff;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#121820;">
   <div style="max-width:560px;margin:0 auto;border-top:2px solid #c2a36b;padding-top:18px;">${blocs}</div></div>`;
 }
@@ -89,13 +91,28 @@ Deno.serve(async (req: Request) => {
   const societe = act === "secu" ? societeSecu : (String(P.companyNet || "").trim() || "Abdel");
   const pied = [
     act === "secu" ? `${societeSecu} — autorisation d'exercice CNAPS n° ${cnaps}. L'autorisation d'exercice délivrée par le CNAPS ne confère aucune prérogative de puissance publique à l'entreprise ou aux personnes qui en bénéficient.` : "",
-    `Vous recevez ce message en tant que professionnel, au sujet des services de ${societe}. Pour ne plus être contacté, répondez simplement « STOP ».`,
+    `Vous recevez ce message en tant que professionnel, au sujet des services de ${societe}. Pour ne plus être contacté, cliquez sur « Ne plus recevoir de message » ou répondez « STOP ».`,
   ].filter(Boolean).join("\n");
   const texteFinal = `${texte}\n\n${pied}`;
   const texteBrut = texteFinal.split("[[SIMULATEUR]]").join(lien);
 
   const cle = cleBrevo();
   if (!cle) return rep(o, 200, { ok: false, raison: "sans_cle" });
+
+  // Jeton unique pour les boutons « Je veux être rappelé » / « Pas intéressé ».
+  const jeton = Array.from(crypto.getRandomValues(new Uint8Array(16))).map((b) => b.toString(16).padStart(2, "0")).join("");
+  const rappel = `${SITE}reponse/?t=${jeton}&r=rappel`, stop = `${SITE}reponse/?t=${jeton}&r=stop`;
+  const texteMail = texteBrut + `\n\nJe préfère être rappelé : ${rappel}\nNe plus recevoir de message : ${stop}`;
+  // Le jeton est enregistré sur la fiche AVANT l'envoi : les boutons fonctionnent dès réception.
+  const majFiche = async (ajout: (b: Record<string, any>) => Record<string, any>) => {
+    const { data: fraiche } = await sb.from("abdel_prospects").select("data").eq("id", id).maybeSingle();
+    const base = (fraiche?.data || p) as Record<string, any>;
+    const maj = { ...base, ...ajout(base), updatedAt: new Date().toISOString() };
+    const { error } = await sb.from("abdel_prospects").update({ data: maj, modifie_le: maj.updatedAt }).eq("id", id);
+    return error ? null : maj;
+  };
+  const avecJeton = await majFiche((b: any) => ({ jetonsSimu: [...(b.jetonsSimu || []).slice(-19), { t: jeton, act, ts: new Date().toISOString() }] }));
+  if (!avecJeton) return rep(o, 500, { erreur: "La fiche n'a pas pu être mise à jour : réessaie." });
   const expediteur = `${String(P.userName || "Émilie").trim()} — ${societe}`;
   const r = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
@@ -105,11 +122,13 @@ Deno.serve(async (req: Request) => {
       to: [{ email: dest, name: String(p.name || "").slice(0, 70) || undefined }],
       replyTo: { email: REPONSE },
       subject: objet,
-      htmlContent: html(texteFinal, lien, act === "secu" ? "Faire la comparaison en 1 minute" : "Estimer mon budget en 1 minute"),
-      textContent: texteBrut,
+      htmlContent: html(texteFinal, lien, act === "secu" ? "Faire la comparaison en 1 minute" : "Estimer mon budget en 1 minute", rappel, stop),
+      textContent: texteMail,
       tags: ["abdel-simulateur"],
     }),
   });
   if (!r.ok) { console.error("Brevo :", r.status, await r.text().catch(() => "")); return rep(o, 200, { ok: false, raison: "brevo" }); }
-  return rep(o, 200, { ok: true, destinataire: dest });
+
+  const maj = await majFiche((b: any) => ({ history: [...(b.history || []), { ts: new Date().toISOString(), type: "note", text: `Simulateur envoyé par e-mail (${act === "secu" ? "sécurité" : "nettoyage"}) à ${dest}` }] }));
+  return rep(o, 200, { ok: true, destinataire: dest, fiche: maj || avecJeton });
 });

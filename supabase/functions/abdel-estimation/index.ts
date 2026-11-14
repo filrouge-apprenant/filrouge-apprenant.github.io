@@ -5,6 +5,7 @@
 //   { action: "infos" }    -> infos publiques (noms des sociétés, n° CNAPS, tarifs publiés)
 //   { action: "demande", activite: "secu"|"net", ... } -> crée la fiche dans le CRM Abdel
 //                                                         + prévient Émilie par e-mail (Brevo)
+//   { action: "reponse", jeton, choix: "rappel"|"stop" } -> boutons de l'e-mail du simulateur
 //
 // Sécurité :
 //   1. Aucune donnée du CRM n'est jamais renvoyée : seulement les infos publiques
@@ -108,6 +109,55 @@ async function notifier(sujet: string, lignes: string[]) {
   return r.ok;
 }
 
+// Boutons de l'e-mail « simulateur » : « Je veux être rappelé » / « Pas intéressé ».
+// Le prospect est retrouvé par le jeton unique glissé dans le lien (aucune donnée lisible dans l'adresse).
+// La page du site demande une confirmation avant d'appeler cette action (les robots anti-spam
+// qui ouvrent les liens ne déclenchent donc rien).
+async function reponseEmail(o: string | null, admin: ReturnType<typeof createClient>, d: Record<string, any>) {
+  const jeton = String(d.jeton || "");
+  const choix = d.choix === "stop" ? "stop" : d.choix === "rappel" ? "rappel" : "";
+  if (!/^[a-f0-9]{32}$/.test(jeton) || !choix) return rep(o, 400, { erreur: "Lien invalide." });
+  const { data: lignes } = await admin.from("abdel_prospects").select("id, data").contains("data", { jetonsSimu: [{ t: jeton }] }).limit(1);
+  const ligne = lignes && lignes[0];
+  if (!ligne) return rep(o, 404, { erreur: "Ce lien n'est plus valable." });
+  const p = ligne.data as Record<string, any>;
+  const j = (p.jetonsSimu || []).find((x: any) => x.t === jeton);
+  if (!j || Date.now() - new Date(j.ts).getTime() > 180 * 86400_000) return rep(o, 410, { erreur: "Ce lien a expiré." });
+  const maintenant = new Date().toISOString(), jour = maintenant.slice(0, 10);
+  const maj: Record<string, any> = { ...p, updatedAt: maintenant };
+  if (choix === "stop") {
+    if (p.optOut) return rep(o, 200, { ok: true });
+    maj.optOut = true;
+    maj.history = [...(p.history || []), { ts: maintenant, type: "note", text: "Ne plus contacter : demandé par le prospect (bouton « Pas intéressé » de l'e-mail)." }];
+  } else {
+    const deja = (p.history || []).some((h: any) => /a demandé à être rappelé/.test(h.text || "") && Date.now() - new Date(h.ts).getTime() < 3600_000);
+    if (deja) return rep(o, 200, { ok: true });
+    const tel = String(d.telephone || "").replace(/[^\d+ .]/g, "").trim().slice(0, 25);
+    const creneau = String(d.creneau || "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, 120);
+    if (tel && !p.phone) maj.phone = tel;
+    const ordre = ["identifie", "a_qualifier", "qualifie", "contact", "decideur", "interet"];
+    if (ordre.includes(p.status) && p.status !== "interet") {
+      maj.status = "interet";
+      maj.reached = Array.from(new Set([...(p.reached || []), "interet"]));
+    }
+    maj.optOut = false;
+    maj.nextDate = jour;
+    maj.nextAction = `Rappeler : a demandé à être rappelé${creneau ? " (" + creneau + ")" : ""}`;
+    maj.history = [...(p.history || []), ...(maj.status !== p.status ? [{ ts: maintenant, type: "status", from: p.status, to: maj.status }] : []),
+      { ts: maintenant, type: "note", text: `Nouveau signal : le prospect a demandé à être rappelé (bouton de l'e-mail${j.act === "secu" ? " sécurité" : " nettoyage"})${tel ? " · tél. " + tel : ""}${creneau ? " · " + creneau : ""}.` }];
+  }
+  const { error } = await admin.from("abdel_prospects").update({ data: maj, modifie_le: maintenant }).eq("id", ligne.id);
+  if (error) { console.error(error); return rep(o, 500, { erreur: "Enregistrement impossible, merci de réessayer." }); }
+  if (choix === "rappel") {
+    await notifier(`📞 ${p.name} veut être rappelé`, [
+      `${p.name}${p.city ? " (" + p.city + ")" : ""} a cliqué « Je veux être rappelé » dans l'e-mail du simulateur.`,
+      `Téléphone : ${maj.phone || p.phone || "—"}${d.creneau ? " · Créneau souhaité : " + String(d.creneau).slice(0, 120) : ""}`,
+      "La fiche est en tête des signaux chauds du CRM, relance prévue aujourd'hui.",
+    ]).catch(() => false);
+  }
+  return rep(o, 200, { ok: true, entreprise: p.name || "" });
+}
+
 Deno.serve(async (req: Request) => {
   const o = req.headers.get("Origin");
   if (req.method === "OPTIONS") return new Response("ok", { headers: entetes(o) });
@@ -119,6 +169,7 @@ Deno.serve(async (req: Request) => {
   const p = await parametres(admin);
   const infos = infosPubliques(p);
   if (d.action === "infos") return rep(o, 200, infos);
+  if (d.action === "reponse") return reponseEmail(o, admin, d);
   if (d.action !== "demande") return rep(o, 400, { erreur: "Action inconnue." });
 
   // Origine : seules les pages du site peuvent déposer une demande.

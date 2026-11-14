@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="only light">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://cafcevtehuywovvsllvp.supabase.co; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="robots" content="noindex">
+  <title>Votre réponse · Abdel</title>
+  <meta name="description" content="Réponse à notre message.">
+  <link rel="canonical" href="https://filrouge-apprenant.github.io/abdel/reponse/">
+  <meta property="og:title" content="Votre réponse · Abdel">
+  <meta property="og:description" content="Réponse à notre message.">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="fr_FR">
+  <link rel="icon" href="../../dp-abdel/icone.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,400&display=swap">
+  <link rel="stylesheet" href="../site.css?v=__VERSION__">
+</head>
+<body data-page="reponse" data-racine="../">
+<header class="entete"><div class="contenant">
+  <a class="marque" href="../"><b>Abdel</b><span>sécurité · nettoyage</span><svg viewBox="0 0 200 16" preserveAspectRatio="none" aria-hidden="true"><path d="M3 10.5 C 30 5.5, 70 4.2, 110 6.2 C 140 7.6, 170 6.4, 197 3.8" fill="none" stroke="#e39b2d" stroke-width="3.2" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg></a>
+  <nav class="nav" aria-label="Navigation"><a href="../nettoyage/">Nettoyage</a><span data-si-secu hidden><template><a href="../securite/">Sécurité</a></template></span><a href="#" data-tel hidden>☎ Appeler</a></nav>
+</div></header>
+<main><div class="contenant" style="max-width:34rem;padding-top:2rem">
+  <div id="rep-rappel" class="carte encre" hidden>
+    <p class="surtitre">Rappel</p><h1>Vous souhaitez être rappelé ?</h1>
+    <p class="aide">Indiquez si vous le voulez un numéro et un moment pratique. Nous vous appelons sous 24 h ouvrées.</p>
+    <form id="f-rappel" novalidate>
+      <label for="r-tel">Téléphone (facultatif)</label><input id="r-tel" name="telephone" type="tel" maxlength="25" autocomplete="tel">
+      <label for="r-creneau">Le meilleur moment</label>
+      <select id="r-creneau" name="creneau"><option>Peu importe</option><option>Le matin</option><option>Le midi</option><option>L'après-midi</option><option>En fin de journée</option></select>
+      <button class="bouton large" type="submit">Oui, rappelez-moi</button>
+    </form>
+  </div>
+  <div id="rep-stop" class="carte" hidden>
+    <p class="surtitre">Désinscription</p><h1>Ne plus recevoir de message ?</h1>
+    <p class="aide">Vous ne serez plus contacté au sujet de nos services.</p>
+    <button id="b-stop" class="bouton secondaire large" type="button">Confirmer</button>
+  </div>
+  <div id="message-demande" class="message" hidden role="status"></div>
+</div></main>
+<footer class="pied"><div class="contenant">
+  <p>Entreprises de Bordeaux Métropole · Réponse sous 24 h ouvrées</p>
+  <div id="pied-legal"></div>
+</div></footer>
+<script src="../calcul.js?v=__VERSION__"></script>
+<script src="../site.js?v=__VERSION__"></script>
+</body>
+</html>
