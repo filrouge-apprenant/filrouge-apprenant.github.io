@@ -175,6 +175,14 @@
     document.querySelectorAll('form.demande').forEach(f => f.addEventListener('submit', envoyer));
     const c = document.body.dataset.commune; const sel = $('form.demande [name="commune"]');
     if (c && sel) sel.value = c;
+    // Lien reçu par e-mail : l'entreprise et la commune du prospect sont déjà remplies.
+    try {
+      const q = new URLSearchParams(location.search);
+      const ent = (q.get('entreprise') || '').slice(0, 120), com = (q.get('commune') || '').slice(0, 60);
+      const champ = $('form.demande [name="entreprise"]');
+      if (ent && champ && !champ.value) champ.value = ent;
+      if (com && sel && [...sel.options].some(o => o.value === com || o.text === com)) sel.value = com;
+    } catch (_) { }
   }
   demarrer();
 })();

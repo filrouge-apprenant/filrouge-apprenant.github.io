@@ -614,12 +614,12 @@
   function pFiche(id, onglet) {
     const p = S.prospects[id];
     if (!p) return `<div class="pile">${tete('Prospect', 'Fiche introuvable', 'Elle a peut-être été supprimée.')}<a class="bouton" href="#/securite">Retour aux prospects</a></div>`;
-    onglet = ['infos', 'qualification', 'suivi', 'devis', 'scripts'].includes(onglet) ? onglet : 'suivi';
+    onglet = ['infos', 'qualification', 'suivi', 'simulateur', 'devis', 'scripts'].includes(onglet) ? onglet : 'suivi';
     const sc = C.score(p);
     const v = C.monthlyValue(p, S.params);
-    const onglets = [['suivi', 'Suivi et appels'], ['infos', 'Informations'], ['qualification', 'Qualification et score'], ['devis', 'Devis' + (devisDe(id).length ? ` (${devisDe(id).length})` : '')], ['scripts', 'Scripts']];
+    const onglets = [['suivi', 'Suivi et appels'], ['infos', 'Informations'], ['qualification', 'Qualification et score'], ['simulateur', '📧 Simulateur'], ['devis', 'Devis' + (devisDe(id).length ? ` (${devisDe(id).length})` : '')], ['scripts', 'Scripts']];
     const enSession = sessionSur(id);
-    const corps = { infos: fInfos, qualification: fQualif, suivi: fSuivi, devis: fDevis, scripts: fScripts }[onglet](p, enSession);
+    const corps = { infos: fInfos, qualification: fQualif, suivi: fSuivi, simulateur: fSimulateur, devis: fDevis, scripts: fScripts }[onglet](p, enSession);
     return `<div class="fiche-avec-notes"><div class="pile fiche-principale">${enSession ? bandeauSession(p) : ''}
       <div class="entete"><div><p class="surtitre ${p.secu ? '' : 'menthe'}"><a class="bouton-lien" href="#/${p.secu ? 'securite' : 'nettoyage'}">${p.secu ? 'Prospects sécurité' : 'Prospects nettoyage'}</a></p><h1>${esc(p.name)}</h1>
         <p class="chapo">${[p.city, segLabel(p.sector), p.phone ? '☎ ' + esc(p.phone) : ''].filter(Boolean).join(' · ')}</p></div>
@@ -629,6 +629,95 @@
       <nav class="onglets" aria-label="Rubriques de la fiche">${onglets.map(([k, l]) => `<a class="onglet" href="#/prospect/${encodeURIComponent(id)}/${k}"${onglet === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>
       <div id="corps-fiche" data-id="${esc(id)}">${corps}</div>
       <p class="aide" id="etat-sauvegarde">Les modifications s'enregistrent toutes seules.</p></div>${panneauNotes(p)}</div>`;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Onglet « Simulateur » : envoyer au prospect le lien du simulateur   */
+  /* public par e-mail (fonction serveur « abdel-envoi », via Brevo).    */
+  /* ------------------------------------------------------------------ */
+  const SITE_PUBLIC = 'https://filrouge-apprenant.github.io/abdel/';
+  const PAGES_LOCALES = { 'Bordeaux': 'bordeaux', 'Mérignac': 'merignac', 'Pessac': 'pessac', 'Bègles': 'begles', 'Lormont': 'lormont', 'Blanquefort': 'blanquefort', 'Bassens': 'bassens', 'Saint-Médard-en-Jalles': 'saint-medard-en-jalles' };
+  const secuOuverte = () => !!((S.params.cnaps || '').trim() && (S.params.companySecu || '').trim());
+  function lienSimulateur(p, act) {
+    const base = SITE_PUBLIC + (act === 'secu' ? 'securite/' : 'nettoyage/' + (PAGES_LOCALES[p.city] ? PAGES_LOCALES[p.city] + '/' : ''));
+    const q = new URLSearchParams(); if (p.name) q.set('entreprise', p.name); if (p.city) q.set('commune', p.city);
+    return base + (q.toString() ? '?' + q.toString() : '');
+  }
+  function brouillonSimulateur(p, act) {
+    const nom = interlocuteur(p), lien = lienSimulateur(p, act);
+    const bonjour = nom ? `Bonjour ${nom},` : 'Bonjour,';
+    const tel = (S.params.userPhone || '').trim();
+    if (act === 'secu') return {
+      objet: 'Recruter un agent de sécurité ou externaliser ? Le comparatif en 1 minute',
+      texte: `${bonjour}\n\nAvant de recruter un agent de sécurité ou de renouveler votre prestataire, voici un outil simple : vous indiquez vos horaires de surveillance et vous voyez tout de suite le coût complet d'un agent en interne (salaires, nuits, dimanches, congés, remplacements), comparé à une prestation.\n\n${lien}\n\nSi vous souhaitez un comparatif chiffré pour votre site, il suffit de laisser vos coordonnées sur la page : nous vous répondons sous 24 h ouvrées.\n\nBelle journée,\n${prenom()}\n${S.params.companySecu || 'Abdel'} — sécurité privée, Bordeaux Métropole${tel ? '\n' + tel : ''}`,
+    };
+    return {
+      objet: 'Estimez en 1 minute le budget d\'entretien de vos locaux',
+      texte: `${bonjour}\n\nJe vous propose un outil simple : en indiquant la surface de vos locaux et le nombre de passages souhaités, vous obtenez tout de suite une estimation du budget d'entretien, sans engagement et sans inscription.\n\n${lien}\n\nSi l'estimation vous convient, il suffit de laisser vos coordonnées sur la page : nous vous proposons une visite gratuite et un devis écrit sous 24 h ouvrées.\n\nBelle journée,\n${prenom()}\n${S.params.companyNet || 'Abdel'} — nettoyage professionnel, Bordeaux Métropole${tel ? '\n' + tel : ''}`,
+    };
+  }
+  function fSimulateur(p) {
+    const actDefaut = p.secu && secuOuverte() ? 'secu' : 'net';
+    if (!S.simu || S.simu.id !== p.id) S.simu = { id: p.id, act: actDefaut, ...brouillonSimulateur(p, actDefaut) };
+    const m = S.simu, lien = lienSimulateur(p, m.act);
+    const envois = (p.history || []).filter(h => /Simulateur envoyé par e-mail/.test(h.text || '')).reverse();
+    return `<div class="pile-serree">
+      <div class="carte formulaire" id="f-simu">
+        <h3>Envoyer le simulateur au prospect</h3>
+        <p class="aide">Le prospect reçoit un e-mail avec un bouton vers le simulateur. La page s'ouvre avec le nom de son entreprise et sa commune déjà remplis. S'il laisse ses coordonnées, sa demande revient ici en 🔥 et tu reçois un e-mail.</p>
+        <div class="filtres"><button type="button" class="filtre" data-action="simu-act" data-valeur="net" aria-pressed="${m.act === 'net'}">✦ Nettoyage</button>
+          <button type="button" class="filtre" data-action="simu-act" data-valeur="secu" aria-pressed="${m.act === 'secu'}"${secuOuverte() ? '' : ' disabled title="Ouvert dès que le nom légal et le n° CNAPS sont dans Paramètres"'}>🛡 Sécurité${secuOuverte() ? '' : ' (fermé)'}</button></div>
+        ${secuOuverte() ? '' : '<p class="aide">Simulateur sécurité fermé tant que le nom légal et le n° CNAPS ne sont pas dans Paramètres (obligation légale).</p>'}
+        <label>E-mail du prospect<input type="email" id="simu-email" value="${esc(p.email || '')}" placeholder="adresse professionnelle"></label>
+        ${p.optOut ? '<p class="message message-erreur">Fiche marquée « Ne plus contacter » : aucun envoi possible.</p>' : ''}
+        <label>Objet<input id="simu-objet" value="${esc(m.objet)}"></label>
+        <label>Message<textarea id="simu-texte" rows="12">${esc(m.texte)}</textarea></label>
+        <p class="aide">Lien envoyé : <a href="${esc(lien)}" target="_blank" rel="noopener">${esc(lien.split('?')[0])}</a>. En bas du message, une ligne « Pour ne plus être contacté, répondez STOP » est ajoutée automatiquement. Les réponses du prospect arrivent sur ta boîte e-mail.</p>
+        <div class="actions"><button class="bouton" type="button" data-action="simu-envoyer"${p.optOut ? ' disabled' : ''}>📧 Envoyer par e-mail</button>
+          <button class="bouton bouton-secondaire" type="button" data-action="simu-messagerie">Ouvrir dans ma messagerie</button>
+          <button class="bouton bouton-secondaire" type="button" data-action="simu-copier">Copier le lien</button>
+          <button class="bouton-lien" type="button" data-action="simu-reinit">Remettre le texte d'origine</button></div>
+      </div>
+      <div class="carte"><h3>Envois</h3>${envois.length ? `<ul class="liste">${envois.map(h => `<li class="ligne sans-score"><div><div class="ligne-titre">${esc(h.text)}</div><div class="ligne-detail">${fdt(h.ts)}</div></div></li>`).join('')}</ul>` : '<p class="aide">Aucun envoi pour l\'instant.</p>'}</div>
+    </div>`;
+  }
+  async function actionSimu(act, valeur, bouton) {
+    const zoneF = document.getElementById('corps-fiche'); if (!zoneF) return;
+    const p = S.prospects[zoneF.dataset.id]; if (!p || !S.simu) return;
+    const lire = () => { const o = document.getElementById('simu-objet'), t = document.getElementById('simu-texte'); if (o) S.simu.objet = o.value; if (t) S.simu.texte = t.value; };
+    if (act === 'simu-act') { if (valeur === 'secu' && !secuOuverte()) return; S.simu = { id: p.id, act: valeur, ...brouillonSimulateur(p, valeur) }; return rafraichir(); }
+    if (act === 'simu-reinit') { S.simu = { id: p.id, act: S.simu.act, ...brouillonSimulateur(p, S.simu.act) }; return rafraichir(); }
+    lire();
+    const lien = lienSimulateur(p, S.simu.act);
+    if (act === 'simu-copier') { try { await navigator.clipboard.writeText(lien); notif('Lien copié'); } catch (_) { notif('Copie impossible : ' + lien, true); } return; }
+    const email = (document.getElementById('simu-email').value || '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return notif('Indique une adresse e-mail valable.', true);
+    let fiche = p;
+    if (email !== (p.email || '')) { const d = clone(p); d.email = email; fiche = await enregistrerProspect(d); if (!fiche) return; }
+    const noter = async texte => { const d = clone(S.prospects[p.id]); d.history = [...(d.history || []), { type: 'note', ts: nowISO(), text: texte }]; await enregistrerProspect(d); };
+    const nomAct = S.simu.act === 'secu' ? 'sécurité' : 'nettoyage';
+    if (act === 'simu-messagerie') {
+      await noter(`Simulateur ${nomAct} préparé dans ma messagerie pour ${email}`);
+      location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(S.simu.objet)}&body=${encodeURIComponent(S.simu.texte)}`;
+      return;
+    }
+    if (act === 'simu-envoyer') {
+      const ok = await dialogue(`<h3>Envoyer le simulateur ${nomAct} ?</h3><p class="aide">À <b>${esc(email)}</b> (${esc(p.name)}), objet « ${esc(S.simu.objet)} ».</p>`, [{ label: '📧 Envoyer', value: true }, { label: 'Annuler', value: false, cls: 'bouton-secondaire' }]);
+      if (!ok) return;
+      occupe(bouton, true, 'Envoi…');
+      const envoyer = async forcer => sb.functions.invoke('abdel-envoi', { body: { prospect_id: p.id, activite: S.simu.act, objet: S.simu.objet, texte: S.simu.texte, lien, forcer } });
+      let { data, error } = await envoyer(false);
+      if (error) {
+        let j = {}; try { j = await error.context.json(); } catch (_) { }
+        if (j.deja && await dialogue('<h3>Déjà envoyé il y a moins de 24 h</h3><p class="aide">Renvoyer quand même ?</p>', [{ label: 'Renvoyer', value: true }, { label: 'Annuler', value: false, cls: 'bouton-secondaire' }])) ({ data, error } = await envoyer(true));
+        else { occupe(bouton, false); return notif(j.erreur || 'Envoi impossible pour le moment.', true); }
+        if (error) { occupe(bouton, false); return notif('Envoi impossible pour le moment.', true); }
+      }
+      occupe(bouton, false);
+      if (!data || !data.ok) return notif(data && data.raison === 'sans_cle' ? 'Envoi automatique indisponible : utilise « Ouvrir dans ma messagerie ».' : 'L\'envoi a échoué : réessaie ou utilise « Ouvrir dans ma messagerie ».', true);
+      await noter(`Simulateur envoyé par e-mail (${nomAct}) à ${email}`);
+      notif('Simulateur envoyé à ' + email); rafraichir();
+    }
   }
 
   /* Visibilité dans l'espace d'Abdel : uniquement quand Émilie l'active, fiche par fiche. */
@@ -1949,6 +2038,7 @@
     if (act === 'session-demarrer' || act === 'session-nouvelle') { S.session = { file: fileSession((S.filtres.sess || {}).act), i: 0, faits: [], passes: 0, resultat: null }; if (!S.session.file.length) { S.session = null; return route(); } allerSession(); }
     if (act === 'notes-basculer') { const o = document.body.classList.toggle('notes-ouvertes'); if (o) { const t = document.getElementById('note-brouillon'); if (t) t.focus(); } }
     if (act.startsWith('devis-')) return actionDevis(act, a.dataset.valeur);
+    if (act.startsWith('simu-')) return actionSimu(act, a.dataset.valeur, a);
     if (act === 'aller-a') { const cible = document.getElementById(a.dataset.valeur); if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     if (act === 'date-rapide') { const champ = document.querySelector('#f-appel [name=nextDate]'); if (champ) champ.value = a.dataset.valeur; }
     if (act === 'session-passer') { S.session.i++; S.session.passes++; allerSession(); }
