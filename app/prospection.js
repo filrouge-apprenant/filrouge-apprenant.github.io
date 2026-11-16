@@ -219,7 +219,7 @@
       "Envoyer le simulateur à chaque prospect qui dit « envoyez-moi une doc ».",
       "Contacter 5 consultants Qualiopi pour un partenariat apporteur d'affaires.",
       "Relancer les messages vocaux à J+2.",
-      "Objectif de la semaine : 3 rendez-vous ou essais gratuits.",
+      "Objectif de la semaine : 3 rendez-vous ou essais de 30 jours.",
     ] },
     { semaine: "Semaine 3 · Élargir", taches: [
       "Appeler les prospects B (10 par jour).",
@@ -655,7 +655,7 @@
         }))));
       majAvance();
       afficher(cadre("plan", null, avance, h("div", { class: "actions-ligne" }, demarrer), ...semaines,
-        h("p", { class: "aide" }, "Les cases cochées sont gardées sur cet appareil seulement. Objectif réaliste du mois : 2 à 4 essais gratuits lancés, pour facturer à partir de janvier 2027.")));
+        h("p", { class: "aide" }, "Les cases cochées sont gardées sur cet appareil seulement. Objectif réaliste du mois : 2 à 4 essais de 30 jours lancés, pour facturer à partir de janvier 2027.")));
     }
 
     // --- Approches ----------------------------------------------------------
@@ -695,7 +695,7 @@
           h("ul", { class: "sv-liste" },
             h("li", {}, `3 clients de cette taille : environ ${C.euros(ex.coutFilRougeAn * 3)} par an.`),
             h("li", {}, `10 clients : environ ${C.euros(ex.coutFilRougeAn * 10)} par an, avec des appelantes à recruter.`)),
-          h("p", {}, "Entonnoir de départ (hypothèses à corriger avec tes vrais chiffres après 30 jours) : 200 centres appelés → 40 vraies conversations → 10 à 12 essais gratuits → 3 à 4 clients."),
+          h("p", {}, "Entonnoir de départ (hypothèses à corriger avec tes vrais chiffres après 30 jours) : 200 centres appelés → 40 vraies conversations → 10 à 12 essais de 30 jours → 3 à 4 clients."),
           h("p", { class: "aide" }, "Ces montants sont des estimations, pas des prévisions : ils dépendent du nombre d'apprenants réellement confiés.")),
         partie("Ce que j'ai écarté, et pourquoi", false,
           h("ul", { class: "sv-liste" },

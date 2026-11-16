@@ -223,7 +223,7 @@
         "Un email automatique, ça s'ignore facilement. Une voix au téléphone qui connaît votre parcours et fixe un objectif avec l'apprenant, beaucoup moins.",
         "Je prends le relais justement là où les relances automatiques ne suffisent plus.",
       ],
-      relancer: "Vous pourriez me sortir les apprenants qui n'ont pas réagi aux dernières relances ? On commence par eux, gratuitement.",
+      relancer: "Vous pourriez me sortir les apprenants qui n'ont pas réagi aux dernières relances ? On commence par eux, avec l'essai de 30 jours.",
       mots: "lms automatique email relance outil" },
 
     { id: "peu", cat: "besoin", bouton: "Trop peu d'apprenants", profils: ["dirigeant"],
@@ -402,7 +402,7 @@
         "Vous ne dépendez pas de moi : tous les comptes rendus sont sur la plateforme, et à la fin du contrat vous récupérez un export complet de vos données.",
         "Pas d'engagement long ni de reconduction automatique. Vous restez parce que ça marche, pas parce que vous êtes coincé.",
       ],
-      relancer: "On démarre par le test gratuit, sans risque pour vous ?",
+      relancer: "On démarre par l'essai de 30 jours : si l'objectif fixé ensemble n'est pas atteint, vous ne payez rien ?",
       mots: "auto-entrepreneur micro petite pérennité" },
 
     { id: "seule", cat: "confiance", bouton: "Et si vous êtes absente ?", profils: ["dirigeant", "pedago"],
@@ -738,7 +738,7 @@
       accueil: "Bien sûr, c'est normal.",
       creuser: "À votre avis, quelle question va-t-il vous poser en premier ?",
       repondre: [
-        "Je vous envoie un résumé d'une page : le principe, le prix, le test gratuit. Comme ça vous avez tout en main pour lui en parler.",
+        "Je vous envoie un résumé d'une page : le principe, le prix, l'essai de 30 jours. Comme ça vous avez tout en main pour lui en parler.",
       ],
       relancer: "Vous lui en parlez quand ? Je vous rappelle juste après, jeudi ?",
       mots: "cofondateur associé conseil" },
@@ -774,7 +774,7 @@
       repondre: [
         "Justement, je peux vous soulager maintenant : je prends le suivi des nouveaux apprenants sans que vous ayez rien à gérer, à part m'envoyer la liste.",
       ],
-      relancer: "On démarre le test gratuit avec quelques apprenants, sans mobiliser votre équipe ?",
+      relancer: "On démarre l'essai de 30 jours sur vos apprenants à risque, sans mobiliser votre équipe ?",
       mots: "rentrée période chargée débordé" },
 
     { id: "rappelle", cat: "decision", bouton: "Je vous rappelle", profils: ["dirigeant", "pedago", "qualite"],
