@@ -314,13 +314,19 @@
         ${x.statut !== 'terminee' ? '<p class="message message-info">Appel non terminé : pas d\'évaluation.</p>' : `
         <div class="ent-note"><span class="ent-note-chiffre">${x.note_sur_20 ?? '–'}</span><span>/20</span>
           <span class="pastille ${ev.frein_decouvert ? 'p-vert' : 'p-safran'}">${ev.frein_decouvert ? 'Étape suivante obtenue' : 'Pas encore d\'étape suivante'}</span></div>
-        <section class="pile pile-serree"><h2>Critère par critère</h2><ul class="liste">${crit.map(c => `<li class="ligne"><div><div class="ligne-titre">${esc(c.nom)}</div>${c.commentaire ? `<div class="ligne-detail">${esc(c.commentaire)}</div>` : ''}</div><div class="ligne-droite"><span class="pastille ${c.note >= 4 ? 'p-vert' : c.note >= 3 ? 'p-safran' : 'p-rouge'}">${c.note}/5</span></div></li>`).join('')}</ul></section>
+        <section class="pile pile-serree"><h2>Critère par critère</h2><ul class="liste">${crit.map(c => `<li class="ligne"><div><div class="ligne-titre">${esc(c.nom)}</div>${c.commentaire ? `<div class="ligne-detail">${esc(c.commentaire)}</div>` : ''}</div><div class="ligne-droite">${c.note === null || c.note === undefined ? '<span class="pastille p-neutre" title="Le prospect n\'a pas permis cette étape : elle ne compte pas dans la note.">Non évalué</span>' : `<span class="pastille ${c.note >= 4 ? 'p-vert' : c.note >= 3 ? 'p-safran' : 'p-rouge'}">${c.note}/5</span>`}</div></li>`).join('')}</ul></section>
         <div class="deux-colonnes">${liste('Points forts', ev.points_forts)}${liste('À améliorer', ev.a_ameliorer)}</div>
         ${ev.phrase_modele ? `<p class="message message-action"><b>Phrase à essayer la prochaine fois :</b> « ${esc(ev.phrase_modele)} »</p>` : ''}`}
         <div id="ent-reecoute"></div>
         <details class="carte" id="ent-relecture"><summary>Relire la conversation</summary><div class="ent-fil">${(x.transcription || []).map(r => `<div class="ent-bulle ent-${r.qui === 'appelante' ? 'moi' : 'prospect'}"><span class="ent-qui">${r.qui === 'appelante' ? 'Toi' : 'Prospect'}</span><span>${esc(r.texte)}</span></div>`).join('')}</div></details>
-        <div class="actions">${x.scenario_id ? `<a class="bouton" href="#/entrainement/appel/${encodeURIComponent(x.scenario_id)}">Refaire cet appel</a>` : ''}<a class="bouton bouton-secondaire" href="#/entrainement">Choisir un autre prospect</a></div></div>`);
+        <div class="actions">${x.scenario_id ? `<a class="bouton" href="#/entrainement/appel/${encodeURIComponent(x.scenario_id)}">Refaire cet appel</a>` : ''}<a class="bouton bouton-secondaire" href="#/entrainement">Choisir un autre prospect</a>${x.statut === 'terminee' ? '<button class="bouton bouton-secondaire" type="button" id="ent-reevaluer" title="Note à nouveau cet appel selon ce qui s\'est vraiment passé">↻ Recalculer la note</button>' : ''}</div></div>`);
       brancherReecoute(x);
+      const re = document.getElementById('ent-reevaluer');
+      if (re) re.addEventListener('click', async () => {
+        re.disabled = true; re.textContent = 'Nouvelle évaluation… (10 à 20 secondes)';
+        try { await serveur({ action: 'reevaluer', session_id: x.id }); ecranResultat(x.id); }
+        catch (e) { re.disabled = false; re.textContent = '↻ Recalculer la note'; notif(e.message, true); }
+      });
     }
 
     // Réécouter l'appel : ta vraie voix enregistrée + la voix du prospect.

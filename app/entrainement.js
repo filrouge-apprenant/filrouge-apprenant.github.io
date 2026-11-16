@@ -532,9 +532,11 @@
       const blocCriteres = h("ul", { class: "liste entr-criteres" }, criteres.map((c) =>
         h("li", { class: "ligne" },
           h("div", { class: "ligne-titre" }, c.nom),
-          h("div", { class: "entr-jauge", role: "img", "aria-label": `${c.note} sur 5` },
-            [1, 2, 3, 4, 5].map((i) => h("span", { class: i <= c.note ? "entr-point entr-point-plein" : "entr-point" })),
-            h("span", { class: "entr-jauge-texte" }, `${c.note}/5`)),
+          c.note === null || c.note === undefined
+            ? h("span", { class: "pastille pastille-neutre", title: "Le prospect n'a pas permis cette étape : elle ne compte pas dans la note." }, "Non évalué")
+            : h("div", { class: "entr-jauge", role: "img", "aria-label": `${c.note} sur 5` },
+              [1, 2, 3, 4, 5].map((i) => h("span", { class: i <= c.note ? "entr-point entr-point-plein" : "entr-point" })),
+              h("span", { class: "entr-jauge-texte" }, `${c.note}/5`)),
           c.commentaire ? h("div", { class: "ligne-detail" }, c.commentaire) : null)));
 
       // Réécouter l'appel : ta vraie voix enregistrée + la voix du prospect.
@@ -592,6 +594,16 @@
         h("details", { class: "depliant", id: "entr-relecture" }, h("summary", {}, "Relire la conversation"), filRelecture),
         h("div", { class: "actions" },
           mienne && x.scenario_id ? h("a", { class: "bouton", href: `#/entrainement/appel/${x.scenario_id}` }, "Refaire cet appel") : null,
+          mienne && x.statut === "terminee" ? (() => {
+            const b = h("button", { type: "button", class: "bouton bouton-secondaire" }, "↻ Recalculer la note");
+            b.title = "Note à nouveau cet appel, selon ce qui s'est vraiment passé (les étapes que le prospect a empêchées ne comptent pas).";
+            b.addEventListener("click", async () => {
+              b.disabled = true; b.textContent = "Nouvelle évaluation… (10 à 20 secondes)";
+              try { await serveur({ action: "reevaluer", session_id: x.id }); ecranResultat(x.id); }
+              catch (e) { b.disabled = false; b.textContent = "↻ Recalculer la note"; window.alert(e.message); }
+            });
+            return b;
+          })() : null,
           vente ? lien("entrainement", "Choisir un autre prospect") : lien("entrainement", "Choisir un autre apprenant"),
           estAdmin() ? h("button", {
             class: "bouton-lien bouton-lien-danger", type: "button",
@@ -760,7 +772,7 @@
           // Tes points faibles des 5 derniers appels de vente : un conseil au bon endroit du script.
           const ventes = (data || []).filter((x) => x.evaluation && (x.evaluation.criteres || []).some((c) => c.cle === "accroche")).slice(0, 5);
           for (const [cle, astuce] of Object.entries(ASTUCES)) {
-            const notes = ventes.map((x) => (x.evaluation.criteres || []).find((c) => c.cle === cle)).filter(Boolean);
+            const notes = ventes.map((x) => (x.evaluation.criteres || []).find((c) => c.cle === cle)).filter((c) => c && c.note !== null && c.note !== undefined);
             if (!notes.length || !rappels[cle] && cle !== "objections") continue;
             const moyenne = notes.reduce((t, c) => t + (Number(c.note) || 0), 0) / notes.length;
             if (moyenne >= 4) continue;

@@ -313,6 +313,100 @@ function versMessages(transcription: Replique[]): Message[] {
 // -----------------------------------------------------------------------------
 // Serveur
 // -----------------------------------------------------------------------------
+// Script de référence (ce qu'Émilie doit dérouler), pour noter par rapport à lui.
+const SCRIPT_FIL_ROUGE = `Accroche courte : se présenter (prénom, Fil Rouge Apprenants), une phrase sur ce qu'elle fait, puis demander si c'est le bon moment (« Vous avez deux minutes ? »). Puis une question d'ouverture : « Comment vous repérez un apprenant qui commence à décrocher ? ». Découverte : questions ouvertes (origine des apprenants, suivi actuel, nombre d'abandons, qui s'en occupe, Qualiopi, coût d'un abandon). Reformulation avec les mots du prospect, validée par « C'est bien ça ? ». Présentation en 3 bénéfices : temps gagné, apprenants qui vont au bout (chiffre d'affaires gardé), preuves Qualiopi ; prix à l'appel avec un exemple chiffré. Conclusion : essai gratuit de 15 jours, deux créneaux précis, puis récapitulatif. Objections : accueillir, creuser, répondre au vrai frein, relancer vers une date.`;
+const SCRIPT_ABDEL = `Standard : demander la bonne personne et passer le barrage poliment. Accroche selon le signal (recrutement, chantier, prestataire). Découverte : organisation actuelle, incidents, horaires, surface, fréquence. Présenter seulement après avoir écouté. Conclure toujours avec deux créneaux de visite, puis verrouiller (adresse, interlocuteur, confirmation). Jamais de prix de sécurité au téléphone.`;
+
+// Évaluation d'un appel : note de chaque critère selon ce qui s'est vraiment passé.
+// Un critère que le prospect a empêché (barrage, refus d'écouter, appel écourté) n'est
+// pas noté (note null) et ne compte pas dans la note sur 20.
+// deno-lint-ignore no-explicit-any
+async function evaluer(base: any, session: Record<string, any>, transcription: Replique[]) {
+  const { data: scenario } = await base.from("entrainement_scenarios").select("*").eq("id", session.scenario_id).maybeSingle();
+  const { data: persona } = await base.from("entrainement_personas").select("personnage").eq("scenario_id", session.scenario_id).maybeSingle();
+  const vente = scenario?.type === "prospect";
+  const grille = vente ? grilleVente(scenario?.domaine) : GRILLE;
+  const abdel = scenario?.domaine === "abdel";
+  const texteAppel = transcription.map((r) => `${r.qui === "appelante" ? (vente ? "ÉMILIE" : "APPELANTE") : (vente ? "PROSPECT" : "APPRENANT")} : ${r.texte}`).join("\n");
+  const qui = vente ? "Émilie" : "l'appelante";
+  const regleContexte = `Note selon le CONTEXTE RÉEL de l'appel et la difficulté du scénario (${scenario?.difficulte ?? "moyen"}) :
+- Si le prospect a empêché une étape (barrage, refus d'écouter, « envoyez-moi un mail », appel écourté par lui), ce critère n'est PAS applicable : mets "note": null et explique en une phrase qu'il n'a pas pu être évalué. Ne pénalise jamais ${qui} pour une étape que l'interlocuteur n'a pas permise.
+- Dans ce cas, juge plutôt comment ${qui} a géré le barrage, dans les critères concernés (accroche, objections, conclusion).
+- Sur un scénario difficile, obtenir une étape suivante réaliste (rappel daté, envoi du mail avec un rendez-vous de rappel, mise en relation) est une vraie réussite : note la conclusion en conséquence.
+- Note par rapport au script de référence, sans exiger de réciter mot pour mot : ce qui compte, c'est l'intention de chaque étape.
+- Sois juste et cohérente : 3/5 = correct, 4/5 = bien, 5/5 = très bien.`;
+  const systeme = vente
+    ? `Tu es formatrice experte en vente B2B par téléphone (prospection, découverte, traitement des objections, closing) ${abdel ? "dans la sécurité privée et le nettoyage professionnel" : "auprès des organismes de formation"}. Tu évalues un appel d'entraînement d'Émilie${abdel ? ", qui prospecte pour une société de sécurité et de nettoyage" : ", fondatrice de Fil Rouge Apprenants"}, avec bienveillance mais exigence. Tu la tutoies et tu écris en français. Les transcriptions viennent parfois d'une dictée vocale : ignore les fautes de transcription. Note seulement ce qu'Émilie a dit. Tu réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte autour.`
+    : "Tu es formatrice experte en relation client à distance et en suivi d'apprenants en formation à distance (lutte contre le décrochage, accompagnement jusqu'à l'examen). Tu évalues un appel d'entraînement d'une appelante débutante, avec bienveillance mais exigence. Tu tutoies l'appelante dans tes commentaires et tu écris en français. Les transcriptions viennent parfois d'une dictée vocale : ignore les fautes de transcription. Note seulement ce que l'appelante a dit. Tu réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte autour.";
+  const contenu = vente
+    ? `L'offre vendue : ${abdel ? OFFRE_ABDEL : OFFRE_FIL_ROUGE}
+
+Script de référence : ${abdel ? SCRIPT_ABDEL : SCRIPT_FIL_ROUGE}
+
+Scénario : ${scenario?.titre ?? session.scenario_titre} (difficulté : ${scenario?.difficulte ?? "?"})
+Ce qu'Émilie savait avant l'appel : ${scenario?.apprenant_nom ?? ""}, ${scenario?.formation ?? ""} (${scenario?.financement ?? ""}). ${scenario?.contexte ?? ""}
+Objectif de l'appel : ${scenario?.objectif_appel ?? ""}
+Ce qu'Émilie ne savait pas (personnage joué) : ${persona?.personnage ?? ""}
+
+${regleContexte}
+
+Grille (chaque critère noté de 0 à 5, ou null s'il n'est pas applicable) :
+${grille.map((g) => `- ${g.cle} — ${g.nom} : ${g.attendu}`).join("\n")}
+
+Transcription :
+${texteAppel}
+
+Réponds avec un objet JSON de cette forme, avec exactement 6 critères (un par clé de la grille : ${grille.map((g) => g.cle).join(", ")}) :
+{"criteres": [{"cle": "accroche", "note": 3, "commentaire": "1 à 2 phrases avec un exemple tiré de l'appel"}, {"cle": "decouverte", "note": null, "commentaire": "Pas évaluable : le prospect a refusé d'échanger."}],
+ "points_forts": ["2 ou 3 points forts concrets"],
+ "a_ameliorer": ["2 ou 3 axes d'amélioration concrets, sur ce qu'Émilie pouvait réellement faire dans cet appel"],
+ "phrase_modele": "la phrase qu'Émilie aurait pu dire au moment le plus délicat de l'appel (souvent l'objection principale)",
+ "frein_decouvert": true}
+« frein_decouvert » = true si Émilie a obtenu l'étape suivante visée ou une étape réaliste vu le contexte (${abdel ? "visite datée, envoi du dossier avec date de rappel, ou mise en relation" : "rendez-vous daté, essai, rappel daté ou mise en relation"}).`
+    : `Scénario : ${scenario?.titre ?? session.scenario_titre}
+Fiche visible par l'appelante : ${scenario?.contexte ?? ""}
+Objectif de l'appel : ${scenario?.objectif_appel ?? ""}
+Ce que l'appelante ne savait pas (personnage joué) : ${persona?.personnage ?? ""}
+
+${regleContexte}
+
+Grille (chaque critère noté de 0 à 5, ou null s'il n'est pas applicable) :
+${GRILLE.map((g) => `- ${g.cle} — ${g.nom} : ${g.attendu}`).join("\n")}
+
+Transcription :
+${texteAppel}
+
+Réponds avec un objet JSON de cette forme, avec exactement 6 critères (un par clé de la grille : ${GRILLE.map((g) => g.cle).join(", ")}) :
+{"criteres": [{"cle": "accueil", "note": 3, "commentaire": "1 à 2 phrases avec un exemple tiré de l'appel"}],
+ "points_forts": ["2 ou 3 points forts concrets"],
+ "a_ameliorer": ["2 ou 3 axes d'amélioration concrets"],
+ "phrase_modele": "une phrase que l'appelante aurait pu dire au moment le plus délicat de l'appel",
+ "frein_decouvert": true}`;
+  const brut = lireJson(await appelerIA(systeme, [{ role: "user", content: contenu }], 1500, true));
+  const notes = new Map<string, { note: number | null; commentaire: string }>();
+  const criteresIA = Array.isArray(brut.criteres) ? brut.criteres as { cle: string; note: unknown; commentaire: string }[] : [];
+  for (const c of criteresIA) {
+    const n = c.note === null || c.note === undefined || c.note === "" ? null : Math.max(0, Math.min(5, Math.round(Number(c.note) || 0)));
+    notes.set(String(c.cle), { note: n, commentaire: String(c.commentaire ?? "").slice(0, 600) });
+  }
+  if (!notes.size) throw new Error("IA_INDISPONIBLE");
+  const criteres = grille.map((g) => ({ cle: g.cle, nom: g.nom, note: notes.has(g.cle) ? notes.get(g.cle)!.note : 0, commentaire: notes.get(g.cle)?.commentaire ?? "" }));
+  const notees = criteres.filter((c) => c.note !== null) as { note: number }[];
+  const noteSur20 = notees.length ? Math.round((notees.reduce((t, c) => t + c.note, 0) / (notees.length * 5)) * 20) : null;
+  const liste = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 400)).slice(0, 4) : []);
+  return {
+    note_sur_20: noteSur20,
+    evaluation: {
+      criteres,
+      points_forts: liste(brut.points_forts),
+      a_ameliorer: liste(brut.a_ameliorer),
+      phrase_modele: String(brut.phrase_modele ?? "").slice(0, 500),
+      frein_decouvert: brut.frein_decouvert === true,
+      non_evalues: criteres.filter((c) => c.note === null).length,
+    },
+  };
+}
+
 Deno.serve(async (req: Request) => {
   const origine = req.headers.get("Origin");
   if (req.method === "OPTIONS") return new Response("ok", { headers: entetes(origine) });
@@ -387,6 +481,14 @@ Deno.serve(async (req: Request) => {
     if (!UUID.test(sessionId)) return reponse(origine, 400, { erreur: "Appel inconnu." });
     const { data: session } = await base.from("entrainement_sessions").select("*").eq("id", sessionId).eq("appelante_id", moi).maybeSingle();
     if (!session) return reponse(origine, 404, { erreur: "Appel introuvable." });
+    // Recalculer la note d'un appel déjà terminé (barème mis à jour).
+    if (demande.action === "reevaluer") {
+      if (session.statut !== "terminee") return reponse(origine, 409, { erreur: "Cet appel n'est pas encore terminé." });
+      const resultat = await evaluer(base, session, (session.transcription ?? []) as Replique[]);
+      const { error } = await base.from("entrainement_sessions").update(resultat).eq("id", sessionId);
+      if (error) throw error;
+      return reponse(origine, 200, resultat);
+    }
     if (session.statut !== "en_cours") return reponse(origine, 409, { erreur: "Cet appel est déjà terminé." });
     const transcription = (session.transcription ?? []) as Replique[];
 
@@ -412,7 +514,7 @@ Deno.serve(async (req: Request) => {
       return reponse(origine, 200, { reponse: replique, raccroche });
     }
 
-    // ---------------------------------------------------------------- terminer
+    // ---------------------------------------------------------------- terminer / réévaluer
     if (demande.action === "terminer") {
       const duree = Math.max(0, Math.min(7200, Math.round(Number(demande.duree_secondes) || 0)));
       const parlees = transcription.filter((r) => r.qui === "appelante").length;
@@ -420,91 +522,12 @@ Deno.serve(async (req: Request) => {
         await base.from("entrainement_sessions").delete().eq("id", sessionId);
         return reponse(origine, 200, { annule: true });
       }
-
-      const { data: scenario } = await base.from("entrainement_scenarios").select("*").eq("id", session.scenario_id).maybeSingle();
-      const { data: persona } = await base.from("entrainement_personas").select("personnage").eq("scenario_id", session.scenario_id).maybeSingle();
-
-      const vente = scenario?.type === "prospect";
-      const grille = vente ? grilleVente(scenario?.domaine) : GRILLE;
-      const abdel = scenario?.domaine === "abdel";
-      const texteAppel = transcription.map((r) => `${r.qui === "appelante" ? (vente ? "ÉMILIE" : "APPELANTE") : (vente ? "PROSPECT" : "APPRENANT")} : ${r.texte}`).join("\n");
-      const reponseIA = vente ? await appelerIA(
-        `Tu es formatrice experte en vente B2B par téléphone (prospection, découverte, traitement des objections, closing) ${abdel ? "dans la sécurité privée et le nettoyage professionnel" : "auprès des organismes de formation"}. Tu évalues un appel d'entraînement d'Émilie${abdel ? ", qui prospecte pour une société de sécurité et de nettoyage" : ", fondatrice de Fil Rouge Apprenants"}, avec bienveillance mais exigence. Tu la tutoies et tu écris en français. Les transcriptions viennent parfois d'une dictée vocale : ignore les fautes de transcription. Note seulement ce qu'Émilie a dit. Tu réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte autour.`,
-        [{
-          role: "user",
-          content: `L'offre vendue : ${abdel ? OFFRE_ABDEL : OFFRE_FIL_ROUGE}
-
-Scénario : ${scenario?.titre ?? session.scenario_titre}
-Ce qu'Émilie savait avant l'appel : ${scenario?.apprenant_nom ?? ""}, ${scenario?.formation ?? ""} (${scenario?.financement ?? ""}). ${scenario?.contexte ?? ""}
-Objectif de l'appel : ${scenario?.objectif_appel ?? ""}
-Ce qu'Émilie ne savait pas (personnage joué) : ${persona?.personnage ?? ""}
-
-Grille (chaque critère noté de 0 à 5) :
-${grille.map((g) => `- ${g.cle} — ${g.nom} : ${g.attendu}`).join("\n")}
-
-Transcription :
-${texteAppel}
-
-Réponds avec un objet JSON de cette forme, avec exactement 6 critères (un par clé de la grille : ${GRILLE_VENTE.map((g) => g.cle).join(", ")}) :
-{"criteres": [{"cle": "accroche", "note": 3, "commentaire": "1 à 2 phrases avec un exemple tiré de l'appel"}],
- "points_forts": ["2 ou 3 points forts concrets"],
- "a_ameliorer": ["2 ou 3 axes d'amélioration concrets"],
- "phrase_modele": "la phrase qu'Émilie aurait pu dire au moment le plus délicat de l'appel (souvent l'objection principale)",
- "frein_decouvert": true}
-« frein_decouvert » = true si Émilie a obtenu l'étape suivante visée (${abdel ? "visite datée, envoi du dossier avec date de rappel, ou mise en relation" : "rendez-vous daté, essai ou mise en relation"}).`,
-        }],
-        1500,
-        true,
-      ) : await appelerIA(
-        "Tu es formatrice experte en relation client à distance et en suivi d'apprenants en formation à distance (lutte contre le décrochage, accompagnement jusqu'à l'examen). Tu évalues un appel d'entraînement d'une appelante débutante, avec bienveillance mais exigence. Tu tutoies l'appelante dans tes commentaires et tu écris en français. Les transcriptions viennent parfois d'une dictée vocale : ignore les fautes de transcription. Note seulement ce que l'appelante a dit. Tu réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte autour.",
-        [{
-          role: "user",
-          content: `Scénario : ${scenario?.titre ?? session.scenario_titre}
-Fiche visible par l'appelante : ${scenario?.contexte ?? ""}
-Objectif de l'appel : ${scenario?.objectif_appel ?? ""}
-Ce que l'appelante ne savait pas (personnage joué) : ${persona?.personnage ?? ""}
-
-Grille (chaque critère noté de 0 à 5) :
-${GRILLE.map((g) => `- ${g.cle} — ${g.nom} : ${g.attendu}`).join("\n")}
-
-Transcription :
-${texteAppel}
-
-Réponds avec un objet JSON de cette forme, avec exactement 6 critères (un par clé de la grille : ${GRILLE.map((g) => g.cle).join(", ")}) :
-{"criteres": [{"cle": "accueil", "note": 3, "commentaire": "1 à 2 phrases avec un exemple tiré de l'appel"}],
- "points_forts": ["2 ou 3 points forts concrets"],
- "a_ameliorer": ["2 ou 3 axes d'amélioration concrets"],
- "phrase_modele": "une phrase que l'appelante aurait pu dire au moment le plus délicat de l'appel",
- "frein_decouvert": true}`,
-        }],
-        1500,
-        true,
-      );
-      const brut = lireJson(reponseIA);
-
-      const notes = new Map<string, { note: number; commentaire: string }>();
-      const criteresIA = Array.isArray(brut.criteres) ? brut.criteres as { cle: string; note: number; commentaire: string }[] : [];
-      for (const c of criteresIA) {
-        notes.set(String(c.cle), { note: Math.max(0, Math.min(5, Math.round(Number(c.note) || 0))), commentaire: String(c.commentaire ?? "").slice(0, 600) });
-      }
-      if (!notes.size) throw new Error("IA_INDISPONIBLE");
-      const criteres = grille.map((g) => ({ cle: g.cle, nom: g.nom, note: notes.get(g.cle)?.note ?? 0, commentaire: notes.get(g.cle)?.commentaire ?? "" }));
-      const total = criteres.reduce((s, c) => s + c.note, 0);
-      const noteSur20 = Math.round((total / (grille.length * 5)) * 20);
-      const liste = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 400)).slice(0, 4) : []);
-      const evaluation = {
-        criteres,
-        points_forts: liste(brut.points_forts),
-        a_ameliorer: liste(brut.a_ameliorer),
-        phrase_modele: String(brut.phrase_modele ?? "").slice(0, 500),
-        frein_decouvert: brut.frein_decouvert === true,
-      };
-
+      const resultat = await evaluer(base, session, transcription);
       const { error } = await base.from("entrainement_sessions").update({
-        statut: "terminee", fin: new Date().toISOString(), duree_secondes: duree, note_sur_20: noteSur20, evaluation,
+        statut: "terminee", fin: new Date().toISOString(), duree_secondes: duree, ...resultat,
       }).eq("id", sessionId);
       if (error) throw error;
-      return reponse(origine, 200, { note_sur_20: noteSur20, evaluation });
+      return reponse(origine, 200, resultat);
     }
 
     return reponse(origine, 400, { erreur: "Action inconnue." });
