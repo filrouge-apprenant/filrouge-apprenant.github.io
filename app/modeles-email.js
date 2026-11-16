@@ -37,9 +37,13 @@
     // -------------------------------------------------------------------------
     async function charger(forcer) {
       if (cache && !forcer) return cache;
-      const { data, error } = await sb.from("modeles_email")
+      let { data, error } = await sb.from("modeles_email")
         .select("id, categorie, titre, objet, texte, ordre, tentative, actif, destinataire")
         .order("ordre").order("titre");
+      // Base pas encore mise à jour (colonne destinataire absente) : tout est « apprenant ».
+      if (error) ({ data, error } = await sb.from("modeles_email")
+        .select("id, categorie, titre, objet, texte, ordre, tentative, actif")
+        .order("ordre").order("titre"));
       if (error) throw error;
       cache = data || [];
       return cache;
