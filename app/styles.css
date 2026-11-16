@@ -1547,3 +1547,4 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 .obj-puces { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .obj-puce { font: inherit; font-size: 0.82rem; line-height: 1.2; padding: 0.3rem 0.6rem; border: 1px solid var(--obj-trait, var(--filet)); border-left: 3px solid var(--obj-c, var(--fil)); border-radius: 999px; background: var(--obj-f, var(--fond)); color: var(--texte); cursor: pointer; }
 .obj-puce:hover, .obj-puce:focus-visible { border-color: var(--obj-c); }
+.sv-variante { font-size: 0.9rem; font-style: italic; color: var(--texte-doux); margin: -0.3rem 0 0.75rem; padding-left: 0.6rem; border-left: 2px dotted var(--filet); }

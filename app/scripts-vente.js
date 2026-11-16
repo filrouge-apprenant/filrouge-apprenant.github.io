@@ -43,8 +43,10 @@
         { dire: "C'est au sujet de l'abandon des apprenants en formation à distance. Qui est le mieux placé pour en parler ?" },
       ] },
       { titre: "L'accroche (20 secondes)", blocs: [
-        { dire: "Bonjour {contact}, Émilie Rachas, de Fil Rouge Apprenants. Je vous appelle au sujet des apprenants qui décrochent en formation à distance. Je vous prends 30 secondes pour vous expliquer pourquoi je pense à votre organisme, et vous me dites si ça vous parle ?" },
-        { conseil: "Remplace « votre organisme » par son nom. Puis, en une phrase, un détail précis sur lui (ses formations, leur durée) et une seule question : « Aujourd'hui, comment vous repérez un apprenant qui commence à décrocher ? » Ne dis jamais « je me permets de vous présenter »." },
+        { dire: "Bonjour {contact}, Émilie Rachas, de Fil Rouge Apprenants. J'aide les centres de formation à distance à garder leurs apprenants jusqu'à l'examen. Vous avez deux minutes, là, maintenant ?" },
+        { variante: "Si ce n'est pas le moment : « Pas de souci. Je vous rappelle plutôt demain matin ou jeudi après-midi ? »" },
+        { dire: "Merci. Je vous appelle parce que vous proposez des formations à distance, et c'est là que les apprenants décrochent le plus, souvent sans que personne ne s'en rende compte à temps. Aujourd'hui, chez vous, comment vous repérez un apprenant qui commence à décrocher ?" },
+        { conseil: "Une phrase, un silence. Après la question, tais-toi et laisse-le parler. Si tu connais un détail sur le centre (ses formations, leur durée), glisse-le à la place de « vous proposez des formations à distance ». Ne dis jamais « je me permets de vous présenter »." },
       ] },
       { titre: "Les questions de découverte", blocs: [
         { questions: [
@@ -56,11 +58,15 @@
           "Qu'est-ce que ça vous coûte, un apprenant qui lâche en cours de route ?",
         ] },
         { conseil: "Selon la réponse à la 1re question : France Travail = chaque heure d'absence n'est pas payée, parle d'heures perdues. CPF = le risque se joue avant 80 % de progression, demande quand les apprenants décrochent. N'explique jamais la règle : vise ta question." },
-        { conseil: "Écoute, puis reformule :" },
-        { dire: "Si je comprends bien, vous avez… et ça vous pose problème pour…" },
+        { conseil: "Écoute jusqu'au bout sans couper, note ses mots exacts, puis reformule avec SES mots (pas les tiens) et fais-le valider :" },
+        { dire: "Si je vous ai bien compris, aujourd'hui [ses mots : comment ça se passe], et ce qui vous gêne, c'est [ses mots : le problème]. C'est bien ça ?" },
+        { variante: "Attends son « oui ». S'il corrige, reprends sa correction avant de présenter." },
       ] },
       { titre: "La présentation (30 secondes, seulement après les questions)", blocs: [
-        { dire: "Justement, c'est exactement ce que je fais. J'appelle vos apprenants une fois par mois : point sur leur avancement, leurs freins, un objectif jusqu'au prochain appel. Vous voyez tout en direct sur une plateforme : comptes rendus, apprenants à risque, preuves pour Qualiopi. J'ai dix ans de relation client à distance, dont une partie à accompagner des apprenants." },
+        { dire: "Justement, c'est mon métier. J'appelle chacun de vos apprenants une fois par mois : on fait le point sur où il en est, on repère ce qui le bloque, et on fixe un objectif précis jusqu'au prochain appel." },
+        { dire: "De votre côté, vous n'avez rien à mettre en place : vous m'envoyez la liste de vos apprenants, et je m'occupe de tout. Vous suivez chaque appel en direct sur une plateforme, avec une alerte dès qu'un apprenant risque de lâcher. Et chaque compte rendu vous sert de preuve pour Qualiopi." },
+        { dire: "Côté prix, vous ne payez que les appels réellement passés : par exemple, pour 30 apprenants, c'est 15 € HT par apprenant et par mois, soit 450 € HT. Une seule formation sauvée, et c'est remboursé." },
+        { dire: "Qu'est-ce que vous en pensez ?" },
       ] },
       { titre: "La conclusion", blocs: [
         { dire: "Je vous propose de tester gratuitement pendant 15 jours, sur quelques apprenants, sans engagement. Vous jugez sur pièces. On cale un échange de 15 minutes cette semaine pour le mettre en place, mardi ou jeudi ?" },
@@ -121,6 +127,7 @@
       for (const b of partie.blocs) {
         if (b.dire) morceaux.push(remplir(b.dire, contact));
         if (b.conseil) morceaux.push(b.conseil);
+        if (b.variante) morceaux.push(b.variante);
         if (b.liste) morceaux.push(...b.liste);
         if (b.questions) morceaux.push(...b.questions.map((q, i) => `${i + 1}. ${remplir(q, contact)}`));
       }
@@ -133,6 +140,7 @@
       const corps = partie.blocs.map((b) => {
         if (b.dire) return h("blockquote", { class: "sv-dire" }, `« ${remplir(b.dire, contact)} »`);
         if (b.conseil) return h("p", { class: "sv-conseil" }, b.conseil);
+        if (b.variante) return h("p", { class: "sv-variante" }, b.variante);
         if (b.liste) return h("ul", { class: "sv-liste" }, b.liste.map((t) => h("li", {}, t)));
         if (b.questions) {
           return h("ol", { class: b.consignes ? "sv-liste" : "sv-questions" },

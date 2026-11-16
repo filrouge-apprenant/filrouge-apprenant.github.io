@@ -703,6 +703,7 @@
       const corps = (partie) => partie.blocs.map((b) => {
         if (b.dire) return h("blockquote", { class: "sv-dire" }, `« ${remplir(b.dire)} »`);
         if (b.conseil) return h("p", { class: "sv-conseil" }, b.conseil);
+        if (b.variante) return h("p", { class: "sv-variante" }, remplir(b.variante));
         if (b.liste) return h("ul", { class: "sv-liste" }, b.liste.map((t) => h("li", {}, t)));
         if (b.questions) return h("ol", { class: "sv-questions" }, b.questions.map((q) => h("li", {}, `« ${remplir(q)} »`)));
         return null;
@@ -720,6 +721,7 @@
           // De l'accroche à la conclusion : un seul texte qui se lit d'un trait (sans titres ni consignes).
           h("div", { class: "entr-deroule" }, parties.slice(iAccroche, iConclusion + 1).flatMap((partie) => partie.blocs.flatMap((b) =>
             b.dire ? [h("p", {}, `« ${remplir(b.dire)} »`)]
+              : b.variante ? [h("p", { class: "sv-variante" }, remplir(b.variante))]
               : b.questions && !b.consignes ? b.questions.map((q) => h("p", {}, `« ${remplir(q)} »`))
                 : []))),
           parties.slice(iConclusion + 1).filter((p) => /messagerie/i.test(p.titre)).map(pliable),
