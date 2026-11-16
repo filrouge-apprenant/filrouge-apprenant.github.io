@@ -21,7 +21,8 @@
 
   // Élève fictif pour l'aperçu de la page d'édition.
   const EXEMPLE = { prenom: "Julie", organisme: "Académie Horizon", formation: "CAP Pâtissier", avancement_pct: 42, date_examen: "2027-06-12", date_rdv: "mardi 18 novembre à 18 h",
-    contact: "Claire Martin", lien_simulateur: "https://filrouge-apprenant.github.io/simulateur.html?o=Acad%C3%A9mie+Horizon" };
+    contact: "Claire Martin", lien_simulateur: "https://filrouge-apprenant.github.io/simulateur.html?o=Acad%C3%A9mie+Horizon&n=150",
+    lien_simulateur_vierge: "https://filrouge-apprenant.github.io/simulateur.html?o=Acad%C3%A9mie+Horizon&vierge=1" };
   // À qui s'adresse un modèle : les fiches élèves n'utilisent que « apprenant ».
   const DESTINATAIRES = { apprenant: "Un apprenant", organisme: "Un organisme (prospection)" };
   const pour = (m) => m.destinataire || "apprenant";

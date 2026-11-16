@@ -11,12 +11,18 @@
 
   // Pré-remplissage depuis le lien envoyé au prospect.
   const q = new URLSearchParams(window.location.search);
+  // Lien « vierge » : le prospect remplit tout lui-même (seul le réglage avancé garde sa valeur).
+  const vierge = q.get("vierge") === "1";
+  if (vierge) for (const cle of ["n", "p", "d", "t"]) { champs[cle].placeholder = champs[cle].value; champs[cle].value = ""; }
   for (const cle of Object.keys(champs)) {
     const v = q.get(cle);
     if (v !== null && v !== "" && Number.isFinite(Number(v.replace(",", ".")))) champs[cle].value = v.replace(",", ".");
   }
   const nomOrg = (q.get("o") || "").replace(/[<>]/g, "").trim().slice(0, 80);
-  if (nomOrg) $("sim-pour").textContent = `Simulation préparée pour ${nomOrg}. Les chiffres sont des valeurs de départ : remplacez-les par les vôtres, le résultat se met à jour tout seul.`;
+  if (nomOrg) $("sim-pour").textContent = vierge
+    ? `Simulation pour ${nomOrg}. Entrez vos 4 chiffres : le résultat s'affiche tout seul.`
+    : `Simulation préparée pour ${nomOrg}. Les chiffres sont des valeurs de départ : remplacez-les par les vôtres, le résultat se met à jour tout seul.`;
+  else if (vierge) $("sim-pour").textContent = "Entrez vos 4 chiffres : le résultat s'affiche tout seul. Rien n'est envoyé ni enregistré.";
   $("sim-maj").textContent = `Hypothèses à jour le ${C.HYPOTHESES.maj}.`;
 
   function fractionTexte(pct) {
@@ -27,6 +33,15 @@
 
   function maj() {
     const pct = Number($("sim-e").value);
+    const manquants = ["n", "p", "d", "t"].filter((c) => champs[c].value.trim() === "");
+    if (manquants.length) {
+      for (const id of ["r-cout", "r-fr", "r-eq"]) $(id).textContent = "—";
+      $("r-abandons").textContent = ""; $("r-fr-detail").textContent = "";
+      $("r-eq-detail").textContent = `Il reste ${manquants.length} chiffre${manquants.length > 1 ? "s" : ""} à entrer.`;
+      $("r-temps").textContent = ""; $("r-solde").textContent = "Entrez vos chiffres pour voir le résultat.";
+      $("r-e-val").textContent = fractionTexte(pct);
+      return;
+    }
     const r = C.calculer({
       apprenantsAn: champs.n.value, prixFormation: champs.p.value, dureeMois: champs.d.value,
       tauxAbandon: champs.t.value, pertePart: champs.perte.value, evitesPct: pct,

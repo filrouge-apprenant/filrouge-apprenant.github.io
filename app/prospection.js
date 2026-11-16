@@ -306,7 +306,13 @@
 
   // ---------------------------------------------------------------------------
   window.FilRougeProspection = function (outils) {
-    const { sb, h, afficher, message, texteErreur, modeles } = outils;
+    const { sb, h, afficher, message, texteErreur, modeles, noterEchange } = outils;
+    const lienVierge = (nom) => {
+      const q = new URLSearchParams();
+      if (nom) q.set("o", nom);
+      q.set("vierge", "1");
+      return new URL(`simulateur.html?${q}`, window.location.href).href.replace(/#.*$/, "");
+    };
     const C = window.FilRougeCalculAbandons;
     const remplacer = (el, ...enfants) => el.replaceChildren(...enfants.flat().filter((x) => x !== null && x !== undefined && x !== false));
 
@@ -401,12 +407,17 @@
         params.set("n", val("acq-n")); params.set("p", val("acq-p")); params.set("d", val("acq-d")); params.set("t", val("acq-t"));
         const lien = new URL(`simulateur.html?${params}`, window.location.href).href.replace(/#.*$/, "");
         majEmail(org, lien);
-        const copier = h("button", { type: "button", class: "bouton bouton-secondaire" }, "📋 Copier le lien seul");
+        const copierVierge = h("button", { type: "button", class: "bouton bouton-secondaire" }, "📋 Copier le lien vierge");
+        copierVierge.addEventListener("click", async () => {
+          try { await navigator.clipboard.writeText(lienVierge(org ? org.nom : "")); signalEmail.replaceChildren(message("info", "Lien vierge copié : le centre remplit ses chiffres lui-même.")); }
+          catch (e) { signalEmail.replaceChildren(message("erreur", "Copie impossible.")); }
+        });
+        const copier = h("button", { type: "button", class: "bouton bouton-secondaire" }, "📋 Copier le lien pré-rempli");
         copier.addEventListener("click", async () => {
           try { await navigator.clipboard.writeText(lien); signalEmail.replaceChildren(message("info", "Lien copié.")); }
           catch (e) { signalEmail.replaceChildren(message("erreur", "Copie impossible : sélectionne le lien ci-dessous.")); }
         });
-        remplacer(actions, copier,
+        remplacer(actions, copier, copierVierge,
           h("a", { class: "bouton bouton-secondaire", href: lien, target: "_blank", rel: "noopener" }, "👁️ Voir la page du prospect"),
           org ? h("a", { class: "bouton bouton-secondaire", href: `#/organisme/${org.id}` }, "Fiche du centre") : null);
         remplacer(zone, h("p", { class: "aide pr-lien" }, lien));
@@ -425,6 +436,7 @@
         const Ct = window.FilRougeContact;
         const r = Ct.remplirModeleEmail(modeleCourant || MODELE_SECOURS, {
           moi: "Émilie", organisme: orgCourant ? orgCourant.nom : "", contact: orgCourant ? orgCourant.contact : "", lien_simulateur: lienCourant,
+          lien_simulateur_vierge: lienVierge(orgCourant ? orgCourant.nom : ""),
         });
         champObjetMail.value = r.objet.replace("votre organisme de formation", "votre organisme");
         champTexteMail.value = r.texte;
@@ -463,7 +475,7 @@
         M.charger().then((liste) => {
           const dispo = liste.filter((m) => m.actif && m.destinataire === "organisme");
           if (!dispo.length) { remplacer(blocMenus, h("p", { class: "aide" }, "Aucun e-mail de prospection dans « Modèles d'emails » : un texte de base est utilisé.")); return; }
-          const menus = M.menus(liste, "acq-email", (m) => { modeleCourant = m; appliquerModele(); }, { destinataire: "organisme", initial: dispo[0].id });
+          const menus = M.menus(liste, "acq-email", (m) => { modeleCourant = m; appliquerModele(); }, { destinataire: "organisme", initial: (dispo.find((m) => /\{lien_simulateur\}/.test(m.texte)) || dispo[0]).id });
           modeleCourant = menus.modeleChoisi();
           appliquerModele();
           remplacer(blocMenus, menus.bloc);
@@ -699,6 +711,91 @@
             h("li", {}, "Clause d'exclusivité YouSchool : pas de démarchage des formations de leur catalogue, et activité lancée seulement avec leur accord.")))));
     }
 
+    // -------------------------------------------------------------------------
+    // Fenêtre « Écrire un email » d'une fiche organisme : deux menus (catégorie,
+    // puis email) avec les modèles « organisme » de la page Modèles d'emails.
+    // {lien_simulateur} et {lien_simulateur_vierge} donnent ici le lien vide :
+    // pour pré-remplir les chiffres, passer par « 🧮 Envoyer le simulateur ».
+    // org = { id, nom, contact, email }
+    // -------------------------------------------------------------------------
+    function fenetreEmail(org) {
+      const Ct = window.FilRougeContact;
+      const boite = (window.FIL_ROUGE_CONFIG || {}).emailFilRouge || "";
+      const lien = lienVierge(org.nom);
+      const objet = h("input", { id: "org-email-objet", type: "text", value: `Fil Rouge Apprenants — ${org.nom}` });
+      const texte = h("textarea", { id: "org-email-texte", rows: "12" });
+      texte.value = `Bonjour${org.contact ? " " + org.contact : ""},\n\n\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants`;
+      const rdv = h("input", { id: "org-email-rdv", type: "text", placeholder: "Ex. : jeudi 20 novembre à 10 h" });
+      const blocRdv = h("label", { class: "sim-champ", hidden: true }, "Date du rendez-vous à écrire dans l'email", rdv);
+      const zone = h("div", {});
+      let titre = "Email libre", modele = null;
+      const majRdv = () => { blocRdv.hidden = !Ct.variablesRestantes(objet.value + texte.value).includes("date_rdv"); };
+      function appliquer(m) {
+        modele = m;
+        if (!m) return;
+        titre = m.titre;
+        const r = Ct.remplirModeleEmail(m, { moi: "Émilie", organisme: org.nom, contact: org.contact || "", lien_simulateur: lien, lien_simulateur_vierge: lien, date_rdv: rdv.value });
+        objet.value = r.objet; texte.value = r.texte;
+        majRdv();
+      }
+      rdv.addEventListener("change", () => {
+        const v = rdv.value.trim();
+        if (!v) return;
+        objet.value = objet.value.split("{date_rdv}").join(v);
+        texte.value = texte.value.split("{date_rdv}").join(v);
+        majRdv();
+      });
+      const zoneMenus = h("div", {}, h("p", { class: "aide" }, "Chargement des emails tout prêts…"));
+      const M = modeles ? modeles() : null;
+      if (M) M.charger().then((liste) => {
+        if (!liste.some((m) => m.actif && m.destinataire === "organisme")) { remplacer(zoneMenus, h("p", { class: "aide" }, "Aucun email tout prêt pour les organismes : écris librement.")); return; }
+        const menus = M.menus(liste, "org-email", appliquer, { destinataire: "organisme", libre: true });
+        remplacer(zoneMenus, menus.bloc);
+      }).catch(() => remplacer(zoneMenus, h("p", { class: "aide" }, "Emails tout prêts indisponibles : écris librement.")));
+
+      const envoyer = h("button", { type: "submit", class: "bouton" }, org.email ? "Envoyer avec Gmail Fil Rouge" : "Copier l'email");
+      const fermer = h("button", { type: "button", class: "bouton bouton-secondaire" }, "Fermer");
+      const formulaire = h("form", { class: "formulaire", method: "dialog", novalidate: true },
+        h("div", { class: "email-entete" },
+          h("p", {}, h("span", { class: "compteur-libelle" }, "De : "), boite),
+          h("p", {}, h("span", { class: "compteur-libelle" }, "À : "), org.email ? `${org.contact || org.nom} <${org.email}>` : "pas d'adresse sur la fiche")),
+        zoneMenus,
+        h("label", { class: "sim-champ" }, "Objet", objet),
+        h("label", { class: "sim-champ" }, "Message", texte),
+        blocRdv, zone,
+        h("div", { class: "actions-ligne" }, envoyer, fermer),
+        h("p", { class: "aide" }, "Simulateur : le lien envoyé d'ici est vide, le centre remplit ses chiffres. Pour les remplir à sa place : bouton « 🧮 Envoyer le simulateur »."));
+      const dialogue = h("dialog", { class: "dialogue", "aria-label": "Écrire un email" },
+        h("div", { class: "dialogue-titre" }, h("h2", {}, `Email à ${org.nom}`),
+          h("button", { type: "button", class: "dialogue-fermer", "aria-label": "Fermer" }, "×")),
+        formulaire);
+      const fin = () => { dialogue.close(); dialogue.remove(); };
+      dialogue.querySelector(".dialogue-fermer").addEventListener("click", fin);
+      fermer.addEventListener("click", fin);
+      dialogue.addEventListener("cancel", () => setTimeout(() => dialogue.remove(), 0));
+      formulaire.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const reste = Ct.variablesRestantes(objet.value + texte.value);
+        if (reste.length) { remplacer(zone, message("erreur", `Il reste à compléter : {${reste.join("}, {")}}.`)); return; }
+        if (org.email) {
+          window.open(Ct.lienGmail(org.email, objet.value, texte.value, boite), "_blank", "noopener");
+        } else {
+          try { await navigator.clipboard.writeText(`${objet.value}\n\n${texte.value}`); } catch (err) { remplacer(zone, message("erreur", "Copie impossible.")); return; }
+        }
+        let note = false;
+        try {
+          const r = noterEchange ? await noterEchange(org.id, `Email « ${titre} » ${org.email ? "préparé dans Gmail" : "copié"} : ${objet.value}`) : null;
+          note = !!r && !r.error;
+        } catch (err) { note = false; }
+        remplacer(zone, message("info", (org.email
+          ? "Gmail est ouvert avec l'email tout prêt : clique « Envoyer » là-bas."
+          : "Email copié : colle-le dans ta messagerie.") + (note ? " C'est noté dans l'historique du centre." : " (Pas pu le noter dans l'historique : ajoute-le à la main si besoin.)")));
+      });
+      document.body.append(dialogue);
+      dialogue.showModal();
+      return dialogue;
+    }
+
     async function route(morceaux) {
       const cle = morceaux[0] || "";
       const orgId = morceaux.find((m) => UUID.test(m)) || null;
@@ -711,7 +808,7 @@
       return accueil();
     }
 
-    return { route, noter };
+    return { route, noter, fenetreEmail };
   };
 
   window.FilRougeProspection.noter = noter;

@@ -174,7 +174,8 @@
     ["date_rdv", "Date du rendez-vous : à écrire au moment de l'envoi"],
     ["signature", "Votre signature (prénom, conseillère de suivi, organisme)"],
     ["contact", "Prospection : nom du contact du centre (vide = « Bonjour, »)"],
-    ["lien_simulateur", "Prospection : lien du simulateur pré-rempli pour ce centre"],
+    ["lien_simulateur", "Prospection : lien du simulateur pré-rempli pour ce centre (depuis la fiche : sans chiffres)"],
+    ["lien_simulateur_vierge", "Prospection : lien du simulateur vide, que le centre remplit lui-même"],
   ];
 
   // contexte : { prenom, moi, organisme, formation, avancement_pct, date_examen, date_rdv }
@@ -193,6 +194,7 @@
       date_rdv: (c.date_rdv || "").trim() || null,
       contact: (c.contact || "").trim(),
       lien_simulateur: (c.lien_simulateur || "").trim() || null,
+      lien_simulateur_vierge: (c.lien_simulateur_vierge || "").trim() || null,
       signature: [moi || "Votre conseillère", `Conseillère de suivi${organisme ? ` pour ${organisme}` : ""}`, "Fil Rouge Apprenants"].join("\n"),
     };
     return v;

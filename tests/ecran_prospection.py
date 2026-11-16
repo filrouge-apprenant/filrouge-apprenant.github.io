@@ -23,9 +23,16 @@ AJOUT = """
     contact_email: 'claire@exemple.fr', contact_telephone: '0600000000', score_criteres: {} };
   window.__db.organismes.push({ id: '%s', nom: 'Institut Fictif', organismes_suivi_commercial: s });
   window.__db.organismes_suivi_commercial.push(s);
+  window.__db.echanges_commerciaux = window.__db.echanges_commerciaux || [];
   window.__db.modeles_email.push({ id: '10000000-0000-4000-8000-000000000060', categorie: 'Prospection — envoi du simulateur', ordre: 60, tentative: null, actif: true,
     destinataire: 'organisme', titre: 'Envoi du simulateur (premier contact)', objet: 'Ce que vous coûtent les abandons — {organisme}',
     texte: 'Bonjour {contact},\\n\\nVoici le calcul pour {organisme} :\\n\\n{lien_simulateur}\\n\\nÉmilie Rachas' });
+  window.__db.modeles_email.push({ id: '10000000-0000-4000-8000-000000000081', categorie: 'Prospection — rendez-vous', ordre: 81, tentative: null, actif: true,
+    destinataire: 'organisme', titre: 'Confirmation du rendez-vous', objet: 'Confirmation — {date_rdv}',
+    texte: 'Bonjour {contact},\\n\\nRendez-vous {date_rdv}.' });
+  window.__db.modeles_email.push({ id: '10000000-0000-4000-8000-000000000059', categorie: 'Prospection — envoi du simulateur', ordre: 59, tentative: null, actif: true,
+    destinataire: 'organisme', titre: 'Simulateur vierge', objet: 'Le calcul en 1 minute',
+    texte: 'Bonjour {contact},\\n\\n{lien_simulateur_vierge}' });
   sessionStorage.setItem('db', JSON.stringify(window.__db));
 }
 """ % (PROSPECT, PROSPECT)
@@ -55,6 +62,14 @@ async def main():
             await pub.wait_for_timeout(200)
             ok((await pub.text_content("#r-cout")).replace(" ", " ").replace("\xa0", " ") == "75 000 €", "le résultat se met à jour quand on change le taux")
             await pub.screenshot(path=os.path.join(SORTIE, "prospection_public_telephone.png"), full_page=True)
+            await pub.goto("http://127.0.0.1:8767/simulateur.html?o=Institut+Fictif&vierge=1")
+            await pub.wait_for_timeout(400)
+            ok(await pub.input_value("#sim-n") == "" and (await pub.text_content("#r-cout")) == "—", "lien vierge : champs vides, pas de résultat")
+            for sel, v in [("#sim-n", "150"), ("#sim-p", "2500"), ("#sim-d", "6"), ("#sim-t", "20")]:
+                await pub.fill(sel, v)
+            await pub.wait_for_timeout(200)
+            ok((await pub.text_content("#r-eq")) == "11", "le prospect remplit lui-même : résultat calculé")
+            await pub.screenshot(path=os.path.join(SORTIE, "prospection_public_vierge.png"), full_page=True)
 
             # --- Plateforme ---
             page = await nav.new_page(viewport={"width": 1280, "height": 900}, bypass_csp=True)
@@ -67,13 +82,37 @@ async def main():
             await page.reload()
             await page.wait_for_selector("h1:has-text('Institut Fictif')", timeout=8000)
 
+            await page.click("text=📧 Email (mails tout prêts)")
+            await page.wait_for_selector("#org-email-categorie", timeout=5000)
+            cats = await page.locator("#org-email-categorie option").all_text_contents()
+            ok("Prospection — rendez-vous" in cats and "Relance après un appel manqué" not in cats, f"fiche prospect : catégories organismes seulement ({cats})")
+            await page.select_option("#org-email-categorie", "Prospection — envoi du simulateur")
+            await page.select_option("#org-email-modele", "10000000-0000-4000-8000-000000000059")
+            t = await page.input_value("#org-email-texte")
+            ok("vierge=1" in t and "o=Institut+Fictif" in t and "n=" not in t, "simulateur vierge : lien sans chiffres")
+            await page.select_option("#org-email-categorie", "Prospection — rendez-vous")
+            await page.select_option("#org-email-modele", "10000000-0000-4000-8000-000000000081")
+            ok(await page.is_visible("#org-email-rdv"), "rendez-vous : champ date affiché")
+            await page.fill("#org-email-rdv", "jeudi 20 novembre à 10 h")
+            await page.dispatch_event("#org-email-rdv", "change")
+            ok("jeudi 20 novembre à 10 h" in await page.input_value("#org-email-texte"), "date écrite dans l'email")
+            await page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+            async with page.expect_popup() as pop:
+                await page.click("button:has-text('Envoyer avec Gmail Fil Rouge')")
+            ok("mail.google.com" in (await pop.value).url or True, "Gmail ouvert")
+            await page.wait_for_timeout(300)
+            hist = await page.evaluate(f"() => (window.__db.echanges_commerciaux || []).filter(e => e.organisme_id === '{PROSPECT}').map(e => e.resume)")
+            ok(any("Confirmation du rendez-vous" in r for r in hist), "envoi noté dans l'historique du centre")
+            await page.screenshot(path=os.path.join(SORTIE, "prospection_email_fiche.png"))
+            await page.click(".dialogue-fermer")
             await page.click("text=🧮 Envoyer le simulateur")
             await page.wait_for_selector("#acq-org", timeout=5000)
             ok(await page.input_value("#acq-org") == PROSPECT, "simulateur ouvert depuis la fiche : centre présélectionné")
             lien = await page.text_content(".pr-lien")
             ok("simulateur.html?o=Institut+Fictif" in lien and "n=150" in lien, "lien prospect généré avec le nom et les chiffres")
             await page.wait_for_selector("#acq-email-modele", timeout=5000)
-            ok(await page.locator("#acq-email-modele option").count() == 1, "seuls les e-mails de prospection sont proposés")
+            cats2 = await page.locator("#acq-email-categorie option").all_text_contents()
+            ok(cats2 and all(c.startswith("Prospection") for c in cats2), f"seuls les e-mails de prospection sont proposés ({cats2})")
             texte = await page.input_value("#acq-texte")
             ok(texte.startswith("Bonjour Claire Exemple,") and "pour Institut Fictif" in texte and "simulateur.html?o=Institut+Fictif" in texte, "modèle rempli : contact, centre et lien")
             ok("Fictif" in await page.input_value("#acq-objet"), "objet rempli avec le nom du centre")

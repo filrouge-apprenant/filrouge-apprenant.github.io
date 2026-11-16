@@ -955,7 +955,10 @@
   // plan sur 30 jours, approches par situation, 25 méthodes.
   let moduleProspection = null;
   function prospectionMachine() {
-    if (!moduleProspection) moduleProspection = window.FilRougeProspection({ sb, h, afficher, message, texteErreur, modeles: () => modelesEmail() });
+    if (!moduleProspection) moduleProspection = window.FilRougeProspection({
+      sb, h, afficher, message, texteErreur, modeles: () => modelesEmail(),
+      noterEchange: (organismeId, resume) => insererEchange({ organisme_id: organismeId, date_echange: aujourdhui(), canal: "email", resume, auteur_id: etat.profil.id }),
+    });
     return moduleProspection;
   }
 
@@ -1587,13 +1590,12 @@
 
     // --- Contacter l'organisme ---
     const boite = (window.FIL_ROUGE_CONFIG || {}).emailFilRouge || "";
-    const lienGmail = s.contact_email ? window.FilRougeContact.lienGmail(s.contact_email, `Fil Rouge Apprenants — ${org.data.nom}`, `Bonjour${s.contact_nom ? " " + s.contact_nom.split(" ")[0] : ""},\n\n\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants`, boite) : null;
     const blocContacterOrg = h("section", {},
       h("div", { class: "section-titre" }, h("h2", {}, "Contacter")),
       h("div", { class: "carte carte-large pile-serree" },
         h("div", { class: "actions-ligne" },
           s.contact_telephone ? h("a", { class: "bouton", href: `tel:${s.contact_telephone.replace(/[^\d+]/g, "")}` }, `📞 Appeler · ${s.contact_telephone}`) : null,
-          lienGmail ? h("a", { class: "bouton bouton-secondaire", href: lienGmail, target: "_blank", rel: "noopener" }, "📧 Email (Gmail Fil Rouge)") : null,
+          h("button", { type: "button", class: "bouton bouton-secondaire", onclick: () => prospectionMachine().fenetreEmail({ id, nom: org.data.nom, contact: s.contact_nom || "", email: s.contact_email || "" }) }, "📧 Email (mails tout prêts)"),
           h("a", { class: "bouton bouton-secondaire", href: lienSiteWeb(s.site_web, org.data.nom).url, target: "_blank", rel: "noopener" }, s.site_web ? "🌐 Site internet" : "🔎 Chercher le site"),
           h("a", { class: "bouton bouton-secondaire", href: lienPappers(org.data.nom, s.siren), target: "_blank", rel: "noopener" }, "🏢 Pappers"),
           !estClient ? h("a", { class: "bouton bouton-secondaire", href: `#/scripts-vente/demarchage/${id}` }, "📋 Script de démarchage") : null,
