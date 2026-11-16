@@ -255,7 +255,7 @@
       const chrono = h("span", { class: "entr-chrono" }, "0:00");
       const etatTexte = h("p", { class: "entr-etat" });
       const zone = h("div");
-      const saisie = h("textarea", { id: "entr-saisie", rows: "2", placeholder: mode === "voix" ? "Ce que vous dites s'affiche ici (vous pouvez aussi taper)" : "Tapez ce que vous dites à l'apprenant…", maxlength: "600" });
+      const saisie = h("textarea", { id: "entr-saisie", rows: "2", placeholder: mode === "voix" ? "Ce que vous dites s'affiche ici (vous pouvez aussi taper)" : (s.type === "prospect" ? "Tape ce que tu dis au prospect…" : "Tapez ce que vous dites à l'apprenant…"), maxlength: "600" });
       const boutonEnvoyer = h("button", { class: "bouton bouton-petit", type: "button" }, "Envoyer");
       const boutonMicro = mode === "voix" ? h("button", { class: "bouton bouton-petit bouton-secondaire entr-micro", type: "button", "aria-pressed": "false" }, "Couper le micro") : null;
       const boutonSon = mode === "voix" ? h("button", { class: "bouton-lien", type: "button" }, "Couper le son") : null;
