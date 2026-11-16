@@ -1595,7 +1595,6 @@
       h("div", { class: "carte carte-large pile-serree" },
         h("div", { class: "actions-ligne" },
           s.contact_telephone ? h("a", { class: "bouton", href: `tel:${s.contact_telephone.replace(/[^\d+]/g, "")}` }, `📞 Appeler · ${s.contact_telephone}`) : null,
-          h("button", { type: "button", class: "bouton bouton-secondaire", onclick: () => prospectionMachine().fenetreEmail({ id, nom: org.data.nom, contact: s.contact_nom || "", email: s.contact_email || "" }) }, "📧 Email (mails tout prêts)"),
           h("a", { class: "bouton bouton-secondaire", href: lienSiteWeb(s.site_web, org.data.nom).url, target: "_blank", rel: "noopener" }, s.site_web ? "🌐 Site internet" : "🔎 Chercher le site"),
           h("a", { class: "bouton bouton-secondaire", href: lienPappers(org.data.nom, s.siren), target: "_blank", rel: "noopener" }, "🏢 Pappers"),
           !estClient ? h("a", { class: "bouton bouton-secondaire", href: `#/scripts-vente/demarchage/${id}` }, "📋 Script de démarchage") : null,
@@ -5758,6 +5757,35 @@
     const objet = champTexte("canal-email-objet", "Objet", `Fil Rouge Apprenants — ${org.nom}`);
     const corpsEmail = champMessage("canal-email", `${salutation}\n\n\n\nBelle journée,\n${signature}`);
     const ouvrirEmail = h("a", { class: "bouton", target: "_blank", rel: "noopener" }, "Ouvrir dans Gmail (boîte Fil Rouge)");
+    // Emails tout prêts (modèles « organisme ») : catégorie puis email.
+    const q = new URLSearchParams(); q.set("o", org.nom || ""); q.set("vierge", "1");
+    const lienSimVierge = new URL(`simulateur.html?${q}`, window.location.href).href.replace(/#.*$/, "");
+    const rdv = champTexte("canal-email-rdv", "Date du rendez-vous à écrire dans l'email", "", { placeholder: "Ex. : jeudi 20 novembre à 10 h" });
+    rdv.bloc.hidden = true;
+    let titreModele = null;
+    const majRdv = () => { rdv.bloc.hidden = !C.variablesRestantes(objet.champ.value + corpsEmail.champ.value).includes("date_rdv"); };
+    const appliquerModele = (m) => {
+      titreModele = m ? m.titre : null;
+      if (!m) { objet.champ.value = `Fil Rouge Apprenants — ${org.nom}`; corpsEmail.champ.value = `${salutation}\n\n\n\nBelle journée,\n${signature}`; }
+      else {
+        const r = C.remplirModeleEmail(m, { moi: "Émilie", organisme: org.nom, contact: prenomContact || suivi.contact_nom || "", lien_simulateur: lienSimVierge, lien_simulateur_vierge: lienSimVierge, date_rdv: rdv.champ.value.trim() });
+        objet.champ.value = r.objet; corpsEmail.champ.value = r.texte;
+      }
+      majRdv(); majEmail();
+    };
+    rdv.champ.addEventListener("change", () => {
+      const v = rdv.champ.value.trim();
+      if (!v) return;
+      objet.champ.value = objet.champ.value.split("{date_rdv}").join(v);
+      corpsEmail.champ.value = corpsEmail.champ.value.split("{date_rdv}").join(v);
+      majRdv(); majEmail();
+    });
+    const zoneModeles = h("div", {}, h("p", { class: "aide" }, "Chargement des emails tout prêts…"));
+    modelesEmail().charger().then((liste) => {
+      if (!liste.some((m) => m.actif && m.destinataire === "organisme")) return zoneModeles.replaceChildren(h("p", { class: "aide" }, "Aucun email tout prêt pour les organismes : écris librement."));
+      zoneModeles.replaceChildren(modelesEmail().menus(liste, "canal-email", appliquerModele, { destinataire: "organisme", libre: true }).bloc);
+    }).catch(() => zoneModeles.replaceChildren(h("p", { class: "aide" }, "Emails tout prêts indisponibles : écris librement.")));
+
     const majEmail = () => {
       const lien = C.lienGmail(dest.champ.value, objet.champ.value, corpsEmail.champ.value, boite);
       if (lien) ouvrirEmail.setAttribute("href", lien); else ouvrirEmail.removeAttribute("href");
@@ -5767,12 +5795,14 @@
     majEmail();
     ouvrirEmail.addEventListener("click", (e) => {
       if (!ouvrirEmail.getAttribute("href")) { e.preventDefault(); return signaler(zoneEmail, "erreur", "Indique une adresse email valable."); }
-      noter(zoneEmail, "email", `Email envoyé : ${objet.champ.value.trim()}`);
+      const reste = C.variablesRestantes(objet.champ.value + corpsEmail.champ.value);
+      if (reste.length) { e.preventDefault(); return signaler(zoneEmail, "erreur", `Il reste à compléter : {${reste.join("}, {")}}.`); }
+      noter(zoneEmail, "email", `Email envoyé${titreModele ? ` « ${titreModele} »` : ""} : ${objet.champ.value.trim()}`);
     });
     const panneauEmail = h("div", { class: "carte carte-large pile-serree" },
       suivi.contact_email ? null : sansContact("email"),
       h("p", { class: "aide" }, `L'email part de ${boite || "la boîte Fil Rouge"}, avec ta signature.`),
-      dest.bloc, objet.bloc, corpsEmail.bloc,
+      zoneModeles, dest.bloc, rdv.bloc, objet.bloc, corpsEmail.bloc,
       h("div", { class: "actions-ligne" }, ouvrirEmail), zoneEmail);
 
     // --- Téléphone ---
