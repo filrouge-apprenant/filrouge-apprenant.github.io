@@ -439,7 +439,9 @@
         },
       };
 
-      afficher(h("div", { class: "pile" },
+      // Appel de vente : le script et les objections restent à côté de la conversation.
+      const aide = s.type === "prospect" ? panneauAide(s) : null;
+      const ecranAppel = h("div", { class: "pile" },
         h("div", { class: "entr-tete" },
           h("div", {},
             h("p", { class: "surtitre" }, "Appel en cours"),
@@ -457,7 +459,8 @@
           saisie,
           h("div", { class: "actions" }, boutonEnvoyer, boutonMicro, boutonSon)),
         h("div", { class: "actions entr-fin" }, boutonRaccrocher,
-          h("span", { class: "aide" }, "Raccrochez quand l'appel est fini : l'évaluation arrive tout de suite."))));
+          h("span", { class: "aide" }, "Raccrochez quand l'appel est fini : l'évaluation arrive tout de suite.")));
+      afficher(aide ? h("div", { class: "entr-avec-aide" }, ecranAppel, aide) : ecranAppel);
 
       ajouter("apprenant", depart.reponse);
       majEtat(mode === "voix" ? `${prenom(s.apprenant_nom)} décroche…` : "À vous : présentez-vous.");
@@ -625,6 +628,45 @@
           h("p", { class: "chapo" }, "Un apprenant 100 % fictif : n'utilisez jamais les informations d'un vrai apprenant.")),
         h("div", { class: "carte carte-large" }, formulaire),
         boutonSupprimer ? h("div", { class: "actions" }, boutonSupprimer) : null));
+    }
+
+    // -------------------------------------------------------------------------
+    // Panneau « Script / Objections » affiché pendant un appel de vente.
+    // -------------------------------------------------------------------------
+    function panneauAide(s) {
+      const D = window.FilRougeScriptDemarchage;
+      const contact = String(s.apprenant_nom || "").split(",")[0].trim();
+      const remplir = (t) => String(t).replaceAll("{contact}", contact || "Madame X");
+      const script = h("div", { class: "pile pile-serree" },
+        D ? [h("p", { class: "aide" }, D.chapo),
+          D.parties.map((partie, i) => {
+            const d = h("details", { class: "sv-partie" }, h("summary", {}, h("span", {}, partie.titre)),
+              h("div", { class: "sv-corps" }, partie.blocs.map((b) => {
+                if (b.dire) return h("blockquote", { class: "sv-dire" }, `« ${remplir(b.dire)} »`);
+                if (b.conseil) return h("p", { class: "sv-conseil" }, b.conseil);
+                if (b.liste) return h("ul", { class: "sv-liste" }, b.liste.map((t) => h("li", {}, t)));
+                if (b.questions) return h("ol", { class: "sv-questions" }, b.questions.map((q) => h("li", {}, `« ${remplir(q)} »`)));
+                return null;
+              })));
+            d.open = i === 2; // l'accroche ouverte au départ
+            return d;
+          })]
+          : h("p", { class: "aide" }, "Script indisponible."));
+      const O = window.FilRougeObjections;
+      const objections = O ? O.panneau({ h, contact, organisme: s.formation, titre: "Objections" }) : h("p", { class: "aide" }, "Objections indisponibles.");
+      const zone = h("div", { class: "entr-aide-corps" }, script);
+      const onglet = (texte, contenu) => {
+        const b = h("button", { type: "button", class: "filtre" }, texte);
+        b.addEventListener("click", () => {
+          zone.replaceChildren(contenu);
+          b.parentNode.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+        });
+        return b;
+      };
+      const bScript = onglet("📋 Script", script), bObj = onglet("🛡 Objections", objections);
+      bScript.setAttribute("aria-pressed", "true"); bObj.setAttribute("aria-pressed", "false");
+      return h("aside", { class: "entr-aide carte", "aria-label": "Script et objections" },
+        h("div", { class: "filtres" }, bScript, bObj), zone);
     }
 
     // -------------------------------------------------------------------------

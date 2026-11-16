@@ -87,6 +87,9 @@
 
   const ONGLETS = { demarchage: DEMARCHAGE, objections: OBJECTIONS };
 
+  // Contenu lisible depuis les autres écrans (ex. simulateur d'appel prospect).
+  window.FilRougeScriptDemarchage = DEMARCHAGE;
+
   window.FilRougeScriptsVente = function (ctx) {
     const { sb, h, afficher } = ctx;
 

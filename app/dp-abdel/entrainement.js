@@ -138,7 +138,7 @@
       const sessionId = d.session_id, debut = Date.now(), genre = FEMININS.test(s.apprenant_nom) ? 'f' : 'm';
       let fini = false, attente = false, son = true, microVoulu = mode === 'voix', ecoute = false, finalTxt = '', minuterie = null, micro = null;
 
-      remplir(`<div class="pile">
+      remplir(`<div class="ent-avec-aide"><div class="pile">
         <div class="entete"><div><p class="surtitre">Appel en cours · <span id="ent-chrono">0:00</span></p><h1>${esc(s.apprenant_nom)}</h1></div></div>
         <details class="carte"><summary>Revoir la fiche et l'objectif</summary><p>${esc(s.formation)} · ${esc(s.derniere_connexion || '')}</p><p>${esc(s.contexte)}</p><p><b>Objectif :</b> ${esc(s.objectif_appel)}</p></details>
         <div id="ent-fil" class="ent-fil" aria-live="polite"></div>
@@ -149,7 +149,12 @@
           <div class="actions"><button class="bouton bouton-petit" type="button" id="ent-envoyer">Envoyer</button>
             ${mode === 'voix' ? '<button class="bouton bouton-petit bouton-secondaire" type="button" id="ent-micro">Couper le micro</button><button class="bouton-lien" type="button" id="ent-son">Couper le son</button>' : ''}</div>
         </div>
-        <div class="actions"><button class="bouton bouton-danger" type="button" id="ent-raccrocher">Raccrocher</button><span class="aide">Raccroche quand l'appel est fini : l'évaluation arrive tout de suite.</span></div></div>`);
+        <div class="actions"><button class="bouton bouton-danger" type="button" id="ent-raccrocher">Raccrocher</button><span class="aide">Raccroche quand l'appel est fini : l'évaluation arrive tout de suite.</span></div></div>
+        ${panneauAide(s)}</div>`);
+      document.querySelectorAll('[data-aide]').forEach(b => b.addEventListener('click', () => {
+        document.querySelectorAll('[data-aide]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+        document.querySelectorAll('.ent-aide-volet').forEach(v => { v.hidden = v.dataset.volet !== b.dataset.aide; });
+      }));
 
       const $ = id => document.getElementById(id);
       const fil = $('ent-fil'), etat = $('ent-etat'), saisie = $('ent-saisie');
@@ -230,6 +235,25 @@
       majEtat(mode === 'voix' ? 'Le prospect décroche…' : 'À toi : présente-toi.');
       await parler(d.reponse);
       if (!fini) { majEtat(mode === 'voix' ? 'À toi, je t\'écoute…' : 'À toi : présente-toi.'); ecouter(); if (mode !== 'voix') saisie.focus(); }
+    }
+
+    // Script et objections du bon métier (sécurité ou nettoyage), à côté de l'appel.
+    function panneauAide(s) {
+      const R = window.RefData || {};
+      const net = /^nettoyage/i.test(s.titre);
+      const script = ((R.SCRIPTS || {})[net ? 'net' : 'secu']) || [];
+      const objs = [...((net ? R.OBJECTIONS_NET : R.OBJECTIONS_SECU) || []), ...(R.OBJECTIONS || [])];
+      const P = (outils.params && outils.params()) || {};
+      const nomContact = String(s.apprenant_nom || '').split(',')[0].trim();
+      const texte = t => esc(String(t)
+        .replace(/\(Société\)/g, (P.companySecu || '').trim() || '(Société)')
+        .replace(/\(Entreprise\)/g, (P.companyNet || '').trim() || 'Abdel')
+        .replace(/\(nom\)/g, nomContact.split(' ').slice(-1)[0] || '(nom)')).replace(/\n/g, '<br>');
+      return `<aside class="ent-aide carte" aria-label="Script et objections">
+        <div class="actions"><button class="bouton bouton-petit bouton-secondaire" type="button" data-aide="script" aria-pressed="true">📋 Script ${net ? 'nettoyage' : 'sécurité'}</button><button class="bouton bouton-petit bouton-secondaire" type="button" data-aide="obj" aria-pressed="false">🛡 Objections</button></div>
+        <div class="ent-aide-volet" data-volet="script">${script.map((e, i) => `<details class="ent-etape"${i === 3 ? ' open' : ''}><summary>${esc(e.t)}</summary><p>${texte(e.x)}</p></details>`).join('') || '<p class="aide">Script indisponible.</p>'}</div>
+        <div class="ent-aide-volet" data-volet="obj" hidden>${objs.map(o => `<details class="ent-etape"><summary>${esc(o.o)}</summary><p>${texte(o.r)}</p></details>`).join('') || '<p class="aide">Objections indisponibles.</p>'}</div>
+      </aside>`;
     }
 
     // -------------------------------------------------------------- résultat

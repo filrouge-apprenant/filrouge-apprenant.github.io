@@ -348,7 +348,7 @@
   // Entraînement à la prospection (entrainement.js) : prospect fictif joué par l'IA.
   let moduleEntrainement = null;
   function entrainement() {
-    if (!moduleEntrainement) moduleEntrainement = window.AbdelEntrainement({ sb, esc, contenu, notif });
+    if (!moduleEntrainement) moduleEntrainement = window.AbdelEntrainement({ sb, esc, contenu, notif, params: () => S.params });
     return moduleEntrainement;
   }
 

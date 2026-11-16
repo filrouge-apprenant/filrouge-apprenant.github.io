@@ -1517,3 +1517,9 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 .reglage-voix { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; }
 .reglage-voix label { flex: 1 1 240px; }
 .reglage-voix .aide { flex-basis: 100%; margin: 0; }
+
+/* Appel de vente : conversation à gauche, script et objections à droite */
+.entr-avec-aide { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.entr-aide { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.entr-aide .filtres { position: sticky; top: -1.5rem; background: var(--fond); padding: 4px 0; z-index: 1; }
+@media (max-width: 900px) { .entr-avec-aide { grid-template-columns: minmax(0, 1fr); } .entr-aide { position: static; max-height: none; } }
