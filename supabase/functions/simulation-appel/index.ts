@@ -5,8 +5,11 @@
 // puis évalue l'appel selon la grille Fil Rouge.
 //
 // IA utilisée (choisie selon le secret présent dans Supabase) :
-//   - MISTRAL_API_KEY   -> Mistral, formule gratuite « Experiment » (par défaut)
-//   - ANTHROPIC_API_KEY -> Claude (payant), seulement si Mistral n'est pas configuré
+//   - MISTRAL_API_KEY -> Mistral (formule gratuite « Experiment »)
+//   - GROQ_API_KEY    -> Groq (gratuit, clé « gsk_… »)
+//   - GEMINI_API_KEY  -> Google Gemini (gratuit, clé « AIza… »)
+//   - ANTHROPIC_API_KEY -> Claude (payant)
+//   Une clé Groq, Gemini ou Claude est reconnue même rangée sous un autre nom.
 // Seules des données fictives sont envoyées : jamais un vrai apprenant.
 //
 // Sécurité :
@@ -28,7 +31,6 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const ORIGINES_AUTORISEES = ["https://filrouge-apprenant.github.io"];
-const MODELE_MISTRAL = Deno.env.get("MISTRAL_MODEL") ?? "mistral-small-latest";
 const MODELE_CLAUDE = Deno.env.get("ANTHROPIC_MODEL") ?? "claude-haiku-5-5";
 const MAX_APPELS_PAR_JOUR = 25;
 const MAX_REPLIQUES = 40;
@@ -92,18 +94,42 @@ function grilleVente(domaine: unknown) {
 // -----------------------------------------------------------------------------
 // Appel à l'IA : renvoie le texte produit. json = true : réponse en JSON.
 // -----------------------------------------------------------------------------
+// Trouve la clé d'IA disponible, quel que soit le nom du secret dans Supabase :
+// on reconnaît les clés à leur début (gsk_ = Groq, AIza = Google Gemini, sk-ant- = Claude).
+type Fournisseur = { nom: "mistral" | "groq" | "gemini" | "claude"; cle: string };
+function fournisseurIA(): Fournisseur | null {
+  const env = Deno.env.toObject();
+  const valeurs = Object.values(env).map((v) => String(v || "").trim());
+  const mistral = (env.MISTRAL_API_KEY || env.mistral_api_key || "").trim();
+  if (mistral) return { nom: "mistral", cle: mistral };
+  const groq = (env.GROQ_API_KEY || "").trim() || valeurs.find((v) => v.startsWith("gsk_"));
+  if (groq) return { nom: "groq", cle: groq };
+  const gemini = (env.GEMINI_API_KEY || env.GOOGLE_API_KEY || "").trim() || valeurs.find((v) => v.startsWith("AIza"));
+  if (gemini) return { nom: "gemini", cle: gemini };
+  const claude = (env.ANTHROPIC_API_KEY || "").trim() || valeurs.find((v) => v.startsWith("sk-ant-"));
+  if (claude) return { nom: "claude", cle: claude };
+  return null;
+}
+
+// Mistral, Groq et Gemini parlent le même langage (format « chat completions »).
+const COMPATIBLES = {
+  mistral: { url: "https://api.mistral.ai/v1/chat/completions", modele: () => Deno.env.get("MISTRAL_MODEL") ?? "mistral-small-latest" },
+  groq: { url: "https://api.groq.com/openai/v1/chat/completions", modele: () => Deno.env.get("GROQ_MODEL") ?? "llama-3.3-70b-versatile" },
+  gemini: { url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", modele: () => Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash" },
+};
+
 async function appelerIA(systeme: string, messages: Message[], maxTokens: number, json = false): Promise<string> {
-  const cleMistral = Deno.env.get("MISTRAL_API_KEY");
-  const cleClaude = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!cleMistral && !cleClaude) throw new Error("CLE_ABSENTE");
+  const f = fournisseurIA();
+  if (!f) throw new Error("CLE_ABSENTE");
 
   let r: Response;
-  if (cleMistral) {
-    r = await fetch("https://api.mistral.ai/v1/chat/completions", {
+  if (f.nom !== "claude") {
+    const c = COMPATIBLES[f.nom];
+    r = await fetch(c.url, {
       method: "POST",
-      headers: { Authorization: `Bearer ${cleMistral}`, "Content-Type": "application/json", Accept: "application/json" },
+      headers: { Authorization: `Bearer ${f.cle}`, "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
-        model: MODELE_MISTRAL,
+        model: c.modele(),
         max_tokens: maxTokens,
         temperature: json ? 0.2 : 0.8,
         messages: [{ role: "system", content: systeme }, ...messages],
@@ -113,18 +139,18 @@ async function appelerIA(systeme: string, messages: Message[], maxTokens: number
   } else {
     r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: { "x-api-key": cleClaude!, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      headers: { "x-api-key": f.cle, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({ model: MODELE_CLAUDE, max_tokens: maxTokens, system: systeme, messages }),
     });
   }
   if (!r.ok) {
-    console.error("Erreur IA", r.status, await r.text());
+    console.error("Erreur IA", f.nom, r.status, await r.text());
     if (r.status === 401 || r.status === 403) throw new Error("CLE_INVALIDE");
     if (r.status === 429) throw new Error("IA_SATUREE");
     throw new Error("IA_INDISPONIBLE");
   }
   const d = await r.json();
-  if (cleMistral) {
+  if (f.nom !== "claude") {
     const c = d.choices?.[0]?.message?.content;
     return (Array.isArray(c) ? c.map((x: { text?: string }) => x.text ?? "").join("") : String(c ?? "")).trim();
   }
@@ -444,8 +470,8 @@ Réponds avec un objet JSON de cette forme, avec exactement 6 critères (un par 
   } catch (e) {
     const code = e instanceof Error ? e.message : "";
     console.error("simulation-appel", e);
-    if (code === "CLE_ABSENTE") return reponse(origine, 503, { erreur: "L'IA n'est pas encore branchée : la clé Mistral n'est pas installée dans Supabase." });
-    if (code === "CLE_INVALIDE") return reponse(origine, 503, { erreur: "La clé de l'IA est refusée. Vérifiez la clé dans le compte Mistral." });
+    if (code === "CLE_ABSENTE") return reponse(origine, 503, { erreur: "L'IA n'est pas encore branchée : aucune clé d'IA (Mistral, Groq ou Gemini) n'est installée dans Supabase." });
+    if (code === "CLE_INVALIDE") return reponse(origine, 503, { erreur: "La clé de l'IA est refusée : vérifiez-la dans le compte du fournisseur (Mistral, Groq ou Gemini)." });
     if (code === "IA_SATUREE") return reponse(origine, 429, { erreur: "L'IA gratuite est très demandée en ce moment. Patientez quelques secondes, puis renvoyez votre phrase." });
     if (code === "IA_INDISPONIBLE") return reponse(origine, 502, { erreur: "L'IA ne répond pas pour le moment. Réessayez dans un instant." });
     return reponse(origine, 500, { erreur: "Erreur inattendue. Réessayez." });
