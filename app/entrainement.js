@@ -280,7 +280,7 @@
       let sonActif = true;
       const V = window.FilRougeVoix;
       const synth = V && V.dispo ? { cancel: () => V.arreter() } : null;
-      const genre = PRENOMS_FEMININS.test(s.apprenant_nom) ? "f" : "m";
+      const genre = (V && V.genreDe && V.genreDe(s.apprenant_nom)) || (PRENOMS_FEMININS.test(s.apprenant_nom) ? "f" : "m");
       const parler = (texte) => {
         if (mode !== "voix" || !sonActif || !synth) return Promise.resolve();
         return V.parler(texte, { genre });
@@ -544,8 +544,13 @@
       const blocReecoute = h("div", { class: "entr-reecoute" });
       const E = window.FilRougeEnregistreur;
       if (E && mienne) {
-        E.liens(sb, x.appelante_id, x.id).then((urls) => {
+        Promise.all([E.liens(sb, x.appelante_id, x.id),
+          x.scenario_id ? sb.from("entrainement_scenarios").select("apprenant_nom").eq("id", x.scenario_id).maybeSingle() : Promise.resolve({ data: null })])
+        .then(([urls, sc]) => {
           if (!urls.size) return;
+          const nom = (sc && sc.data && sc.data.apprenant_nom) || "";
+          const V = window.FilRougeVoix;
+          const genreProspect = (V && V.genreDe && V.genreDe(nom)) || (PRENOMS_FEMININS.test(nom) ? "f" : "m");
           let lecture = null;
           const bouton = h("button", { type: "button", class: "bouton" }, "🎧 Réécouter l'appel");
           const fin = () => { lecture = null; bouton.textContent = "🎧 Réécouter l'appel"; bulles.forEach((b) => b.classList.remove("entr-en-lecture")); };
@@ -554,7 +559,7 @@
             const rel = document.getElementById("entr-relecture"); if (rel) rel.open = true;
             bouton.textContent = "⏹ Arrêter l'écoute";
             lecture = E.rejouer(x.transcription || [], urls, {
-              genre: /^(claire|sandrine|accueil|julie|mme|sophie|hélène|helene|patricia)/i.test(x.scenario_titre || "") ? "f" : "",
+              genre: genreProspect,
               surLigne: (i) => { bulles.forEach((b, k) => b.classList.toggle("entr-en-lecture", k === i)); if (bulles[i]) bulles[i].scrollIntoView({ block: "nearest", behavior: "smooth" }); },
               surFin: fin,
             });

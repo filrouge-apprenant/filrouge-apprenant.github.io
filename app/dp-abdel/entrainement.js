@@ -135,7 +135,7 @@
       try { d = await serveur({ action: 'demarrer', scenario_id: s.id, mode }); }
       catch (e) { go.disabled = false; go.textContent = '☎ Lancer l\'appel'; zone.innerHTML = `<p class="message message-erreur">${esc(e.message)}</p>`; return; }
 
-      const sessionId = d.session_id, debut = Date.now(), genre = FEMININS.test(s.apprenant_nom) ? 'f' : 'm';
+      const sessionId = d.session_id, debut = Date.now(), genre = (V && V.genreDe && V.genreDe(s.apprenant_nom)) || (FEMININS.test(s.apprenant_nom) ? 'f' : 'm');
       // Enregistrement de tes répliques (voix), pour réécouter l'appel ensuite.
       const E = window.FilRougeEnregistreur;
       const enreg = mode === 'voix' && E && E.dispo ? await E.ouvrir() : null;
@@ -327,8 +327,10 @@
     async function brancherReecoute(x) {
       const E = window.FilRougeEnregistreur, zone = document.getElementById('ent-reecoute');
       if (!E || !zone) return;
-      let urls;
+      let urls, nom = '';
       try { urls = await E.liens(sb, x.appelante_id, x.id); } catch (e) { return; }
+      if (x.scenario_id) { const r = await sb.from('entrainement_scenarios').select('apprenant_nom').eq('id', x.scenario_id).maybeSingle(); nom = (r.data && r.data.apprenant_nom) || ''; }
+      const genreProspect = (V && V.genreDe && V.genreDe(nom)) || (FEMININS.test(nom) ? 'f' : 'm');
       if (!urls.size) return;
       zone.innerHTML = `<div class="actions"><button class="bouton" type="button" id="ent-ecouter">🎧 Réécouter l'appel</button><span class="aide">Ta vraie voix (${urls.size} réplique${urls.size > 1 ? 's' : ''} enregistrée${urls.size > 1 ? 's' : ''}), et le prospect relu par la voix de l'ordinateur.</span></div>`;
       const bouton = document.getElementById('ent-ecouter');
@@ -340,7 +342,7 @@
         document.getElementById('ent-relecture').open = true;
         bouton.textContent = "⏹ Arrêter l'écoute";
         lecture = E.rejouer(x.transcription || [], urls, {
-          genre: /sophie|hélène|patricia|sandrine/i.test(x.scenario_titre || '') ? 'f' : '',
+          genre: genreProspect,
           surLigne: i => { bulles.forEach((b, k) => b.classList.toggle('ent-en-lecture', k === i)); if (bulles[i]) bulles[i].scrollIntoView({ block: 'nearest', behavior: 'smooth' }); },
           surFin: fin,
         });

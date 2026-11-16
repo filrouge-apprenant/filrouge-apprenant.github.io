@@ -21,7 +21,17 @@
   const CLE = "filrouge-voix";
 
   const FEMININES = /(denise|eloise|éloïse|vivienne|brigitte|coralie|jacqueline|yvette|celeste|céleste|josephine|joséphine|ariane|charline|sylvie|hortense|julie|amélie|amelie|audrey|aurélie|aurelie|marie|virginie|léa|lea|chantal|caroline|female|femme|google français)/i;
-  const MASCULINES = /(henri|remy|rémi|remi|alain|claude|jerome|jérôme|maurice|yves|paul|thomas|nicolas|daniel|antoine|fabrice|gerard|gérard|guillaume|lucien|jean|male|homme)/i;
+  const MASCULINES = /(henri|remy|rémi|remi|alain|claude|jerome|jérôme|maurice|yves|paul|thomas|nicolas|daniel|antoine|fabrice|gerard|gérard|guillaume|lucien|jean|jacques|male|homme)/i;
+
+  // Genre d'un personnage d'après son nom (« Claire Martin, directrice », « Mme Petit », « M. Durand »).
+  const PRENOMS_F = /^(mme|madame|mlle|mademoiselle|accueil|standardiste|claire|sandrine|sophie|hélène|helene|patricia|julie|marie|nathalie|isabelle|catherine|christine|sylvie|valérie|valerie|céline|celine|émilie|emilie|aurélie|aurelie|camille|léa|lea|manon|chloé|chloe|sarah|laura|lucie|pauline|caroline|stéphanie|stephanie|virginie|audrey|élodie|elodie|karima|fatima|nadia|samira|yasmine|amina|inès|ines|leila|leïla|anne|annie|agnès|agnes|brigitte|martine|monique|françoise|francoise|nicole|véronique|veronique|corinne|florence|laurence|delphine|sabrina|jessica|mélanie|melanie|charlotte|alice|emma|jade|louise|zoé|zoe|clara|mathilde|margaux|océane|oceane|justine|marion|morgane|amandine|séverine|severine|béatrice|beatrice)\b/i;
+  const PRENOMS_M = /^(m\.|mr|monsieur|marc|thomas|karim|philippe|nicolas|julien|pierre|jean|paul|michel|alain|patrick|christophe|stéphane|stephane|laurent|david|olivier|éric|eric|frédéric|frederic|sébastien|sebastien|vincent|antoine|maxime|kevin|kévin|mohamed|ahmed|youssef|rachid|mehdi|abdel|bruno|didier|franck|gilles|hugo|lucas|louis|romain|thierry|xavier|yann|yves)\b/i;
+  function genreDe(nom) {
+    const t = String(nom || "").trim();
+    if (PRENOMS_F.test(t)) return "f";
+    if (PRENOMS_M.test(t)) return "m";
+    return "";
+  }
 
   function lireReglage() {
     try { return window.localStorage.getItem(CLE) || ""; } catch (e) { return ""; }
@@ -64,17 +74,16 @@
 
   // genre : "f", "m" ou "" (indifférent). Le réglage de l'appareil passe avant,
   // sauf si l'on demande explicitement l'autre genre (personnage d'un simulateur).
+  // genre "f" / "m" : une voix de femme ou d'homme, la plus naturelle possible.
+  // Sans genre : la voix choisie dans le réglage, sinon la plus naturelle.
   function choisir(genre) {
     const liste = voixFrancaises();
     if (!liste.length) return null;
     const memo = liste.find((v) => v.name === lireReglage());
-    const duGenre = (v) => (genre === "f" ? FEMININES.test(v.name) : genre === "m" ? MASCULINES.test(v.name) && !FEMININES.test(v.name) : true);
-    if (memo && duGenre(memo)) return memo;
-    const meilleure = liste[0];
-    const duBonGenre = liste.find(duGenre);
-    // On garde une voix naturelle même si elle n'est pas du bon genre, plutôt qu'une voix robotique.
-    if (duBonGenre && qualite(duBonGenre) >= qualite(meilleure) - 40) return duBonGenre;
-    return memo || meilleure;
+    const genreVoix = (v) => (FEMININES.test(v.name) ? "f" : MASCULINES.test(v.name) ? "m" : "");
+    if (!genre) return memo || liste[0];
+    if (memo && genreVoix(memo) === genre) return memo;
+    return liste.find((v) => genreVoix(v) === genre) || null;
   }
 
   // Texte prêt à être dit : sans emoji, puces, balises de mise en forme.
@@ -128,10 +137,15 @@
     const ma = generation;
     const liste = phrases(texte);
     return voixPretes().then(() => new Promise((resolve) => {
-      const voix = choisir(options.genre || "");
+      let voix = choisir(options.genre || "");
+      let hauteur = options.hauteur || 1;
+      if (!voix && options.genre) {
+        // Pas de voix du bon genre sur cet appareil : la plus naturelle, en grave ou en aigu.
+        voix = choisir("");
+        hauteur = options.genre === "m" ? 0.78 : 1.18;
+      }
       const naturelle = voix && qualite(voix) >= 80;
       const base = options.vitesse || (naturelle ? 1.0 : 1.06);
-      const hauteur = options.hauteur || 1;
       let i = 0;
       const suivante = () => {
         if (ma !== generation || i >= liste.length) return resolve();
@@ -172,5 +186,5 @@
     return h("div", { class: "reglage-voix" }, h("label", { for: "reglage-voix" }, "Voix", menu), tester, conseil);
   }
 
-  window.FilRougeVoix = { dispo, parler, arreter, reglage, choisir, nettoyer };
+  window.FilRougeVoix = { dispo, parler, arreter, reglage, choisir, nettoyer, genreDe };
 })();
