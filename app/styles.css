@@ -1533,3 +1533,16 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 .entr-a-essayer { border: 1px solid var(--fil); border-left-width: 4px; border-radius: var(--rayon); padding: 0.9rem 1.1rem; background: #fff; }
 .entr-a-essayer .surtitre { color: var(--fil); margin: 0 0 0.4rem; }
 .entr-bulle.entr-en-lecture { outline: 2px solid var(--fil); outline-offset: 2px; }
+
+/* Appel de vente : script déroulé et objections en petits boutons de couleur */
+.entr-aide-titre { font-size: 1.05rem; margin: 0.4rem 0 0; }
+.entr-deroule { display: flex; flex-direction: column; gap: 1rem; padding: 0.4rem 0; }
+.entr-etape { border-left: 3px solid var(--fil); padding: 0.2rem 0 0.2rem 1rem; }
+.entr-etape h3 { font-size: 0.98rem; margin: 0 0 0.5rem; color: var(--violet); }
+.entr-etape .sv-dire { margin: 0.4rem 0; }
+.entr-objections { display: flex; flex-direction: column; gap: 0.6rem; border-top: 1px solid var(--filet); padding-top: 1rem; }
+.obj-legende { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; font-size: 0.78rem; color: var(--texte-doux); }
+.obj-legende-item { display: inline-flex; align-items: center; gap: 0.3rem; }
+.obj-puces { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.obj-puce { font: inherit; font-size: 0.82rem; line-height: 1.2; padding: 0.3rem 0.6rem; border: 1px solid var(--obj-trait, var(--filet)); border-left: 3px solid var(--obj-c, var(--fil)); border-radius: 999px; background: var(--obj-f, var(--fond)); color: var(--texte); cursor: pointer; }
+.obj-puce:hover, .obj-puce:focus-visible { border-color: var(--obj-c); }
