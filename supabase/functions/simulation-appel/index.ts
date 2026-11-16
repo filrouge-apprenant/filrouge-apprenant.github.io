@@ -114,9 +114,22 @@ function fournisseurIA(): Fournisseur | null {
 // Mistral, Groq et Gemini parlent le même langage (format « chat completions »).
 const COMPATIBLES = {
   mistral: { url: "https://api.mistral.ai/v1/chat/completions", modele: () => Deno.env.get("MISTRAL_MODEL") ?? "mistral-small-latest" },
-  groq: { url: "https://api.groq.com/openai/v1/chat/completions", modele: () => Deno.env.get("GROQ_MODEL") ?? "llama-3.3-70b-versatile" },
+  groq: { url: "https://api.groq.com/openai/v1/chat/completions", modele: () => Deno.env.get("GROQ_MODEL") ?? "meta-llama/llama-4-maverick-17b-128e-instruct" },
   gemini: { url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", modele: () => Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash" },
 };
+
+// Modèle choisi automatiquement quand celui par défaut n'existe plus chez le fournisseur.
+const modeleTrouve: Record<string, string> = {};
+const PREFERES = [/llama-4-maverick/i, /llama-4-scout/i, /llama.*70b/i, /mistral-small/i, /gemini-2\.5-flash$/i, /gemini.*flash/i, /gpt-oss-120b/i, /qwen/i, /llama/i];
+async function choisirModele(nom: string, url: string, cle: string): Promise<string | null> {
+  const r = await fetch(url.replace(/chat\/completions$/, "models"), { headers: { Authorization: `Bearer ${cle}` } });
+  if (!r.ok) return null;
+  const d = await r.json();
+  const ids: string[] = (d.data ?? []).map((m: { id: string }) => String(m.id).replace(/^models\//, ""))
+    .filter((id: string) => !/whisper|tts|guard|embed|vision|audio|image|orpheus|compound/i.test(id));
+  for (const re of PREFERES) { const m = ids.find((id) => re.test(id)); if (m) return (modeleTrouve[nom] = m); }
+  return ids[0] ? (modeleTrouve[nom] = ids[0]) : null;
+}
 
 async function appelerIA(systeme: string, messages: Message[], maxTokens: number, json = false): Promise<string> {
   const f = fournisseurIA();
@@ -125,17 +138,31 @@ async function appelerIA(systeme: string, messages: Message[], maxTokens: number
   let r: Response;
   if (f.nom !== "claude") {
     const c = COMPATIBLES[f.nom];
-    r = await fetch(c.url, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${f.cle}`, "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        model: c.modele(),
-        max_tokens: maxTokens,
-        temperature: json ? 0.2 : 0.8,
-        messages: [{ role: "system", content: systeme }, ...messages],
-        ...(json ? { response_format: { type: "json_object" } } : {}),
-      }),
-    });
+    const envoyer = (modele: string) => {
+      const raisonne = /gpt-oss|qwen3|deepseek-r1/i.test(modele);
+      return fetch(c.url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${f.cle}`, "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          model: modele,
+          max_tokens: raisonne ? Math.max(maxTokens * 4, 1200) : maxTokens,
+          temperature: json ? 0.2 : 0.8,
+          messages: [{ role: "system", content: systeme }, ...messages],
+          ...(raisonne && f.nom === "groq" ? { reasoning_effort: "low" } : {}),
+          ...(json ? { response_format: { type: "json_object" } } : {}),
+        }),
+      });
+    };
+    r = await envoyer(modeleTrouve[f.nom] || c.modele());
+    if (r.status === 404 || r.status === 400) {
+      const detail = await r.text();
+      if (/model/i.test(detail)) {
+        console.error("Modèle indisponible", f.nom, detail);
+        const autre = await choisirModele(f.nom, c.url, f.cle);
+        if (autre) r = await envoyer(autre);
+        else r = new Response(detail, { status: 404 });
+      } else r = new Response(detail, { status: r.status });
+    }
   } else {
     r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
