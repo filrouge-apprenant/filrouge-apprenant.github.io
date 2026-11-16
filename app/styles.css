@@ -1505,3 +1505,15 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 .orga-liens { display: flex; gap: 1rem; padding: 0.5rem 1rem 0.7rem; border-top: 1px dashed var(--filet); font-size: 0.85rem; }
 .orga-liens a { color: var(--texte-doux); }
 .orga-liens a:hover { color: var(--violet); }
+
+/* Tableau de bord : Prospection à gauche, simulateur d'appel à droite */
+.tdb-duo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 860px) { .tdb-duo { grid-template-columns: minmax(0, 1fr); } }
+.simu-vente { display: flex; flex-direction: column; gap: 12px; border-top: 3px solid var(--fil); }
+.simu-vente select { width: 100%; }
+.simu-vente .bouton { align-self: flex-start; }
+
+/* Réglage de la voix de lecture */
+.reglage-voix { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; }
+.reglage-voix label { flex: 1 1 240px; }
+.reglage-voix .aide { flex-basis: 100%; margin: 0; }

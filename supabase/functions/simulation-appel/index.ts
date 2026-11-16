@@ -65,6 +65,18 @@ const GRILLE = [
   { cle: "conclusion", nom: "Objectif et conclusion", attendu: "Fixe un objectif précis, réaliste et daté, récapitule, annonce le prochain appel, termine sur une note positive." },
 ];
 
+// Grille de l'appel de VENTE (scénarios « prospect »), même barème.
+const GRILLE_VENTE = [
+  { cle: "accroche", nom: "Accroche et présentation", attendu: "Se présente clairement (prénom, Fil Rouge Apprenants), donne en une phrase une raison d'appeler qui concerne le prospect, vérifie que c'est le bon moment, ton naturel et assuré." },
+  { cle: "decouverte", nom: "Découverte", attendu: "Pose des questions ouvertes sur sa situation : nombre d'apprenants, taux d'abandon, qui fait le suivi aujourd'hui, Qualiopi, ce que ça lui coûte." },
+  { cle: "ecoute", nom: "Écoute et reformulation", attendu: "Laisse parler, reformule les besoins avec les mots du prospect, ne récite pas un discours." },
+  { cle: "argumentation", nom: "Argumentation adaptée", attendu: "Relie l'offre aux besoins exprimés : suivi téléphonique des apprenants, moins d'abandons, preuves pour Qualiopi, payé seulement à l'appel réellement passé, essai gratuit de 15 jours. Ne promet jamais de résultat garanti." },
+  { cle: "objections", nom: "Traitement des objections", attendu: "Accueille l'objection sans se braquer, creuse ce qu'il y a derrière, répond précisément, vérifie que la réponse convient." },
+  { cle: "conclusion", nom: "Conclusion et engagement", attendu: "Propose une étape suivante concrète et datée (rendez-vous jour et heure, démarrage de l'essai, envoi du fichier), récapitule, termine poliment." },
+];
+
+const OFFRE_FIL_ROUGE = `Fil Rouge Apprenants : service de suivi téléphonique des apprenants en formation à distance, pour lutter contre les abandons. Des appelantes formées appellent chaque mois les apprenants confiés par l'organisme, font le point, repèrent les freins et remettent en mouvement ; l'organisme suit tout dans un tableau de bord et dispose de traces utiles pour Qualiopi (indicateurs sur l'accompagnement et la prévention des abandons). Tarif : de 20 € à 12 € HT par appel selon le nombre d'apprenants, seuls les appels réellement passés sont facturés, sans engagement. Essai gratuit de 15 jours. Fondatrice : Émilie Rachas, 10 ans de relation client à distance dont l'accompagnement d'apprenants.`;
+
 // -----------------------------------------------------------------------------
 // Appel à l'IA : renvoie le texte produit. json = true : réponse en JSON.
 // -----------------------------------------------------------------------------
@@ -151,6 +163,35 @@ Règles du jeu :
 - Quand l'appel se termine (au revoir échangé), ou si ton personnage raccroche, dis ta dernière phrase puis ajoute exactement ${FIN_APPEL} à la fin.`;
 }
 
+function consigne(scenario: Record<string, unknown>, personnage: string) {
+  return scenario.type === "prospect" ? consigneProspect(scenario, personnage) : consignePersonnage(scenario, personnage);
+}
+
+function consigneProspect(scenario: Record<string, unknown>, personnage: string) {
+  return `Tu participes à un entraînement commercial au téléphone. Tu joues un interlocuteur FICTIF dans un organisme de formation à distance. La personne qui t'appelle s'appelle Émilie, de « Fil Rouge Apprenants » : elle s'entraîne à vendre son service. Ton rôle est de lui faire vivre un appel de vente réaliste, ni trop facile ni impossible.
+
+Ta fiche :
+- Toi : ${scenario.apprenant_nom}
+- Organisme : ${scenario.formation}
+- Taille : ${scenario.financement ?? "non précisée"}
+- Situation : ${scenario.contexte}
+
+Ton personnage :
+${personnage}
+
+Ce que tu sais du marché : tu connais le CPF, Qualiopi, les audits, les abandons en formation à distance. Tu ne connais pas Fil Rouge Apprenants : tu découvres l'offre pendant l'appel.
+
+Règles du jeu :
+- Tu parles comme une vraie personne au téléphone, en français oral naturel et vivant : 1 à 3 phrases courtes par réplique, avec les petits mots de l'oral (« alors », « bon », « écoutez », « d'accord », « hmm ») quand ça colle, et parfois une phrase interrompue. Jamais de liste, jamais de phrase longue et parfaite.
+- Écris uniquement les paroles prononcées : jamais de didascalie, d'astérisque, d'emoji, de description entre parenthèses, ni ton nom devant ta réplique (le texte est lu à voix haute).
+- Ne dis jamais que tu es une IA, ne sors jamais du rôle, ne donne jamais de conseil de vente à Émilie.
+- Réagis à ce qu'elle dit vraiment : si elle t'écoute bien et répond juste, tu t'ouvres ; si elle récite, insiste lourdement ou promet un résultat garanti, tu te fermes.
+- Garde tes objections : ne cède pas à la première réponse, mais ne bloque pas indéfiniment une vendeuse qui fait du bon travail.
+- Reste cohérent avec ce que tu as déjà dit.
+- Si une phrase est incompréhensible (erreur de dictée), demande de répéter comme au téléphone.
+- Quand l'appel se termine (au revoir échangé), ou si tu raccroches, dis ta dernière phrase puis ajoute exactement ${FIN_APPEL} à la fin.`;
+}
+
 function versMessages(transcription: Replique[]): Message[] {
   // L'appelante = « user », l'apprenant joué par l'IA = « assistant ».
   // On ouvre par le décroché, pour que la conversation commence par « user ».
@@ -218,9 +259,14 @@ Deno.serve(async (req: Request) => {
       const { data: scenario } = await base.from("entrainement_scenarios").select("*").eq("id", scenarioId).eq("actif", true).maybeSingle();
       const { data: persona } = await base.from("entrainement_personas").select("personnage").eq("scenario_id", scenarioId).maybeSingle();
       if (!scenario || !persona) return reponse(origine, 404, { erreur: "Ce scénario n'est pas disponible." });
+      if (scenario.type === "prospect") {
+        // Réservé à l'administratrice : la base le vérifie avec SON jeton.
+        const { data: visible } = await appelant.from("entrainement_scenarios").select("id").eq("id", scenarioId).maybeSingle();
+        if (!visible) return reponse(origine, 403, { erreur: "Ce scénario est réservé à l'administratrice." });
+      }
 
       // Le décroché : l'IA répond comme le personnage décroche
-      const decroche = await appelerIA(consignePersonnage(scenario, persona.personnage), versMessages([]), 120);
+      const decroche = await appelerIA(consigne(scenario, persona.personnage), versMessages([]), 120);
       const premier = nettoyer(decroche) || "Allô ?";
 
       const { data: session, error } = await base.from("entrainement_sessions").insert({
@@ -251,7 +297,7 @@ Deno.serve(async (req: Request) => {
       if (!scenario || !persona) return reponse(origine, 404, { erreur: "Ce scénario n'existe plus." });
 
       transcription.push({ qui: "appelante", texte });
-      const brute = await appelerIA(consignePersonnage(scenario, persona.personnage), versMessages(transcription), 250);
+      const brute = await appelerIA(consigne(scenario, persona.personnage), versMessages(transcription), 250);
       const raccroche = brute.includes(FIN_APPEL);
       const replique = nettoyer(brute) || "…";
       transcription.push({ qui: "apprenant", texte: replique });
@@ -273,8 +319,37 @@ Deno.serve(async (req: Request) => {
       const { data: scenario } = await base.from("entrainement_scenarios").select("*").eq("id", session.scenario_id).maybeSingle();
       const { data: persona } = await base.from("entrainement_personas").select("personnage").eq("scenario_id", session.scenario_id).maybeSingle();
 
-      const texteAppel = transcription.map((r) => `${r.qui === "appelante" ? "APPELANTE" : "APPRENANT"} : ${r.texte}`).join("\n");
-      const reponseIA = await appelerIA(
+      const vente = scenario?.type === "prospect";
+      const grille = vente ? GRILLE_VENTE : GRILLE;
+      const texteAppel = transcription.map((r) => `${r.qui === "appelante" ? (vente ? "ÉMILIE" : "APPELANTE") : (vente ? "PROSPECT" : "APPRENANT")} : ${r.texte}`).join("\n");
+      const reponseIA = vente ? await appelerIA(
+        "Tu es formatrice experte en vente B2B par téléphone (prospection, découverte, traitement des objections, closing) auprès des organismes de formation. Tu évalues un appel d'entraînement d'Émilie, fondatrice de Fil Rouge Apprenants, avec bienveillance mais exigence. Tu la tutoies et tu écris en français. Les transcriptions viennent parfois d'une dictée vocale : ignore les fautes de transcription. Note seulement ce qu'Émilie a dit. Tu réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte autour.",
+        [{
+          role: "user",
+          content: `L'offre vendue : ${OFFRE_FIL_ROUGE}
+
+Scénario : ${scenario?.titre ?? session.scenario_titre}
+Ce qu'Émilie savait avant l'appel : ${scenario?.apprenant_nom ?? ""}, ${scenario?.formation ?? ""} (${scenario?.financement ?? ""}). ${scenario?.contexte ?? ""}
+Objectif de l'appel : ${scenario?.objectif_appel ?? ""}
+Ce qu'Émilie ne savait pas (personnage joué) : ${persona?.personnage ?? ""}
+
+Grille (chaque critère noté de 0 à 5) :
+${GRILLE_VENTE.map((g) => `- ${g.cle} — ${g.nom} : ${g.attendu}`).join("\n")}
+
+Transcription :
+${texteAppel}
+
+Réponds avec un objet JSON de cette forme, avec exactement 6 critères (un par clé de la grille : ${GRILLE_VENTE.map((g) => g.cle).join(", ")}) :
+{"criteres": [{"cle": "accroche", "note": 3, "commentaire": "1 à 2 phrases avec un exemple tiré de l'appel"}],
+ "points_forts": ["2 ou 3 points forts concrets"],
+ "a_ameliorer": ["2 ou 3 axes d'amélioration concrets"],
+ "phrase_modele": "la phrase qu'Émilie aurait pu dire au moment le plus délicat de l'appel (souvent l'objection principale)",
+ "frein_decouvert": true}
+« frein_decouvert » = true si Émilie a obtenu l'étape suivante visée (rendez-vous daté, essai ou mise en relation).`,
+        }],
+        1500,
+        true,
+      ) : await appelerIA(
         "Tu es formatrice experte en relation client à distance et en suivi d'apprenants en formation à distance (lutte contre le décrochage, accompagnement jusqu'à l'examen). Tu évalues un appel d'entraînement d'une appelante débutante, avec bienveillance mais exigence. Tu tutoies l'appelante dans tes commentaires et tu écris en français. Les transcriptions viennent parfois d'une dictée vocale : ignore les fautes de transcription. Note seulement ce que l'appelante a dit. Tu réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte autour.",
         [{
           role: "user",
@@ -307,9 +382,9 @@ Réponds avec un objet JSON de cette forme, avec exactement 6 critères (un par 
         notes.set(String(c.cle), { note: Math.max(0, Math.min(5, Math.round(Number(c.note) || 0))), commentaire: String(c.commentaire ?? "").slice(0, 600) });
       }
       if (!notes.size) throw new Error("IA_INDISPONIBLE");
-      const criteres = GRILLE.map((g) => ({ cle: g.cle, nom: g.nom, note: notes.get(g.cle)?.note ?? 0, commentaire: notes.get(g.cle)?.commentaire ?? "" }));
+      const criteres = grille.map((g) => ({ cle: g.cle, nom: g.nom, note: notes.get(g.cle)?.note ?? 0, commentaire: notes.get(g.cle)?.commentaire ?? "" }));
       const total = criteres.reduce((s, c) => s + c.note, 0);
-      const noteSur20 = Math.round((total / (GRILLE.length * 5)) * 20);
+      const noteSur20 = Math.round((total / (grille.length * 5)) * 20);
       const liste = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 400)).slice(0, 4) : []);
       const evaluation = {
         criteres,

@@ -1062,15 +1062,19 @@
             : message("info", "Aucun client avec des apprenants pour le moment. Importez un premier fichier depuis la fiche d'un organisme.")
         ),
 
-        h("section", {},
-          h("div", { class: "section-titre" },
-            h("h2", {}, "Prospection"),
-            h("p", {}, lienInterne("prospection", "Ouvrir le CRM"))),
-          h("ul", { class: "liste" },
-            ETAPES.map((etape) =>
-              h("li", { class: "ligne" },
-                h("span", { class: "ligne-titre" }, lienInterne(`prospection/${etape}`, LIBELLES_ETAPE[etape])),
-                h("span", { class: "pastilles" }, pastille("neutre", String(etapes[etape] || 0))))))
+        h("div", { class: "tdb-duo" },
+          h("section", {},
+            h("div", { class: "section-titre" },
+              h("h2", {}, "Prospection"),
+              h("p", {}, lienInterne("prospection", "Ouvrir le CRM"))),
+            h("ul", { class: "liste" },
+              ETAPES.map((etape) =>
+                h("li", { class: "ligne" },
+                  h("span", { class: "ligne-titre" }, lienInterne(`prospection/${etape}`, LIBELLES_ETAPE[etape])),
+                  h("span", { class: "pastilles" }, pastille("neutre", String(etapes[etape] || 0))))))
+          ),
+          // À droite : le simulateur d'appel prospect (entrainement.js).
+          entrainement().carteVente()
         )
       )
     );

@@ -91,10 +91,11 @@
     const { sb, h, afficher } = ctx;
 
     // --- Lecture à voix haute (voix du navigateur) ---
-    const voixDispo = "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
+    const V = window.FilRougeVoix;
+    const voixDispo = Boolean(V && V.dispo);
     let boutonEnCours = null;
     function arreterLecture() {
-      if (voixDispo) window.speechSynthesis.cancel();
+      if (voixDispo) V.arreter();
       if (boutonEnCours) boutonEnCours.textContent = "🔊 Écouter";
       boutonEnCours = null;
     }
@@ -103,15 +104,9 @@
       const memeBouton = boutonEnCours === bouton;
       arreterLecture();
       if (memeBouton) return; // deuxième clic = stop
-      const phrase = new SpeechSynthesisUtterance(texte);
-      phrase.lang = "fr-FR";
-      const voix = window.speechSynthesis.getVoices().find((v) => /^fr/i.test(v.lang));
-      if (voix) phrase.voice = voix;
-      phrase.rate = 0.95;
-      phrase.onend = () => { if (boutonEnCours === bouton) arreterLecture(); };
       boutonEnCours = bouton;
       bouton.textContent = "⏹ Arrêter";
-      window.speechSynthesis.speak(phrase);
+      V.parler(texte).then(() => { if (boutonEnCours === bouton) arreterLecture(); });
     }
     window.addEventListener("hashchange", arreterLecture);
 

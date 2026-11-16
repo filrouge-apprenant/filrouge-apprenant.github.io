@@ -835,19 +835,22 @@
     let profil = profilDepuisFonction(options.fonction);
 
     // --- Lecture à voix haute (voix du navigateur, rien n'est envoyé ailleurs) ---
-    const voixDispo = "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
-    function arreterLecture() { if (voixDispo) window.speechSynthesis.cancel(); }
+    const V = window.FilRougeVoix;
+    const voixDispo = Boolean(V && V.dispo);
+    let boutonLecture = null;
+    function arreterLecture() {
+      if (voixDispo) V.arreter();
+      if (boutonLecture) boutonLecture.textContent = "🔊 Écouter";
+      boutonLecture = null;
+    }
     function lire(texte, bouton) {
       if (!voixDispo) return;
-      if (window.speechSynthesis.speaking) { arreterLecture(); bouton.textContent = "🔊 Écouter"; return; }
-      const phrase = new SpeechSynthesisUtterance(texte);
-      phrase.lang = "fr-FR";
-      const voix = window.speechSynthesis.getVoices().find((v) => /^fr/i.test(v.lang));
-      if (voix) phrase.voice = voix;
-      phrase.rate = 0.95;
-      phrase.onend = () => { bouton.textContent = "🔊 Écouter"; };
+      const meme = boutonLecture === bouton;
+      arreterLecture();
+      if (meme) return; // deuxième clic = stop
+      boutonLecture = bouton;
       bouton.textContent = "⏹ Arrêter";
-      window.speechSynthesis.speak(phrase);
+      V.parler(texte).then(() => { if (boutonLecture === bouton) arreterLecture(); });
     }
     window.addEventListener("hashchange", arreterLecture);
 
