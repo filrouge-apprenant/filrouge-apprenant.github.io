@@ -496,8 +496,7 @@
           h("div", { class: "actions" }, boutonEnvoyer, boutonMicro, boutonSon)),
         h("div", { class: "actions" }, boutonPause),
         h("div", { class: "actions entr-fin" }, boutonRaccrocher,
-          h("span", { class: "aide" }, "Raccrochez quand l'appel est fini : l'évaluation arrive tout de suite.")),
-        s.type === "prospect" ? zoneObjections(s) : null);
+          h("span", { class: "aide" }, "Raccrochez quand l'appel est fini : l'évaluation arrive tout de suite.")));
       afficher(aide ? h("div", { class: "entr-avec-aide" }, ecranAppel, aide) : ecranAppel);
 
       ajouter("apprenant", depart.reponse);
@@ -718,8 +717,11 @@
         D ? [
           h("p", { class: "aide" }, D.chapo),
           parties.slice(0, iAccroche).map(pliable),
-          h("div", { class: "entr-deroule" }, parties.slice(iAccroche, iConclusion + 1).map((partie) =>
-            h("section", { class: "entr-etape" }, h("h3", {}, partie.titre), corps(partie)))),
+          // De l'accroche à la conclusion : un seul texte qui se lit d'un trait (sans titres ni consignes).
+          h("div", { class: "entr-deroule" }, parties.slice(iAccroche, iConclusion + 1).flatMap((partie) => partie.blocs.flatMap((b) =>
+            b.dire ? [h("p", {}, `« ${remplir(b.dire)} »`)]
+              : b.questions && !b.consignes ? b.questions.map((q) => h("p", {}, `« ${remplir(q)} »`))
+                : []))),
           parties.slice(iConclusion + 1).filter((p) => /messagerie/i.test(p.titre)).map(pliable),
         ] : h("p", { class: "aide" }, "Script indisponible."));
 
@@ -737,47 +739,22 @@
             ev.phrase_modele ? h("blockquote", { class: "sv-dire" }, `« ${ev.phrase_modele} »`) : null,
             (ev.a_ameliorer || []).length ? h("ul", { class: "sv-liste" }, ev.a_ameliorer.slice(0, 3).map((t) => h("li", {}, t))) : null));
         });
-      return h("aside", { class: "entr-aide carte", "aria-label": "Script" },
-        rappel, h("h2", { class: "entr-aide-titre" }, "📋 Script"), script);
-    }
-
-    // Un mot (ou deux) par objection, pour les petits boutons pendant l'appel.
-    const MOT_OBJECTION = {
-      temps: "Pas le temps", doc: "Doc", interet: "Pas intéressé", cher: "Trop cher", budget: "Budget", embaucher: "Embaucher", references: "Références", rgpd: "RGPD", rappelle: "Je rappelle",
-      objet: "Le sujet ?", demarches: "Démarchage", prestataire: "Prestataire", interne: "En interne", pasabandons: "Pas d'abandons",
-      autonomes: "Autonomes", formateurs: "Formateurs", lms: "Plateforme", peu: "Trop peu", beaucoup: "Trop nombreux",
-      alternance: "Alternants", presentiel: "Présentiel", roi: "Rentabilité", injoignable: "Injoignable", resultat: "Au résultat",
-      remise: "Remise", financeur: "Financeur", nouvelle: "Trop petite", seule: "Absence", connaissez: "Nos formations",
-      essaye: "Déjà essayé", garantie: "Garantie", certifies: "Certifiés", preuves: "Preuves", soustraitance: "Sous-traitance",
-      audit_loin: "Audit loin", garantie_certif: "Certification", avis_q: "Questionnaires", dpo: "DPO", transmettre: "Données",
-      acces_lms: "Accès", ia: "IA", telephone: "Décrochent pas", harceles: "Harcèlement", image: "Image",
-      pedago_infos: "Infos péda", equipe_mal: "Équipe", engagement: "Engagement", test_court: "15 jours court",
-      prelevement: "Prélèvement", methode: "Faire nous-mêmes", concurrents: "Concurrents", plateforme_compliquee: "Outil en plus",
-      decideur: "Décideur", associe: "Associé", reflechir: "Réfléchir", six_mois: "Dans 6 mois", moment: "Pas le moment",
-    };
-
-    // Objections en petits boutons de couleur (une couleur par thème), sous la conversation.
-    // Un clic ouvre la réponse complète en 4 temps (même fenêtre que la bibliothèque d'objections).
-    function zoneObjections(s) {
+      // Deux boutons en haut : le script, ou toutes les objections (comme avant).
       const O = window.FilRougeObjections;
-      if (!O) return null;
-      const contact = String(s.apprenant_nom || "").split(",")[0].trim();
-      const bibliotheque = O.panneau({ h, contact, organisme: s.formation, titre: "Objections" });
-      const fenetre = bibliotheque.querySelector("dialog");
-      const puce = (o) => {
-        const b = h("button", { type: "button", class: `obj-puce obj-cat-${o.cat}`, title: `${o.bouton} : « ${o.dit} »` }, MOT_OBJECTION[o.id] || o.bouton);
+      const objections = O ? O.panneau({ h, contact, organisme: s.formation, titre: "Objections" }) : h("p", { class: "aide" }, "Objections indisponibles.");
+      const zone = h("div", { class: "entr-aide-corps" }, script);
+      const onglet = (texte, contenu) => {
+        const b = h("button", { type: "button", class: "filtre" }, texte);
         b.addEventListener("click", () => {
-          const vrai = bibliotheque.querySelector(`[data-objection="${o.id}"]`);
-          if (vrai) vrai.click();
+          zone.replaceChildren(contenu);
+          b.parentNode.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
         });
         return b;
       };
-      return h("section", { class: "entr-objections", "aria-label": "Traitement des objections" },
-        h("h2", { class: "entr-aide-titre" }, "🛡 Objections"),
-        h("div", { class: "obj-legende" }, O.CATEGORIES.map((c) =>
-          h("span", { class: `obj-legende-item obj-cat-${c.cle}` }, h("span", { class: "obj-pastille", "aria-hidden": "true" }), c.titre))),
-        h("div", { class: "obj-puces" }, O.OBJECTIONS.map(puce)),
-        fenetre);
+      const bScript = onglet("📋 Script", script), bObj = onglet("🛡 Objections", objections);
+      bScript.setAttribute("aria-pressed", "true"); bObj.setAttribute("aria-pressed", "false");
+      return h("aside", { class: "entr-aide carte", "aria-label": "Script et objections" },
+        rappel, h("div", { class: "filtres" }, bScript, bObj), zone);
     }
 
     // -------------------------------------------------------------------------

@@ -1536,7 +1536,8 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 
 /* Appel de vente : script déroulé et objections en petits boutons de couleur */
 .entr-aide-titre { font-size: 1.05rem; margin: 0.4rem 0 0; }
-.entr-deroule { display: flex; flex-direction: column; gap: 1rem; padding: 0.4rem 0; }
+.entr-deroule { border-left: 3px solid var(--fil); padding: 0.2rem 0 0.2rem 1rem; font-size: 1.02rem; line-height: 1.6; }
+.entr-deroule p { margin: 0 0 0.75rem; }
 .entr-etape { border-left: 3px solid var(--fil); padding: 0.2rem 0 0.2rem 1rem; }
 .entr-etape h3 { font-size: 0.98rem; margin: 0 0 0.5rem; color: var(--violet); }
 .entr-etape .sv-dire { margin: 0.4rem 0; }
