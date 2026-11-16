@@ -487,7 +487,9 @@
           h("p", {}, s.type === "prospect" ? `${s.formation} · ${s.financement || ""} · ${s.derniere_connexion || ""}` : `${s.formation} · ${s.progression ?? "?"} % · dernière connexion : ${s.derniere_connexion || "?"}`),
           h("p", {}, s.contexte),
           h("p", {}, h("strong", {}, "Objectif : "), s.objectif_appel)),
-        fil,
+        // Appel de vente : le script remplace la conversation écrite (gardée pour l'appel par écrit).
+        aide && mode === "voix" ? h("div", { hidden: true }, fil) : fil,
+        aide ? aide.script : null,
         etatTexte,
         zone,
         h("div", { class: "entr-saisie" },
@@ -497,7 +499,7 @@
         h("div", { class: "actions" }, boutonPause),
         h("div", { class: "actions entr-fin" }, boutonRaccrocher,
           h("span", { class: "aide" }, "Raccrochez quand l'appel est fini : l'évaluation arrive tout de suite.")));
-      afficher(aide ? h("div", { class: "entr-avec-aide" }, ecranAppel, aide) : ecranAppel);
+      afficher(aide ? h("div", { class: "entr-avec-aide" }, ecranAppel, aide.objections) : ecranAppel);
 
       ajouter("apprenant", depart.reponse);
       majEtat(mode === "voix" ? `${prenom(s.apprenant_nom)} décroche…` : "À vous : présentez-vous.");
@@ -778,19 +780,11 @@
       const rappelObjections = h("div");
       const objections = h("div", { class: "pile pile-serree" }, rappelObjections,
         O ? O.panneau({ h, contact, organisme: s.formation, titre: "Objections" }) : h("p", { class: "aide" }, "Objections indisponibles."));
-      const zone = h("div", { class: "entr-aide-corps" }, script);
-      const onglet = (texte, contenu) => {
-        const b = h("button", { type: "button", class: "filtre" }, texte);
-        b.addEventListener("click", () => {
-          zone.replaceChildren(contenu);
-          b.parentNode.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
-        });
-        return b;
+      // À gauche (à la place de la conversation) : le script ; à droite : les objections.
+      return {
+        script: h("section", { class: "entr-script carte", "aria-label": "Script" }, rappel, h("h2", { class: "entr-aide-titre" }, "📋 Script"), script),
+        objections: h("aside", { class: "entr-aide carte", "aria-label": "Objections" }, objections),
       };
-      const bScript = onglet("📋 Script", script), bObj = onglet("🛡 Objections", objections);
-      bScript.setAttribute("aria-pressed", "true"); bObj.setAttribute("aria-pressed", "false");
-      return h("aside", { class: "entr-aide carte", "aria-label": "Script et objections" },
-        rappel, h("div", { class: "filtres" }, bScript, bObj), zone);
     }
 
     // -------------------------------------------------------------------------

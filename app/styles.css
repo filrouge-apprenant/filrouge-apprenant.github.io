@@ -1551,3 +1551,4 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 .entr-point-faible { border: 1px solid var(--alerte-orange); border-left-width: 4px; border-radius: var(--rayon); background: var(--alerte-orange-fond); padding: 0.6rem 0.9rem; margin: 0.2rem 0 0.8rem; font-size: 0.92rem; }
 .entr-point-faible p { margin: 0 0 0.3rem; }
 .entr-point-faible .surtitre { color: var(--alerte-orange); }
+.entr-script.carte { max-width: none; max-height: 60vh; overflow-y: auto; }
