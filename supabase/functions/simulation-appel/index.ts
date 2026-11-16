@@ -77,6 +77,18 @@ const GRILLE_VENTE = [
 
 const OFFRE_FIL_ROUGE = `Fil Rouge Apprenants : service de suivi téléphonique des apprenants en formation à distance, pour lutter contre les abandons. Des appelantes formées appellent chaque mois les apprenants confiés par l'organisme, font le point, repèrent les freins et remettent en mouvement ; l'organisme suit tout dans un tableau de bord et dispose de traces utiles pour Qualiopi (indicateurs sur l'accompagnement et la prévention des abandons). Tarif : de 20 € à 12 € HT par appel selon le nombre d'apprenants, seuls les appels réellement passés sont facturés, sans engagement. Essai gratuit de 15 jours. Fondatrice : Émilie Rachas, 10 ans de relation client à distance dont l'accompagnement d'apprenants.`;
 
+// Prospection pour Abdel (domaine « abdel ») : sécurité privée et nettoyage.
+const OFFRE_ABDEL = `Société d'Abdel, Bordeaux Métropole, deux activités. 1) Sécurité privée autorisée par le CNAPS : gardiennage, rondes, surveillance de nuit et week-end, chantiers, événements, intervention sur alarme ; argument fort face à un recrutement interne : coût complet d'un salarié (majorations de nuit et dimanche, congés, arrêts, remplacements) contre une prestation. 2) Nettoyage professionnel : bureaux, commerces, cabinets, parties communes ; 24 € HT de l'heure si le client fournit les produits, 27 € HT si la société les fournit, jamais en dessous ; visite gratuite et devis écrit sous 48 h. Règles : l'objectif de l'appel est d'obtenir une VISITE sur place (30 min sécurité, 15 min nettoyage) avec deux créneaux proposés ; jamais de prix de sécurité au téléphone ; jamais de délai, de nombre d'agents, de référence client ni de garantie promis sans l'accord d'Abdel ; ne jamais critiquer le prestataire en place. C'est Émilie qui appelle pour la société.`;
+
+function grilleVente(domaine: unknown) {
+  if (domaine !== "abdel") return GRILLE_VENTE;
+  return GRILLE_VENTE.map((g) => g.cle === "argumentation"
+    ? { ...g, attendu: "Relie l'offre aux besoins exprimés : coût complet d'un salarié face à une prestation, CNAPS et assurances, régularité, interlocuteur unique, remplacements assurés ; pour le nettoyage, défend le tarif (24 € / 27 € HT de l'heure) sans brader. Ne promet rien sans l'accord d'Abdel, ne critique jamais le prestataire en place." }
+    : g.cle === "conclusion"
+      ? { ...g, attendu: "Propose une visite sur place avec deux créneaux précis (ou l'envoi du dossier et une date de rappel), fait confirmer adresse et interlocuteur, termine poliment." }
+      : g);
+}
+
 // -----------------------------------------------------------------------------
 // Appel à l'IA : renvoie le texte produit. json = true : réponse en JSON.
 // -----------------------------------------------------------------------------
@@ -168,6 +180,7 @@ function consigne(scenario: Record<string, unknown>, personnage: string) {
 }
 
 function consigneProspect(scenario: Record<string, unknown>, personnage: string) {
+  if (scenario.domaine === "abdel") return consigneProspectAbdel(scenario, personnage);
   return `Tu participes à un entraînement commercial au téléphone. Tu joues un interlocuteur FICTIF dans un organisme de formation à distance. La personne qui t'appelle s'appelle Émilie, de « Fil Rouge Apprenants » : elle s'entraîne à vendre son service. Ton rôle est de lui faire vivre un appel de vente réaliste, ni trop facile ni impossible.
 
 Ta fiche :
@@ -186,6 +199,31 @@ Règles du jeu :
 - Écris uniquement les paroles prononcées : jamais de didascalie, d'astérisque, d'emoji, de description entre parenthèses, ni ton nom devant ta réplique (le texte est lu à voix haute).
 - Ne dis jamais que tu es une IA, ne sors jamais du rôle, ne donne jamais de conseil de vente à Émilie.
 - Réagis à ce qu'elle dit vraiment : si elle t'écoute bien et répond juste, tu t'ouvres ; si elle récite, insiste lourdement ou promet un résultat garanti, tu te fermes.
+- Garde tes objections : ne cède pas à la première réponse, mais ne bloque pas indéfiniment une vendeuse qui fait du bon travail.
+- Reste cohérent avec ce que tu as déjà dit.
+- Si une phrase est incompréhensible (erreur de dictée), demande de répéter comme au téléphone.
+- Quand l'appel se termine (au revoir échangé), ou si tu raccroches, dis ta dernière phrase puis ajoute exactement ${FIN_APPEL} à la fin.`;
+}
+
+function consigneProspectAbdel(scenario: Record<string, unknown>, personnage: string) {
+  return `Tu participes à un entraînement commercial au téléphone. Tu joues un interlocuteur FICTIF dans une entreprise de la région bordelaise. La personne qui t'appelle s'appelle Émilie : elle appelle pour une société de sécurité privée et de nettoyage professionnel de Bordeaux Métropole, et elle s'entraîne à prospecter. Ton rôle est de lui faire vivre un appel de prospection réaliste, ni trop facile ni impossible.
+
+Ta fiche :
+- Toi : ${scenario.apprenant_nom}
+- Entreprise : ${scenario.formation}
+- Taille : ${scenario.financement ?? "non précisée"}
+- Situation : ${scenario.contexte}
+
+Ton personnage :
+${personnage}
+
+Tu ne connais pas la société d'Émilie : tu la découvres pendant l'appel.
+
+Règles du jeu :
+- Tu parles comme une vraie personne au téléphone, en français oral naturel et vivant : 1 à 3 phrases courtes par réplique, avec les petits mots de l'oral (« alors », « bon », « écoutez », « d'accord », « hmm ») quand ça colle, et parfois une phrase interrompue. Jamais de liste, jamais de phrase longue et parfaite.
+- Écris uniquement les paroles prononcées : jamais de didascalie, d'astérisque, d'emoji, de description entre parenthèses, ni ton nom devant ta réplique (le texte est lu à voix haute).
+- Ne dis jamais que tu es une IA, ne sors jamais du rôle, ne donne jamais de conseil de vente à Émilie.
+- Réagis à ce qu'elle dit vraiment : si elle t'écoute, pose de bonnes questions et reste concrète, tu t'ouvres ; si elle récite, insiste lourdement, critique ton prestataire ou promet n'importe quoi, tu te fermes.
 - Garde tes objections : ne cède pas à la première réponse, mais ne bloque pas indéfiniment une vendeuse qui fait du bon travail.
 - Reste cohérent avec ce que tu as déjà dit.
 - Si une phrase est incompréhensible (erreur de dictée), demande de répéter comme au téléphone.
@@ -320,13 +358,14 @@ Deno.serve(async (req: Request) => {
       const { data: persona } = await base.from("entrainement_personas").select("personnage").eq("scenario_id", session.scenario_id).maybeSingle();
 
       const vente = scenario?.type === "prospect";
-      const grille = vente ? GRILLE_VENTE : GRILLE;
+      const grille = vente ? grilleVente(scenario?.domaine) : GRILLE;
+      const abdel = scenario?.domaine === "abdel";
       const texteAppel = transcription.map((r) => `${r.qui === "appelante" ? (vente ? "ÉMILIE" : "APPELANTE") : (vente ? "PROSPECT" : "APPRENANT")} : ${r.texte}`).join("\n");
       const reponseIA = vente ? await appelerIA(
-        "Tu es formatrice experte en vente B2B par téléphone (prospection, découverte, traitement des objections, closing) auprès des organismes de formation. Tu évalues un appel d'entraînement d'Émilie, fondatrice de Fil Rouge Apprenants, avec bienveillance mais exigence. Tu la tutoies et tu écris en français. Les transcriptions viennent parfois d'une dictée vocale : ignore les fautes de transcription. Note seulement ce qu'Émilie a dit. Tu réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte autour.",
+        `Tu es formatrice experte en vente B2B par téléphone (prospection, découverte, traitement des objections, closing) ${abdel ? "dans la sécurité privée et le nettoyage professionnel" : "auprès des organismes de formation"}. Tu évalues un appel d'entraînement d'Émilie${abdel ? ", qui prospecte pour une société de sécurité et de nettoyage" : ", fondatrice de Fil Rouge Apprenants"}, avec bienveillance mais exigence. Tu la tutoies et tu écris en français. Les transcriptions viennent parfois d'une dictée vocale : ignore les fautes de transcription. Note seulement ce qu'Émilie a dit. Tu réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte autour.`,
         [{
           role: "user",
-          content: `L'offre vendue : ${OFFRE_FIL_ROUGE}
+          content: `L'offre vendue : ${abdel ? OFFRE_ABDEL : OFFRE_FIL_ROUGE}
 
 Scénario : ${scenario?.titre ?? session.scenario_titre}
 Ce qu'Émilie savait avant l'appel : ${scenario?.apprenant_nom ?? ""}, ${scenario?.formation ?? ""} (${scenario?.financement ?? ""}). ${scenario?.contexte ?? ""}
@@ -334,7 +373,7 @@ Objectif de l'appel : ${scenario?.objectif_appel ?? ""}
 Ce qu'Émilie ne savait pas (personnage joué) : ${persona?.personnage ?? ""}
 
 Grille (chaque critère noté de 0 à 5) :
-${GRILLE_VENTE.map((g) => `- ${g.cle} — ${g.nom} : ${g.attendu}`).join("\n")}
+${grille.map((g) => `- ${g.cle} — ${g.nom} : ${g.attendu}`).join("\n")}
 
 Transcription :
 ${texteAppel}
@@ -345,7 +384,7 @@ Réponds avec un objet JSON de cette forme, avec exactement 6 critères (un par 
  "a_ameliorer": ["2 ou 3 axes d'amélioration concrets"],
  "phrase_modele": "la phrase qu'Émilie aurait pu dire au moment le plus délicat de l'appel (souvent l'objection principale)",
  "frein_decouvert": true}
-« frein_decouvert » = true si Émilie a obtenu l'étape suivante visée (rendez-vous daté, essai ou mise en relation).`,
+« frein_decouvert » = true si Émilie a obtenu l'étape suivante visée (${abdel ? "visite datée, envoi du dossier avec date de rappel, ou mise en relation" : "rendez-vous daté, essai ou mise en relation"}).`,
         }],
         1500,
         true,

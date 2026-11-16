@@ -91,7 +91,9 @@
       if (sous === "appel" && id) return ecranAppel(id);
       if (sous === "resultat" && id) return ecranResultat(id);
       if (sous === "scenario" && id && estAdmin()) return ecranScenario(id);
-      if (sous === "vente" && estAdmin()) return ecranVente();
+      // Administratrice : l'entraînement, c'est la prospection B2B des centres de formation.
+      // Le suivi des apprenants (appelantes) reste accessible par « equipe ».
+      if (estAdmin() && sous !== "equipe") return ecranVente();
       return ecranAccueil();
     }
 
@@ -164,8 +166,8 @@
         blocScenarios = h("section", { class: "pile pile-serree" },
           h("div", { class: "section-titre" }, h("h2", {}, "Gérer les scénarios"),
             h("a", { class: "bouton bouton-petit bouton-secondaire", href: "#/entrainement/scenario/nouveau" }, "Ajouter un scénario")),
-          h("p", { class: "aide" }, "Les prospects fictifs (appels de vente) sont dans ", lien("entrainement/vente", "Simulateur d'appel prospect"), "."),
-          h("ul", { class: "liste" }, scen.data.map((s) => h("li", { class: "ligne" },
+          h("p", { class: "aide" }, "Les prospects fictifs (appels de vente) sont dans ", lien("entrainement", "Entraînement à la prospection"), "."),
+          h("ul", { class: "liste" }, scen.data.filter((x) => x.type !== "prospect").map((s) => h("li", { class: "ligne" },
             h("div", { class: "ligne-titre" }, lien(`entrainement/scenario/${s.id}`, s.titre)),
             h("div", { class: "pastilles" }, s.actif ? pastilleDifficulte(s.difficulte) : h("span", { class: "pastille pastille-neutre" }, "Masqué")),
             h("div", { class: "ligne-detail" }, `${s.apprenant_nom} · ${s.formation}`)))));
@@ -219,7 +221,7 @@
 
       afficher(h("div", { class: "pile" },
         h("div", {},
-          h("p", { class: "surtitre" }, vente ? lien("entrainement/vente", "← Simulateur d'appel prospect") : lien("entrainement", "← Entraînement")),
+          h("p", { class: "surtitre" }, vente ? lien("entrainement", "← Entraînement à la prospection") : lien(estAdmin() ? "entrainement/equipe" : "entrainement", "← Entraînement")),
           h("h1", {}, s.titre),
           h("p", { class: "chapo" }, vente ? "Lis la fiche comme avant un vrai appel de prospection, garde ton script à côté, puis lance l'appel." : "Lisez la fiche comme avant un vrai appel. Quand vous êtes prête, appelez.")),
         fiche,
@@ -387,7 +389,7 @@
               message("info", "Il faut au moins deux répliques pour obtenir une évaluation. Cet essai n'a pas été compté."),
               h("div", { class: "actions" },
                 h("a", { class: "bouton", href: `#/entrainement/appel/${s.id}` }, "Recommencer"),
-                s.type === "prospect" ? lien("entrainement/vente", "Choisir un autre prospect") : lien("entrainement", "Choisir un autre apprenant"))));
+                s.type === "prospect" ? lien("entrainement", "Choisir un autre prospect") : lien("entrainement", "Choisir un autre apprenant"))));
           }
           window.location.hash = `#/entrainement/resultat/${sessionId}`;
         } catch (e) {
@@ -517,7 +519,7 @@
             h("div", { class: `entr-bulle entr-${r.qui}` }, h("span", { class: "entr-qui" }, r.qui === "apprenant" ? (vente ? "Prospect" : "Apprenant") : (vente ? "Vous" : "Appelante")), h("span", {}, r.texte))))),
         h("div", { class: "actions" },
           mienne && x.scenario_id ? h("a", { class: "bouton", href: `#/entrainement/appel/${x.scenario_id}` }, "Refaire cet appel") : null,
-          vente ? lien("entrainement/vente", "Choisir un autre prospect") : lien("entrainement", "Choisir un autre apprenant"),
+          vente ? lien("entrainement", "Choisir un autre prospect") : lien("entrainement", "Choisir un autre apprenant"),
           estAdmin() ? h("button", {
             class: "bouton-lien bouton-lien-danger", type: "button",
             onclick: async () => {
@@ -535,7 +537,7 @@
     async function ecranScenario(id) {
       arreterAppel();
       const nouveau = id === "nouveau";
-      let s = { type: (window.location.hash.includes("type=prospect") ? "prospect" : "apprenant"), titre: "", difficulte: "moyen", apprenant_nom: "", formation: "", financement: "CPF", progression: null, derniere_connexion: "", contexte: "", objectif_appel: "", actif: true, ordre: 100 };
+      let s = { type: (/nouveau\/prospect/.test(window.location.hash) ? "prospect" : "apprenant"), titre: "", difficulte: "moyen", apprenant_nom: "", formation: "", financement: "CPF", progression: null, derniere_connexion: "", contexte: "", objectif_appel: "", actif: true, ordre: 100 };
       let personnage = "";
       if (!nouveau) {
         afficher(h("p", { class: "chargement" }, "Chargement du scénario…"));
@@ -603,7 +605,7 @@
         const { error: e2 } = await sb.from("entrainement_personas").upsert({ scenario_id: scenarioId, personnage: valeur(perso).slice(0, 4000) });
         bouton.disabled = false;
         if (e2) return zone.replaceChildren(message("erreur", texteErreur(e2)));
-        window.location.hash = typeSc.champ.value === "prospect" ? "#/entrainement/vente" : "#/entrainement";
+        window.location.hash = typeSc.champ.value === "prospect" ? "#/entrainement" : "#/entrainement/equipe";
       });
 
       const boutonSupprimer = nouveau ? null : h("button", {
@@ -626,11 +628,11 @@
     }
 
     // -------------------------------------------------------------------------
-    // Simulateur d'appel PROSPECT (administratrice) : #/entrainement/vente
+    // Entraînement à la prospection (administratrice) : #/entrainement
     // -------------------------------------------------------------------------
     async function chargerVente() {
       const scen = await sb.from("entrainement_scenarios").select("id, titre, difficulte, apprenant_nom, formation, actif, ordre")
-        .eq("type", "prospect").order("ordre").order("titre");
+        .eq("type", "prospect").eq("domaine", "filrouge").order("ordre").order("titre");
       if (scen.error) throw scen.error;
       const ids = scen.data.map((x) => x.id);
       const sess = ids.length
@@ -651,7 +653,7 @@
       afficher(h("div", { class: "pile" },
         h("div", {},
           h("p", { class: "surtitre" }, lien("tableau-de-bord", "← Tableau de bord")),
-          h("h1", {}, "Simulateur d'appel prospect"),
+          h("h1", {}, "Entraînement à la prospection"),
           h("p", { class: "chapo" }, "Un dirigeant d'organisme de formation fictif, joué par l'IA, décroche. Tu déroules ton script, tu traites ses objections, puis tu raccroches : note sur 20, conseils et la phrase à essayer la prochaine fois.")),
         voixDisponible() ? null : message("info", "Ce navigateur ne reconnaît pas la voix : l'appel se fera par écrit. Pour parler à voix haute, utilise Chrome ou Edge."),
         h("section", { class: "pile pile-serree" }, h("h2", {}, "Choisir un prospect à appeler"),
@@ -671,22 +673,23 @@
             : h("p", { class: "aide" }, "Tes appels d'entraînement et leurs notes apparaîtront ici.")),
         h("section", { class: "pile pile-serree" },
           h("div", { class: "section-titre" }, h("h2", {}, "Gérer les prospects fictifs"),
-            h("a", { class: "bouton bouton-petit bouton-secondaire", href: "#/entrainement/scenario/nouveau?type=prospect" }, "Ajouter un prospect")),
+            h("a", { class: "bouton bouton-petit bouton-secondaire", href: "#/entrainement/scenario/nouveau/prospect" }, "Ajouter un prospect")),
           h("ul", { class: "liste" }, d.scenarios.map((x) => h("li", { class: "ligne" },
             h("div", { class: "ligne-titre" }, lien(`entrainement/scenario/${x.id}`, x.titre)),
-            h("div", { class: "pastilles" }, x.actif ? pastilleDifficulte(x.difficulte) : h("span", { class: "pastille pastille-neutre" }, "Masqué"))))))));
+            h("div", { class: "pastilles" }, x.actif ? pastilleDifficulte(x.difficulte) : h("span", { class: "pastille pastille-neutre" }, "Masqué")))))),
+        h("p", { class: "aide" }, "Les appels de suivi d'apprenants servent à former tes appelantes : ", lien("entrainement/equipe", "voir leurs scénarios et leurs résultats"), ".")));
     }
 
     // Carte du tableau de bord : lancer un appel d'entraînement en un clic.
     function carteVente() {
       const corps = h("div", { class: "pile pile-serree" }, h("p", { class: "aide" }, "Chargement…"));
       const carte = h("section", { class: "carte simu-vente" },
-        h("div", { class: "section-titre" }, h("h2", {}, "🎧 Simulateur d'appel"), lien("entrainement/vente", "Tout voir")),
+        h("div", { class: "section-titre" }, h("h2", {}, "🎧 Simulateur d'appel"), lien("entrainement", "Tout voir")),
         h("p", { class: "aide" }, "Entraîne-toi à vendre Fil Rouge : un prospect fictif décroche, tu déroules ton script, il te fait ses objections."),
         corps);
       chargerVente().then((d) => {
         const actifs = d.scenarios.filter((x) => x.actif);
-        if (!actifs.length) return corps.replaceChildren(h("p", { class: "aide" }, "Aucun prospect fictif : ", lien("entrainement/vente", "en ajouter un"), "."));
+        if (!actifs.length) return corps.replaceChildren(h("p", { class: "aide" }, "Aucun prospect fictif : ", lien("entrainement", "en ajouter un"), "."));
         const choix = h("select", { id: "simu-vente-choix", "aria-label": "Prospect à appeler" },
           h("option", { value: "" }, "🎲 Un prospect au hasard"),
           ...actifs.map((x) => h("option", { value: x.id }, `${x.titre} (${DIFFICULTES[x.difficulte] || x.difficulte})`)));

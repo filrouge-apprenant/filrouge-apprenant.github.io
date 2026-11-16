@@ -4635,7 +4635,7 @@
         lien("devis", "Demandes de devis", d.devis ? nombre(d.devis, true) : null),
         lien("script", "Script d'appel"),
         lien("modeles-email", "Modèles d'emails"),
-        lien("entrainement", "Entraînement aux appels")),
+        lien("entrainement", "Entraînement à la prospection")),
       groupe("prospects", "Prospects", [
         lien("prospection", "Tous les centres à démarcher"),
         lien("acquisition", "🚀 Machine de prospection"),

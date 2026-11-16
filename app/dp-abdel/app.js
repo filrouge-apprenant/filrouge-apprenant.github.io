@@ -243,6 +243,7 @@
     if (ap && ap.parti) { S.appelEnCours = null; return retourAppel(ap); }
     if (document.visibilityState !== 'visible' || !S.pret || !S.chargeA || Date.now() - S.chargeA < 120000) return;
     if (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+    if (location.hash.startsWith('#/entrainement')) return; // ne jamais couper un appel d'entraînement
     try { await chargerTout(); rafraichir(); } catch (_) { /* hors ligne : on garde les données en mémoire */ }
   });
   function messageErreur(err) {
@@ -311,7 +312,7 @@
   /* Menu et navigation                                                  */
   /* ------------------------------------------------------------------ */
   const MENU = [
-    { titre: null, liens: [['', 'Tableau de bord', '◎'], ['session', 'Session d\'appels', '▶'], ['relances', 'Appels et relances', '☎'], ['pipeline', 'Pipeline commercial', '⇢']] },
+    { titre: null, liens: [['', 'Tableau de bord', '◎'], ['session', 'Session d\'appels', '▶'], ['relances', 'Appels et relances', '☎'], ['pipeline', 'Pipeline commercial', '⇢'], ['entrainement', 'Entraînement aux appels', '🎧']] },
     { titre: 'Prospects', liens: [['securite', 'Prospects sécurité', '🛡', 'secu'], ['nettoyage', 'Prospects nettoyage', '✦'], ['recherche', 'Recherche de prospects', '⌕'], ['evenements', 'Événements', '◷'], ['sites', 'Sites de prospection', '↗']] },
     { titre: 'Contrats', liens: [['contrats', 'Rendez-vous et contrats', '★'], ['ao', 'Appels d\'offres', '§'], ['calculateur', 'Calculateur de contrats', '∑']] },
     { titre: 'Pilotage', liens: [['stats', 'Statistiques', '▤'], ['assistant', 'Assistant', '✧'], ['parametres', 'Paramètres', '⚙']] },
@@ -336,12 +337,20 @@
       '': pAccueil, relances: pRelances, pipeline: pPipeline, securite: () => pListe('secu'), nettoyage: () => pListe('net'),
       recherche: pRecherche, evenements: pEvenements, sites: pSites, ao: pAO, calculateur: pCalc, stats: pStats, assistant: pAssistant, parametres: pParametres,
       contrats: pContrats, prospect: () => pFiche(r.id, r.sous), nouveau: () => pNouveau(r.id), session: pSession,
+      entrainement: () => entrainement().page(r),
     };
     contenu.innerHTML = (pages[r.nom] || pAccueil)(r);
     apresRendu(r);
     window.scrollTo(0, 0);
   }
   function rafraichir() { const y = window.scrollY; route(); window.scrollTo(0, y); }
+
+  // Entraînement à la prospection (entrainement.js) : prospect fictif joué par l'IA.
+  let moduleEntrainement = null;
+  function entrainement() {
+    if (!moduleEntrainement) moduleEntrainement = window.AbdelEntrainement({ sb, esc, contenu, notif });
+    return moduleEntrainement;
+  }
 
   /* ------------------------------------------------------------------ */
   /* Morceaux réutilisables                                              */
