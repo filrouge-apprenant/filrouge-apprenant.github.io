@@ -590,3 +590,6 @@ body { background-position: left 0 top 60px, right 0 top 60px, left bottom, righ
 .ent-etape summary { cursor: pointer; font-weight: 600; color: var(--encre); }
 .ent-etape p { margin: .5rem 0 .2rem; line-height: 1.5; }
 @media (max-width: 900px) { .ent-avec-aide { grid-template-columns: minmax(0, 1fr); } .ent-aide { position: static; max-height: none; } }
+/* Appel d'entraînement : toute la largeur disponible */
+.contenu-interieur:has(.ent-avec-aide) { max-width: none; }
+.ent-aide.carte { max-width: none; }

@@ -1523,3 +1523,10 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 .entr-aide { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
 .entr-aide .filtres { position: sticky; top: -1.5rem; background: var(--fond); padding: 4px 0; z-index: 1; }
 @media (max-width: 900px) { .entr-avec-aide { grid-template-columns: minmax(0, 1fr); } .entr-aide { position: static; max-height: none; } }
+/* Appel d'entraînement avec script : toute la largeur disponible */
+@media (min-width: 64rem) {
+  body.page-pleine .contenu, body.page-pleine.avec-menu .contenu { max-width: none; padding-right: 2.5rem; }
+  .entr-avec-aide { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2.5rem; }
+  .entr-aide { padding: 1.5rem 2rem; }
+}
+.entr-aide.carte { max-width: none; }
