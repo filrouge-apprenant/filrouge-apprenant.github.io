@@ -89,8 +89,8 @@
       .replace(/\bHT\b/g, "hors taxes")
       .replace(/\bCPF\b/g, "C P F")
       .replace(/(\d)\s?%/g, "$1 pour cent")
-      .replace(/\n{2,}/g, ". ")
-      .replace(/\n/g, ", ")
+      .replace(/([.!?:;])?\s*\n{2,}\s*/g, (m, p) => (p ? `${p} ` : ". "))
+      .replace(/([.!?:;,])?\s*\n\s*/g, (m, p) => (p ? `${p} ` : ", "))
       .replace(/\s+/g, " ")
       .trim();
   }
