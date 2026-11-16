@@ -306,7 +306,7 @@
 
   // ---------------------------------------------------------------------------
   window.FilRougeProspection = function (outils) {
-    const { sb, h, afficher, message, texteErreur } = outils;
+    const { sb, h, afficher, message, texteErreur, modeles } = outils;
     const C = window.FilRougeCalculAbandons;
     const remplacer = (el, ...enfants) => el.replaceChildren(...enfants.flat().filter((x) => x !== null && x !== undefined && x !== false));
 
@@ -400,33 +400,88 @@
         if (org) params.set("o", org.nom);
         params.set("n", val("acq-n")); params.set("p", val("acq-p")); params.set("d", val("acq-d")); params.set("t", val("acq-t"));
         const lien = new URL(`simulateur.html?${params}`, window.location.href).href.replace(/#.*$/, "");
-        const prenom = org && org.contact ? " " + org.contact.split(" ")[0] : "";
-        const corps = `Bonjour${prenom},\n\nComme promis, voici un calcul d'une minute${org ? " préparé pour " + org.nom : ""} : vous mettez vos propres chiffres (apprenants, prix, abandons) et vous voyez ce que les abandons vous coûtent, et à partir de combien d'abandons évités un suivi téléphonique est remboursé.\n\n${lien}\n\nVos chiffres restent dans votre navigateur, rien n'est enregistré.\n\nSi le résultat vous parle, on peut le vérifier sur vos vrais apprenants avec 15 jours d'essai gratuit.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants`;
-        const sujet = `Ce que vous coûtent les abandons${org ? " — " + org.nom : ""}`;
-        const boite = (window.FIL_ROUGE_CONFIG || {}).emailFilRouge || "";
-        const gmail = org && org.email && window.FilRougeContact ? window.FilRougeContact.lienGmail(org.email, sujet, corps, boite) : null;
-        const copier = h("button", { type: "button", class: "bouton" }, "📋 Copier le lien");
+        majEmail(org, lien);
+        const copier = h("button", { type: "button", class: "bouton bouton-secondaire" }, "📋 Copier le lien seul");
         copier.addEventListener("click", async () => {
-          try { await navigator.clipboard.writeText(lien); zone.replaceChildren(message("info", "Lien copié.")); }
-          catch (e) { zone.replaceChildren(message("erreur", "Copie impossible : sélectionne le lien ci-dessous.")); }
-        });
-        const copierMail = h("button", { type: "button", class: "bouton bouton-secondaire" }, "📝 Copier l'e-mail");
-        copierMail.addEventListener("click", async () => {
-          try { await navigator.clipboard.writeText(`${sujet}\n\n${corps}`); zone.replaceChildren(message("info", "E-mail copié.")); }
-          catch (e) { zone.replaceChildren(message("erreur", "Copie impossible.")); }
+          try { await navigator.clipboard.writeText(lien); signalEmail.replaceChildren(message("info", "Lien copié.")); }
+          catch (e) { signalEmail.replaceChildren(message("erreur", "Copie impossible : sélectionne le lien ci-dessous.")); }
         });
         remplacer(actions, copier,
-          gmail ? h("a", { class: "bouton bouton-secondaire", href: gmail, target: "_blank", rel: "noopener" }, "📧 Préparer l'e-mail (Gmail Fil Rouge)") : copierMail,
           h("a", { class: "bouton bouton-secondaire", href: lien, target: "_blank", rel: "noopener" }, "👁️ Voir la page du prospect"),
           org ? h("a", { class: "bouton bouton-secondaire", href: `#/organisme/${org.id}` }, "Fiche du centre") : null);
-        remplacer(zone, h("p", { class: "aide pr-lien" }, lien),
-          org && !org.email ? h("p", { class: "aide" }, "Pas d'e-mail sur la fiche : copie l'e-mail et colle-le dans ta messagerie, ou complète le contact.") : null);
+        remplacer(zone, h("p", { class: "aide pr-lien" }, lien));
       }
+
+      // --- E-mail : modèles « Prospection » de la page Modèles d'emails ---
+      // Le modèle choisi est rempli avec {contact}, {organisme}, {lien_simulateur}.
+      // Si les chiffres changent après une retouche du texte, seul le lien est remplacé.
+      const champObjetMail = h("input", { id: "acq-objet", type: "text" });
+      const champTexteMail = h("textarea", { id: "acq-texte", rows: "14" });
+      const signalEmail = h("div", {});
+      const boutonsEmail = h("div", { class: "actions-ligne" });
+      let modeleCourant = null, dernierLien = "", dernierOrg = undefined, orgCourant = null, lienCourant = "";
+      const MODELE_SECOURS = { objet: "Ce que vous coûtent les abandons — {organisme}", texte: "Bonjour {contact},\n\nComme promis, voici un calcul d'une minute préparé pour {organisme} : vous mettez vos propres chiffres et vous voyez ce que les abandons vous coûtent, et à partir de combien d'abandons évités un suivi téléphonique est remboursé.\n\n{lien_simulateur}\n\nVos chiffres restent dans votre navigateur, rien n'est enregistré.\n\nSi le résultat vous parle, on peut le vérifier sur vos vrais apprenants avec 15 jours d'essai gratuit.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants" };
+      function appliquerModele() {
+        const Ct = window.FilRougeContact;
+        const r = Ct.remplirModeleEmail(modeleCourant || MODELE_SECOURS, {
+          moi: "Émilie", organisme: orgCourant ? orgCourant.nom : "", contact: orgCourant ? orgCourant.contact : "", lien_simulateur: lienCourant,
+        });
+        champObjetMail.value = r.objet.replace("votre organisme de formation", "votre organisme");
+        champTexteMail.value = r.texte;
+        dernierLien = lienCourant;
+        majBoutonsEmail();
+      }
+      function majEmail(org, lien) {
+        orgCourant = org; lienCourant = lien;
+        if (dernierOrg !== (org && org.id)) { dernierOrg = org && org.id; appliquerModele(); return; }
+        if (dernierLien && dernierLien !== lien) {
+          champTexteMail.value = champTexteMail.value.split(dernierLien).join(lien);
+          dernierLien = lien;
+        }
+        majBoutonsEmail();
+      }
+      function majBoutonsEmail() {
+        const boite = (window.FIL_ROUGE_CONFIG || {}).emailFilRouge || "";
+        const Ct = window.FilRougeContact;
+        const gmail = orgCourant && orgCourant.email ? Ct.lienGmail(orgCourant.email, champObjetMail.value, champTexteMail.value, boite) : null;
+        const copierMail = h("button", { type: "button", class: gmail ? "bouton bouton-secondaire" : "bouton" }, "📝 Copier l'e-mail");
+        copierMail.addEventListener("click", async () => {
+          try { await navigator.clipboard.writeText(`${champObjetMail.value}\n\n${champTexteMail.value}`); signalEmail.replaceChildren(message("info", "E-mail copié.")); }
+          catch (e) { signalEmail.replaceChildren(message("erreur", "Copie impossible.")); }
+        });
+        remplacer(boutonsEmail,
+          gmail ? h("a", { class: "bouton", href: gmail, target: "_blank", rel: "noopener" }, `📧 Envoyer à ${orgCourant.email} (Gmail Fil Rouge)`) : null,
+          copierMail);
+        remplacer(signalEmail,
+          orgCourant && !orgCourant.email ? h("p", { class: "aide" }, "Pas d'e-mail sur la fiche du centre : copie l'e-mail et colle-le dans ta messagerie, ou complète le contact dans l'onglet Suivi commercial.") : null,
+          !orgCourant ? h("p", { class: "aide" }, "Choisis un centre pour que son nom et son contact s'écrivent dans l'e-mail.") : null);
+      }
+      for (const c of [champObjetMail, champTexteMail]) c.addEventListener("input", majBoutonsEmail);
+      const blocMenus = h("div", {}, h("p", { class: "aide" }, "Chargement des e-mails tout prêts…"));
+      const M = modeles ? modeles() : null;
+      if (M) {
+        M.charger().then((liste) => {
+          const dispo = liste.filter((m) => m.actif && m.destinataire === "organisme");
+          if (!dispo.length) { remplacer(blocMenus, h("p", { class: "aide" }, "Aucun e-mail de prospection dans « Modèles d'emails » : un texte de base est utilisé.")); return; }
+          const menus = M.menus(liste, "acq-email", (m) => { modeleCourant = m; appliquerModele(); }, { destinataire: "organisme", initial: dispo[0].id });
+          modeleCourant = menus.modeleChoisi();
+          appliquerModele();
+          remplacer(blocMenus, menus.bloc);
+        }).catch(() => remplacer(blocMenus, h("p", { class: "aide" }, "E-mails tout prêts indisponibles : un texte de base est utilisé.")));
+      } else remplacer(blocMenus);
+      const sectionEmail = h("section", { class: "carte carte-large pile-serree" },
+        h("h2", {}, "📧 Envoyer le simulateur"),
+        blocMenus,
+        h("label", { class: "sim-champ", for: "acq-objet" }, "Objet", champObjetMail),
+        h("label", { class: "sim-champ", for: "acq-texte" }, "Message", champTexteMail),
+        boutonsEmail, signalEmail,
+        h("p", { class: "aide" }, h("a", { href: "#/modeles-email", class: "lien-interne" }, "Modifier ces e-mails"), " dans la page Modèles d'emails, catégorie « Prospection — envoi du simulateur »."));
+
       form.addEventListener("input", maj);
       form.addEventListener("submit", (e) => e.preventDefault());
       afficher(cadre("simulateur", "Le prospect calcule lui-même ce que lui coûtent les abandons. Prépare la simulation ici, puis envoie-lui le lien : ses chiffres sont pré-remplis, il peut les changer.",
         h("section", { class: "carte carte-large" }, form),
-        res, actions, zone,
+        res, sectionEmail, actions, zone,
         h("p", { class: "aide" }, "Le calcul est le même que sur la page publique (hypothèse : 50 % du prix perdu par abandon, réglable par le prospect). Ne présente jamais le résultat comme une garantie : c'est une estimation.")));
       maj();
     }

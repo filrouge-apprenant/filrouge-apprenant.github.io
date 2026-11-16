@@ -20,7 +20,11 @@
   const CLE_AUTO = "filrouge-relance-auto";
 
   // Élève fictif pour l'aperçu de la page d'édition.
-  const EXEMPLE = { prenom: "Julie", organisme: "Académie Horizon", formation: "CAP Pâtissier", avancement_pct: 42, date_examen: "2027-06-12", date_rdv: "mardi 18 novembre à 18 h" };
+  const EXEMPLE = { prenom: "Julie", organisme: "Académie Horizon", formation: "CAP Pâtissier", avancement_pct: 42, date_examen: "2027-06-12", date_rdv: "mardi 18 novembre à 18 h",
+    contact: "Claire Martin", lien_simulateur: "https://filrouge-apprenant.github.io/simulateur.html?o=Acad%C3%A9mie+Horizon" };
+  // À qui s'adresse un modèle : les fiches élèves n'utilisent que « apprenant ».
+  const DESTINATAIRES = { apprenant: "Un apprenant", organisme: "Un organisme (prospection)" };
+  const pour = (m) => m.destinataire || "apprenant";
 
   window.FilRougeModelesEmail = function (outils) {
     const { sb, h, afficher, message, texteErreur, champTexte, champChoix, signaler, occupe, pastille } = outils;
@@ -34,7 +38,7 @@
     async function charger(forcer) {
       if (cache && !forcer) return cache;
       const { data, error } = await sb.from("modeles_email")
-        .select("id, categorie, titre, objet, texte, ordre, tentative, actif")
+        .select("id, categorie, titre, objet, texte, ordre, tentative, actif, destinataire")
         .order("ordre").order("titre");
       if (error) throw error;
       cache = data || [];
@@ -68,7 +72,7 @@
 
     // Modèle de relance pour la tentative n (1 à 8). S'il n'existe pas, le plus proche en dessous.
     function modeleDeTentative(liste, n) {
-      const relances = actifs(liste).filter((m) => m.tentative).sort((a, b) => a.tentative - b.tentative);
+      const relances = actifs(liste).filter((m) => m.tentative && pour(m) === "apprenant").sort((a, b) => a.tentative - b.tentative);
       return relances.filter((m) => m.tentative <= n).pop() || null;
     }
 
@@ -77,7 +81,8 @@
     // options.initial : id du modèle sélectionné au départ ; options.libre : ajoute « — Message libre — »
     // -------------------------------------------------------------------------
     function menus(liste, prefixe, onChoix, options = {}) {
-      const dispo = options.tous ? liste : actifs(liste);
+      // options.destinataire : "apprenant" (par défaut) ou "organisme" ; options.tous : tout, pour l'édition.
+      const dispo = options.tous ? liste : actifs(liste).filter((m) => pour(m) === (options.destinataire || "apprenant"));
       const cats = categories(dispo);
       const initial = dispo.find((m) => m.id === options.initial) || null;
       const choixCat = { ...(options.libre ? { "": "— Message libre —" } : {}), ...Object.fromEntries(cats.map((c) => [c, c])) };
@@ -140,6 +145,7 @@
       champTexteMail.champ.rows = 12;
       const choixTentatives = { "": "Non (envoi à la main seulement)", ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [String(n), `Oui, à la tentative n° ${n}`])) };
       const champTentative = champChoix("me-tentative", "Relance automatique après un appel sans réponse", choixTentatives, "");
+      const champPour = champChoix("me-pour", "Pour qui ?", DESTINATAIRES, "apprenant");
       const champActif = h("input", { type: "checkbox", id: "me-actif" });
       const blocActif = h("label", { for: "me-actif", class: "case" }, champActif, " Modèle actif (visible dans les menus)");
 
@@ -153,9 +159,12 @@
         const inconnues = C.variablesRestantes(r.objet + r.texte).filter((v) => !C.VARIABLES_EMAIL.some(([cle]) => cle === v));
         apercuManque.textContent = inconnues.length
           ? `Variable inconnue : {${inconnues.join("}, {")}}. Vérifiez l'orthographe (liste ci-dessous).`
-          : "Aperçu avec un élève fictif (Julie, CAP Pâtissier, 42 %).";
+          : champPour.champ.value === "organisme"
+            ? "Aperçu avec un centre fictif (contact : Claire Martin, Académie Horizon)."
+            : "Aperçu avec un élève fictif (Julie, CAP Pâtissier, 42 %).";
       }
       for (const c of [champObjet.champ, champTexteMail.champ]) c.addEventListener("input", majApercu);
+      champPour.champ.addEventListener("change", majApercu);
 
       function charger1(m) {
         courant = m;
@@ -164,6 +173,7 @@
         champObjet.champ.value = m ? m.objet : "";
         champTexteMail.champ.value = m ? m.texte : "Bonjour {prenom},\n\n\n\n{signature}";
         champTentative.champ.value = m && m.tentative ? String(m.tentative) : "";
+        champPour.champ.value = m ? pour(m) : "apprenant";
         champActif.checked = m ? m.actif : true;
         titreFormulaire.textContent = m ? "Modifier le modèle" : "Nouveau modèle";
         supprimer.hidden = !m;
@@ -199,7 +209,7 @@
         h("div", { class: "raccourcis" }, h("span", { class: "aide" }, "Insérer :"), boutonsVariables),
         h("details", { class: "depliant" }, h("summary", {}, "Que veut dire chaque variable ?"),
           h("ul", {}, C.VARIABLES_EMAIL.map(([cle, aide]) => h("li", {}, h("strong", {}, `{${cle}}`), ` : ${aide}`)))),
-        champTentative.bloc, blocActif, zone,
+        champPour.bloc, champTentative.bloc, blocActif, zone,
         h("div", { class: "actions-ligne" }, enregistrer, nouveau),
         supprimer);
 
@@ -210,8 +220,9 @@
           titre: champTitre.champ.value.trim(),
           objet: champObjet.champ.value.trim(),
           texte: champTexteMail.champ.value.trim(),
-          tentative: champTentative.champ.value ? Number(champTentative.champ.value) : null,
+          tentative: champTentative.champ.value && champPour.champ.value === "apprenant" ? Number(champTentative.champ.value) : null,
           actif: champActif.checked,
+          destinataire: champPour.champ.value,
         };
         if (!valeurs.categorie || !valeurs.titre || !valeurs.objet || !valeurs.texte) return signaler(zone, "erreur", "Remplissez la catégorie, le nom, l'objet et le message.");
         const inconnues = C.variablesRestantes(valeurs.objet + valeurs.texte).filter((v) => !C.VARIABLES_EMAIL.some(([cle]) => cle === v));

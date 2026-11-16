@@ -173,6 +173,8 @@
     ["date_examen", "Date de l'examen en lettres (« le 12 mars »)"],
     ["date_rdv", "Date du rendez-vous : à écrire au moment de l'envoi"],
     ["signature", "Votre signature (prénom, conseillère de suivi, organisme)"],
+    ["contact", "Prospection : nom du contact du centre (vide = « Bonjour, »)"],
+    ["lien_simulateur", "Prospection : lien du simulateur pré-rempli pour ce centre"],
   ];
 
   // contexte : { prenom, moi, organisme, formation, avancement_pct, date_examen, date_rdv }
@@ -189,6 +191,8 @@
       avancement: Number.isFinite(pct) ? `Vous êtes à ${pct} % de votre formation. ` : "",
       date_examen: c.date_examen ? dateEnLettres(c.date_examen) : null,
       date_rdv: (c.date_rdv || "").trim() || null,
+      contact: (c.contact || "").trim(),
+      lien_simulateur: (c.lien_simulateur || "").trim() || null,
       signature: [moi || "Votre conseillère", `Conseillère de suivi${organisme ? ` pour ${organisme}` : ""}`, "Fil Rouge Apprenants"].join("\n"),
     };
     return v;

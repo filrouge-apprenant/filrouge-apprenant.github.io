@@ -23,6 +23,9 @@ AJOUT = """
     contact_email: 'claire@exemple.fr', contact_telephone: '0600000000', score_criteres: {} };
   window.__db.organismes.push({ id: '%s', nom: 'Institut Fictif', organismes_suivi_commercial: s });
   window.__db.organismes_suivi_commercial.push(s);
+  window.__db.modeles_email.push({ id: '10000000-0000-4000-8000-000000000060', categorie: 'Prospection — envoi du simulateur', ordre: 60, tentative: null, actif: true,
+    destinataire: 'organisme', titre: 'Envoi du simulateur (premier contact)', objet: 'Ce que vous coûtent les abandons — {organisme}',
+    texte: 'Bonjour {contact},\\n\\nVoici le calcul pour {organisme} :\\n\\n{lien_simulateur}\\n\\nÉmilie Rachas' });
   sessionStorage.setItem('db', JSON.stringify(window.__db));
 }
 """ % (PROSPECT, PROSPECT)
@@ -64,14 +67,27 @@ async def main():
             await page.reload()
             await page.wait_for_selector("h1:has-text('Institut Fictif')", timeout=8000)
 
-            await page.click("text=🧮 Simulateur d'économies")
+            await page.click("text=🧮 Envoyer le simulateur")
             await page.wait_for_selector("#acq-org", timeout=5000)
             ok(await page.input_value("#acq-org") == PROSPECT, "simulateur ouvert depuis la fiche : centre présélectionné")
             lien = await page.text_content(".pr-lien")
             ok("simulateur.html?o=Institut+Fictif" in lien and "n=150" in lien, "lien prospect généré avec le nom et les chiffres")
-            ok(await page.is_visible("text=📧 Préparer l'e-mail (Gmail Fil Rouge)"), "e-mail Gmail prêt (le contact a une adresse)")
+            await page.wait_for_selector("#acq-email-modele", timeout=5000)
+            ok(await page.locator("#acq-email-modele option").count() == 1, "seuls les e-mails de prospection sont proposés")
+            texte = await page.input_value("#acq-texte")
+            ok(texte.startswith("Bonjour Claire Exemple,") and "pour Institut Fictif" in texte and "simulateur.html?o=Institut+Fictif" in texte, "modèle rempli : contact, centre et lien")
+            ok("Fictif" in await page.input_value("#acq-objet"), "objet rempli avec le nom du centre")
+            await page.fill("#acq-n", "300")
+            await page.wait_for_timeout(200)
+            ok("n=300" in await page.input_value("#acq-texte"), "le lien de l'e-mail suit les chiffres")
+            gmail = await page.get_attribute("a:has-text('📧 Envoyer à claire@exemple.fr')", "href")
+            ok(gmail and "mail.google.com" in gmail and "n%3D300" in gmail, "bouton Gmail avec l'e-mail à jour")
             await page.screenshot(path=os.path.join(SORTIE, "prospection_simulateur.png"), full_page=True)
 
+            # Les fiches élèves ne proposent pas les e-mails de prospection
+            await page.goto("http://127.0.0.1:8767/index.html#/modeles-email")
+            await page.wait_for_selector("#me-pour", timeout=5000)
+            ok(True, "page Modèles d'emails : champ « Pour qui ? »")
             await page.goto("http://127.0.0.1:8767/index.html#/acquisition")
             await page.wait_for_selector("text=Les 10 méthodes les plus prometteuses", timeout=5000)
             ok(await page.locator(".sv-partie").count() == 10, "accueil : top 10 des méthodes")

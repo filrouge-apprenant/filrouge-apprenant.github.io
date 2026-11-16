@@ -955,7 +955,7 @@
   // plan sur 30 jours, approches par situation, 25 méthodes.
   let moduleProspection = null;
   function prospectionMachine() {
-    if (!moduleProspection) moduleProspection = window.FilRougeProspection({ sb, h, afficher, message, texteErreur });
+    if (!moduleProspection) moduleProspection = window.FilRougeProspection({ sb, h, afficher, message, texteErreur, modeles: () => modelesEmail() });
     return moduleProspection;
   }
 
@@ -1598,7 +1598,7 @@
           h("a", { class: "bouton bouton-secondaire", href: lienPappers(org.data.nom, s.siren), target: "_blank", rel: "noopener" }, "🏢 Pappers"),
           !estClient ? h("a", { class: "bouton bouton-secondaire", href: `#/scripts-vente/demarchage/${id}` }, "📋 Script de démarchage") : null,
           !estClient ? h("button", { type: "button", class: "bouton bouton-secondaire", onclick: () => ongletsOrg.choisir("objections") }, "💬 Traitement d'objection") : null,
-          !estClient ? h("a", { class: "bouton bouton-secondaire", href: `#/acquisition/simulateur/${id}` }, "🧮 Simulateur d'économies") : null),
+          !estClient ? h("a", { class: "bouton bouton-secondaire", href: `#/acquisition/simulateur/${id}` }, "🧮 Envoyer le simulateur") : null),
         !s.contact_telephone && !s.contact_email ? h("p", { class: "aide" }, "Pas de téléphone ni d'email : complète le contact dans l'onglet Suivi commercial.") : null,
         !s.site_web ? h("p", { class: "aide" }, "Site pas encore enregistré : trouve-le avec « Chercher le site », puis colle l'adresse dans l'onglet Suivi commercial.") : null,
         h("p", { class: "aide" }, "Après l'échange, note-le dans le bandeau « Échanges » à droite.")));

@@ -52,3 +52,5 @@
 .pr-taches li { padding: 0.45rem 0; border-bottom: 1px solid var(--filet); line-height: 1.45; }
 .pr-taches input { accent-color: var(--fil); transform: scale(1.15); margin-right: 0.35rem; }
 .pr-lien { word-break: break-all; }
+.sim-champ textarea { font: inherit; font-weight: 400; padding: 0.6rem 0.75rem; border: 1px solid var(--filet); border-radius: var(--rayon); width: 100%; box-sizing: border-box; line-height: 1.5; }
+.sim-champ input[type="text"] { max-width: none; width: 100%; box-sizing: border-box; }
