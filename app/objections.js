@@ -280,8 +280,8 @@
       accueil: "Je comprends.",
       creuser: "Trop cher par rapport à quoi ?",
       repondre: [
-        "Un appel, c'est entre 12 et 20 € HT selon le nombre d'apprenants. Combien vous rapporte une formation menée jusqu'au bout ?",
-        "Un apprenant qui abandonne, c'est un financement qui ne rentre pas en entier, un avis en moins et un taux de réussite qui baisse. Si j'évite un seul abandon, le suivi est souvent remboursé.",
+        "Faisons le calcul : 30 apprenants, c'est 30 appels à 15 € HT, soit 450 € HT par mois. Par apprenant, c'est 15 € par mois : moins de 1 % d'une formation à 2 000 €.",
+        "Prenons une formation à 2 000 € : si j'évite un seul abandon tous les 4 mois, le suivi est remboursé (4 × 450 € = 1 800 €). Tout le reste, c'est du chiffre d'affaires que vous gardez, sans compter l'avis et le taux de réussite.",
         "Et vous testez d'abord 15 jours gratuitement.",
       ],
       relancer: "On fait le calcul ensemble sur une de vos formations ?",
@@ -294,8 +294,8 @@
       accueil: "Je comprends, les budgets sont serrés.",
       creuser: "Si le budget n'était pas un sujet, est-ce que ce suivi vous intéresserait ?",
       repondre: [
-        "Il n'y a pas d'investissement de départ : vous payez à l'appel, chaque mois, pour les apprenants que vous me confiez. Vous pouvez commencer petit.",
-        "Et un abandon évité, c'est du chiffre d'affaires conservé : le suivi se finance en partie tout seul.",
+        "Il n'y a pas d'investissement de départ : vous payez à l'appel, chaque mois. Vous pouvez commencer petit : 10 apprenants, c'est 10 appels à 20 € HT, soit 200 € HT par mois.",
+        "Et un seul abandon évité sur une formation à 2 000 €, c'est 10 mois de ce suivi payés (10 × 200 € = 2 000 €). Le suivi se finance tout seul.",
       ],
       relancer: "On commence par le test gratuit de 15 jours, et vous décidez ensuite avec des résultats en main ?",
       mots: "budget enveloppe année prochaine" },
@@ -307,6 +307,7 @@
       creuser: "Combien coûte une de vos formations, et combien d'apprenants ne vont pas au bout sur une session ?",
       repondre: [
         "Faisons le calcul : 30 apprenants suivis, c'est 30 appels à 15 € HT, soit 450 € HT par mois. Combien de formations faut-il sauver pour que ce soit rentable chez vous ?",
+        "Avec une formation à 2 000 € : une seule formation sauvée dans le mois, c'est 2 000 € gardés pour 450 € dépensés, plus de 4 fois la mise. Une seule tous les 4 mois, et c'est déjà remboursé.",
         "Et vous suivez le résultat en direct sur la plateforme : qui a été joint, qui avance, qui est à risque.",
       ],
       relancer: "On mesure ça pendant 15 jours gratuits, sur vos propres apprenants ?",
@@ -333,7 +334,7 @@
       creuser: "Qu'est-ce qui vous ferait dire, au bout d'un mois, que ça fonctionne ?",
       repondre: [
         "La réussite dépend de beaucoup de choses : la formation, l'apprenant, sa vie. Je m'engage sur ce que je maîtrise : chaque apprenant appelé, chaque mois, avec un compte rendu et des alertes.",
-        "C'est pour ça que je propose 15 jours gratuits : vous jugez le travail avant de payer quoi que ce soit.",
+        "C'est pour ça que je propose 15 jours gratuits : jusqu'à 20 apprenants appelés sans rien payer, soit l'équivalent de 300 € HT de suivi (20 × 15 €). Vous jugez le travail avant de payer quoi que ce soit.",
       ],
       relancer: "On fixe ensemble ces critères de réussite pour le test ?",
       eviter: "Accepter un paiement au résultat : tu porterais un risque que tu ne contrôles pas.",
@@ -346,6 +347,7 @@
       creuser: "Si on trouve un accord sur ce point, on peut démarrer quand ?",
       repondre: [
         "Le prix baisse déjà avec le volume : 20 € sous 20 apprenants, 15 € jusqu'à 150, 12 € au-delà.",
+        "Exemple : 18 apprenants, c'est 18 × 20 € = 360 € HT par mois. 20 apprenants, c'est 20 × 15 € = 300 € HT : vous en suivez 2 de plus et vous payez 60 € de moins.",
         "Si vous me confiez plus d'apprenants, vous passez au palier suivant. Je préfère ça à une remise, c'est plus juste pour vous comme pour moi.",
       ],
       relancer: "On part sur combien d'apprenants ?",
@@ -359,7 +361,7 @@
       creuser: "Aujourd'hui, ce suivi, quand il est fait, il est payé comment ? Par le temps de vos salariés ?",
       repondre: [
         "Le suivi fait déjà partie de votre prestation, il est donc déjà dans vos coûts. Je vous propose de le faire faire à l'appel, sans recruter.",
-        "Et chaque formation menée au bout sécurise justement le financement que vous touchez.",
+        "Et chaque formation menée au bout sécurise justement le financement que vous touchez. Pour une formation à 2 000 €, le suivi coûte 15 € par mois et par apprenant : moins de 1 % du prix.",
       ],
       relancer: "On compare avec ce que vous coûte le suivi aujourd'hui ?",
       mots: "cpf opco france travail financement prise en charge" },
@@ -370,7 +372,8 @@
       accueil: "C'est une option, bien sûr.",
       creuser: "Qui le formerait et l'encadrerait ? Et pendant ses congés ou s'il part ?",
       repondre: [
-        "Avec moi, pas de recrutement, pas de formation, pas de charges : vous payez seulement les appels réalisés, et vous arrêtez avec 30 jours de préavis.",
+        "Faisons le calcul : quelqu'un à mi-temps pour appeler, c'est autour de 1 000 € par mois charges comprises, même les mois creux, plus le temps de recrutement et de formation. Avec moi, 30 apprenants, c'est 450 € HT par mois.",
+        "Pas de recrutement, pas de formation, pas de charges : vous payez seulement les appels réalisés, et vous arrêtez avec 30 jours de préavis.",
         "J'ai dix ans de relation client à distance : vous avez quelqu'un d'opérationnel dès le premier jour.",
       ],
       relancer: "Pourquoi ne pas tester 15 jours, le temps de décider si vous recrutez ?",
