@@ -1,0 +1,54 @@
+/* Simulateur « Combien vous coûtent les abandons ? » (page publique et plateforme).
+   Complète styles.css et offre-pilote.css : fond blanc, filets fins, rouge Fil Rouge.
+   Aucun aplat foncé. */
+
+.sim-form { display: grid; gap: 1rem; }
+.sim-champ { display: grid; gap: 0.35rem; font-weight: 700; }
+.sim-champ input {
+  font: inherit; font-weight: 400; font-size: 1.05rem;
+  padding: 0.6rem 0.75rem; border: 1px solid var(--filet); border-radius: var(--rayon);
+  background: #fff; max-width: 14rem;
+}
+.sim-champ input:focus { outline: 2px solid var(--fil); outline-offset: 1px; }
+.sim-aide { font-weight: 400; font-size: 0.9rem; color: var(--texte-doux); line-height: 1.45; }
+.sim-plus summary { cursor: pointer; color: var(--violet); font-weight: 700; margin-bottom: 0.75rem; }
+
+.sim-cartes { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); }
+.sim-carte {
+  border: 1px solid var(--filet); border-radius: var(--rayon); background: #fff;
+  padding: 1rem; text-align: center;
+}
+.sim-carte-rouge { border-top: 3px solid var(--fil); }
+.sim-carte-verte { border-top: 3px solid var(--alerte-vert); }
+.sim-chiffre {
+  font-family: var(--police-titre); font-size: 2.1rem; line-height: 1.1; margin: 0 0 0.35rem;
+}
+.sim-carte-rouge .sim-chiffre { color: var(--fil); }
+.sim-carte-verte .sim-chiffre { color: var(--alerte-vert); }
+.sim-legende { margin: 0; color: var(--texte-doux); font-size: 0.92rem; line-height: 1.4; }
+.sim-legende span { display: block; margin-top: 0.25rem; font-size: 0.85rem; }
+.sim-temps { margin: 1rem 0 0; text-align: center; color: var(--violet); font-weight: 700; }
+
+.sim-scenario {
+  margin-top: 1.5rem; padding: 1rem; border: 1px solid var(--filet); border-radius: var(--rayon);
+  background: var(--fond-doux);
+}
+.sim-scenario label { display: block; margin-bottom: 0.5rem; }
+.sim-scenario input[type="range"] { width: 100%; accent-color: var(--fil); }
+.sim-solde { font-weight: 700; margin: 0.75rem 0 0.5rem; }
+.sim-solde.sim-positif { color: var(--alerte-vert); }
+.sim-hypo .op-liste li { font-size: 0.95rem; }
+
+/* --- Machine de prospection (plateforme, #/acquisition) --- */
+.pr-ligne { margin: 0 0 0.6rem; line-height: 1.5; }
+.pr-etiquettes { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; margin: 0 0 0.75rem; }
+.pr-titre { display: inline-flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; color: var(--texte); font-weight: 400; }
+.pr-titre strong { color: var(--violet); }
+.pr-critere { border-top: 1px solid var(--filet); padding-top: 0.6rem; }
+.pr-critere p { margin: 0 0 0.4rem; }
+.pr-etat[aria-pressed="true"] { background: var(--rose); border-color: var(--violet); color: var(--violet); font-weight: 700; }
+.pr-exclu { display: block; margin: 0.2rem 0; }
+.pr-taches { list-style: none; padding: 0; margin: 0; }
+.pr-taches li { padding: 0.45rem 0; border-bottom: 1px solid var(--filet); line-height: 1.45; }
+.pr-taches input { accent-color: var(--fil); transform: scale(1.15); margin-right: 0.35rem; }
+.pr-lien { word-break: break-all; }

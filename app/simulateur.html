@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Page publique : simulateur « Combien vous coûtent les abandons ? ».
+       Tout le calcul se fait dans le navigateur (calcul-abandons.js) : aucun chiffre
+       saisi n'est envoyé ni enregistré. Pré-remplissage possible par l'adresse :
+       ?o=Nom de l'organisme&n=apprenants par an&p=prix moyen&d=durée en mois&t=taux d'abandon -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'none'; base-uri 'self'; form-action 'self'">
+  <title>Combien vous coûtent les abandons de formation ? Simulateur gratuit | Fil Rouge Apprenants</title>
+  <meta name="description" content="Simulateur gratuit pour les organismes de formation à distance : estimez ce que les abandons vous coûtent chaque année, et à partir de combien d'abandons évités un suivi téléphonique est remboursé.">
+  <meta property="og:title" content="Combien vous coûtent les abandons de formation ?">
+  <meta property="og:description" content="Simulateur gratuit en 1 minute pour les organismes de formation à distance. Vos chiffres restent dans votre navigateur.">
+  <link rel="icon" href="logo/icone.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="logo/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Instrument+Serif&display=swap">
+  <link rel="stylesheet" href="styles.css?v=__VERSION__">
+  <link rel="stylesheet" href="offre-pilote.css?v=__VERSION__">
+  <link rel="stylesheet" href="simulateur.css?v=__VERSION__">
+</head>
+<body>
+  <header class="bandeau">
+    <div class="bandeau-interieur">
+      <p class="marque">
+        <span class="marque-texte">Fil Rouge <span class="marque-sous">Apprenants</span></span>
+        <svg class="marque-fil" viewBox="0 0 320 64" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path d="M4 50 C 20 53, 32 53.8, 44 40 C 70 10, 170 2, 262 8 C 300 11, 316 24, 312 36 C 306 52, 250 60, 160 60 C 92 60, 30 57, 16 46 C 4 36, 10 16, 34 7"
+                fill="none" stroke="#c1121f" stroke-width="1.4" stroke-linecap="round" vector-effect="non-scaling-stroke" pathLength="1"/>
+        </svg>
+      </p>
+    </div>
+  </header>
+
+  <main class="op-page">
+    <section class="op-haut">
+      <p class="op-surtitre">Simulateur gratuit · 1 minute</p>
+      <h1>Combien vous coûtent<br>les abandons de formation ?</h1>
+      <p class="op-chapo" id="sim-pour">Entrez vos chiffres : vous voyez ce que les abandons vous coûtent chaque année, et à partir de combien d'abandons évités un suivi téléphonique de vos apprenants est remboursé.</p>
+    </section>
+
+    <section class="op-bloc" aria-labelledby="sim-chiffres">
+      <h2 id="sim-chiffres">Vos chiffres</h2>
+      <form id="sim-form" class="sim-form" novalidate>
+        <label class="sim-champ">Apprenants inscrits par an
+          <input id="sim-n" name="n" type="number" inputmode="numeric" min="1" step="1" value="150">
+        </label>
+        <label class="sim-champ">Prix moyen d'une formation (€)
+          <input id="sim-p" name="p" type="number" inputmode="decimal" min="0" step="50" value="2500">
+        </label>
+        <label class="sim-champ">Durée moyenne d'un parcours (mois)
+          <input id="sim-d" name="d" type="number" inputmode="numeric" min="1" max="36" step="1" value="6">
+        </label>
+        <label class="sim-champ">Apprenants qui abandonnent ou ne vont pas à l'examen (%)
+          <input id="sim-t" name="t" type="number" inputmode="decimal" min="0" max="100" step="1" value="20">
+          <span class="sim-aide">Mettez votre propre chiffre : 20 % n'est qu'une valeur de départ.</span>
+        </label>
+        <details class="sim-plus">
+          <summary>Réglage avancé</summary>
+          <label class="sim-champ">Part du prix perdue en moyenne par abandon (%)
+            <input id="sim-perte" name="perte" type="number" inputmode="decimal" min="0" max="100" step="5" value="50">
+            <span class="sim-aide">Formation non encaissée, payée au prorata, remboursement, place perdue… Hypothèse : 50 %. Ajustez selon vos contrats.</span>
+          </label>
+        </details>
+      </form>
+    </section>
+
+    <section class="op-bloc" aria-labelledby="sim-res" aria-live="polite">
+      <h2 id="sim-res">Le résultat</h2>
+      <div class="sim-cartes">
+        <div class="sim-carte sim-carte-rouge">
+          <p class="sim-chiffre" id="r-cout">—</p>
+          <p class="sim-legende">perdus chaque année avec les abandons <span id="r-abandons"></span></p>
+        </div>
+        <div class="sim-carte">
+          <p class="sim-chiffre" id="r-fr">—</p>
+          <p class="sim-legende">par an pour un appel de suivi par apprenant et par mois <span id="r-fr-detail"></span></p>
+        </div>
+        <div class="sim-carte sim-carte-verte">
+          <p class="sim-chiffre" id="r-eq">—</p>
+          <p class="sim-legende" id="r-eq-detail">abandons évités suffisent à rembourser le suivi</p>
+        </div>
+      </div>
+      <p class="sim-temps" id="r-temps"></p>
+
+      <div class="sim-scenario">
+        <label for="sim-e">Et si le suivi évitait <strong id="r-e-val">1 abandon sur 4</strong> ?</label>
+        <input id="sim-e" type="range" min="0" max="60" step="5" value="25">
+        <p id="r-solde" class="sim-solde"></p>
+        <p class="sim-aide">Ce curseur est une hypothèse, pas une promesse : l'effet réel dépend de vos apprenants et de vos formations. C'est pour ça que l'essai gratuit existe.</p>
+      </div>
+    </section>
+
+    <section class="op-bloc" aria-labelledby="sim-pourquoi">
+      <h2 id="sim-pourquoi">Pourquoi c'est le moment</h2>
+      <ul class="op-liste">
+        <li><strong>Qualiopi depuis le 1er novembre 2026</strong> : pour les modules à distance, l'organisme doit vérifier que le suivi a réellement lieu (indicateur 19), et prouver ses mesures contre les ruptures de parcours (indicateur 12).</li>
+        <li><strong>CPF et examen</strong> : la loi du 25 juin 2026 prévoit qu'un apprenant absent sans motif légitime à l'examen ne peut plus payer sa formation avec son CPF et doit rembourser les sommes versées à l'organisme. Un apprenant relancé avant l'examen, c'est un litige en moins.</li>
+        <li><strong>Vos équipes</strong> : appeler chaque apprenant chaque mois prend du temps. Ce temps peut être confié à l'extérieur, avec un compte rendu de chaque appel.</li>
+      </ul>
+    </section>
+
+    <section class="op-bloc op-prix" aria-labelledby="sim-essai">
+      <h2 id="sim-essai">Vérifiez avec vos vrais apprenants</h2>
+      <p class="op-montant">0 € <span>pendant 15 jours</span></p>
+      <p class="op-detail">Jusqu'à 20 apprenants appelés · comptes rendus en ligne · bilan chiffré à la fin</p>
+      <a class="bouton op-bouton" href="offre-pilote.html#demande">Demander mon essai gratuit</a>
+      <p class="op-securite">Sans engagement, sans carte bancaire.</p>
+    </section>
+
+    <section class="op-bloc sim-hypo" aria-labelledby="sim-calcul">
+      <h2 id="sim-calcul">Comment le calcul est fait</h2>
+      <ul class="op-liste">
+        <li>Abandons par an = apprenants inscrits × votre taux d'abandon.</li>
+        <li>Coût d'un abandon = prix moyen × part du prix perdue (réglage avancé).</li>
+        <li>Suivi Fil Rouge = un appel par apprenant et par mois de parcours. Prix d'un appel selon le nombre d'apprenants suivis en même temps : 20 € HT sous 20, 15 € HT de 20 à 150, 12 € HT au-delà.</li>
+        <li>Temps libéré : environ 15 minutes par appel (préparation, appel, compte rendu).</li>
+        <li>Vos chiffres ne quittent pas votre navigateur : rien n'est envoyé ni enregistré.</li>
+      </ul>
+      <p class="sim-aide" id="sim-maj"></p>
+    </section>
+  </main>
+
+  <footer class="op-pied">
+    <p>Fil Rouge Apprenants · Émilie Rachas · Lormont (Gironde) · <a href="mailto:contact.filrouge.apprenant@gmail.com">contact.filrouge.apprenant@gmail.com</a> · <a href="confidentialite.html">Confidentialité</a></p>
+  </footer>
+
+  <script src="calcul-abandons.js?v=__VERSION__"></script>
+  <script src="simulateur.js?v=__VERSION__"></script>
+</body>
+</html>

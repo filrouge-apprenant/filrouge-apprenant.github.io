@@ -773,6 +773,7 @@
     if (morceaux[0] === "script") return { nom: "script", morceaux: morceaux.slice(1).filter((m) => UUID.test(m)) };
     if (morceaux[0] === "modeles-email") return { nom: "modeles-email", morceaux: morceaux.slice(1) };
     if (morceaux[0] === "scripts-vente") return { nom: "scripts-vente", morceaux: morceaux.slice(1).filter((m) => ["demarchage", "objections"].includes(m) || UUID.test(m)) };
+    if (morceaux[0] === "acquisition") return { nom: "acquisition", morceaux: morceaux.slice(1).filter((m) => /^[a-z]+$/.test(m) || UUID.test(m)) };
     if (morceaux[0] === "coaching") return { nom: "coaching", type: morceaux[1] || "stage", id: UUID.test(morceaux[2] || "") ? morceaux[2] : null };
     return { nom: "accueil" };
   }
@@ -870,6 +871,7 @@
     if (route.nom === "entrainement") return entrainement().route(route.morceaux);
     if (route.nom === "script") return scriptAppel().route(route.morceaux);
     if (route.nom === "scripts-vente") return scriptsVente().route(route.morceaux);
+    if (route.nom === "acquisition") return prospectionMachine().route(route.morceaux);
     if (route.nom === "modeles-email") return modelesEmail().route(route.morceaux);
     if (route.nom === "satisfaction") return ecranSatisfaction(route.id);
     if (route.nom === "impayes") return ecranImpayes();
@@ -947,6 +949,14 @@
   function scriptsVente() {
     if (!moduleScriptsVente) moduleScriptsVente = window.FilRougeScriptsVente({ sb, h, afficher });
     return moduleScriptsVente;
+  }
+
+  // Machine de prospection (prospection.js) : simulateur d'économies, notation /100,
+  // plan sur 30 jours, approches par situation, 25 méthodes.
+  let moduleProspection = null;
+  function prospectionMachine() {
+    if (!moduleProspection) moduleProspection = window.FilRougeProspection({ sb, h, afficher, message, texteErreur });
+    return moduleProspection;
   }
 
   window.addEventListener("hashchange", () => {
@@ -1127,6 +1137,7 @@
             h("h1", {}, "Vos organismes")),
           h("div", { class: "actions-ligne" },
             h("a", { href: "#/scripts-vente", class: "bouton bouton-secondaire bouton-petit" }, "📋 Scripts de vente"),
+            h("a", { href: "#/acquisition/priorites", class: "bouton bouton-secondaire bouton-petit" }, "🎯 Priorités /100"),
             h("a", { href: "#/recherche-centres", class: "bouton bouton-secondaire bouton-petit" }, "🔎 Trouver des centres"),
             h("a", { href: "#/nouveau", class: "bouton bouton-petit" }, "+ Ajouter"))),
 
@@ -1586,7 +1597,8 @@
           h("a", { class: "bouton bouton-secondaire", href: lienSiteWeb(s.site_web, org.data.nom).url, target: "_blank", rel: "noopener" }, s.site_web ? "🌐 Site internet" : "🔎 Chercher le site"),
           h("a", { class: "bouton bouton-secondaire", href: lienPappers(org.data.nom, s.siren), target: "_blank", rel: "noopener" }, "🏢 Pappers"),
           !estClient ? h("a", { class: "bouton bouton-secondaire", href: `#/scripts-vente/demarchage/${id}` }, "📋 Script de démarchage") : null,
-          !estClient ? h("button", { type: "button", class: "bouton bouton-secondaire", onclick: () => ongletsOrg.choisir("objections") }, "💬 Traitement d'objection") : null),
+          !estClient ? h("button", { type: "button", class: "bouton bouton-secondaire", onclick: () => ongletsOrg.choisir("objections") }, "💬 Traitement d'objection") : null,
+          !estClient ? h("a", { class: "bouton bouton-secondaire", href: `#/acquisition/simulateur/${id}` }, "🧮 Simulateur d'économies") : null),
         !s.contact_telephone && !s.contact_email ? h("p", { class: "aide" }, "Pas de téléphone ni d'email : complète le contact dans l'onglet Suivi commercial.") : null,
         !s.site_web ? h("p", { class: "aide" }, "Site pas encore enregistré : trouve-le avec « Chercher le site », puis colle l'adresse dans l'onglet Suivi commercial.") : null,
         h("p", { class: "aide" }, "Après l'échange, note-le dans le bandeau « Échanges » à droite.")));
@@ -4621,6 +4633,7 @@
         lien("entrainement", "Entraînement aux appels")),
       groupe("prospects", "Prospects", [
         lien("prospection", "Tous les centres à démarcher"),
+        lien("acquisition", "🚀 Machine de prospection"),
         lien("recherche-centres", "🔎 Trouver des centres"),
         lien("scripts-vente", "Scripts de vente"),
         lien("nouveau", "Ajouter un centre"),
