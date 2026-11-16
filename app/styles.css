@@ -1530,3 +1530,6 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
   .entr-aide { padding: 1.5rem 2rem; }
 }
 .entr-aide.carte { max-width: none; }
+.entr-a-essayer { border: 1px solid var(--fil); border-left-width: 4px; border-radius: var(--rayon); padding: 0.9rem 1.1rem; background: #fff; }
+.entr-a-essayer .surtitre { color: var(--fil); margin: 0 0 0.4rem; }
+.entr-bulle.entr-en-lecture { outline: 2px solid var(--fil); outline-offset: 2px; }

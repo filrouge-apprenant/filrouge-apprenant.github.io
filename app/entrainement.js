@@ -246,6 +246,11 @@
         return zoneErreur.replaceChildren(message("erreur", e.message));
       }
       const sessionId = depart.session_id;
+      // Enregistrement de tes répliques (voix), pour réécouter l'appel ensuite.
+      const E = window.FilRougeEnregistreur;
+      const enreg = mode === "voix" && E && E.dispo ? await E.ouvrir() : null;
+      const clips = new Map();
+      let rang = 1; // place de ta prochaine réplique dans la conversation (0 = le décroché)
       const debut = Date.now();
       let termine = false;
       let occupe = false;
@@ -324,6 +329,7 @@
         try {
           micro.start();
           ecoute = true;
+          if (enreg) enreg.debut();
           majEtat("À vous, je vous écoute…");
         } catch { /* déjà lancé */ }
       };
@@ -340,6 +346,7 @@
         if (!texte || occupe || termine || enPause) return;
         occupe = true;
         couperMicro();
+        const clip = enreg ? await enreg.fin() : null;
         texteFinal = "";
         saisie.value = "";
         zone.replaceChildren();
@@ -348,6 +355,8 @@
         majEtat(`${prenom(s.apprenant_nom)} réfléchit…`);
         try {
           const r = await serveur({ action: "repondre", session_id: sessionId, texte });
+          if (clip) clips.set(rang, clip);
+          rang += 2;
           if (termine) return;
           ajouter("apprenant", r.reponse);
           majEtat(mode === "voix" && sonActif ? `${prenom(s.apprenant_nom)} parle…` : "À vous.");
@@ -378,6 +387,8 @@
         synth?.cancel();
         appelEnCours = null;
         const secondes = ecoule();
+        if (enreg) { await enreg.fin(); enreg.fermer(); }
+        const envoiAudio = clips.size ? E.envoyer(sb, outils.monId(), sessionId, clips).catch(() => 0) : Promise.resolve(0);
         const evaluer = async () => {
         afficher(h("div", { class: "pile" },
           h("p", { class: "surtitre" }, "Entraînement"),
@@ -393,6 +404,7 @@
                 h("a", { class: "bouton", href: `#/entrainement/appel/${s.id}` }, "Recommencer"),
                 s.type === "prospect" ? lien("entrainement", "Choisir un autre prospect") : lien("entrainement", "Choisir un autre apprenant"))));
           }
+          await envoiAudio;
           window.location.hash = `#/entrainement/resultat/${sessionId}`;
         } catch (e) {
           afficher(h("div", { class: "pile" },
@@ -431,10 +443,12 @@
           debutPause = Date.now();
           clearTimeout(minuterieSilence);
           couperMicro();
+          if (enreg) enreg.pause();
           synth?.cancel();
           majEtat("⏸ Appel en pause : prends le temps de relire le script ou les objections, puis reprends.");
         } else {
           tempsPause += Date.now() - debutPause;
+          if (enreg) enreg.reprise();
           majEtat(mode === "voix" && microVoulu ? "À vous, je vous écoute…" : "À vous.");
           ecouter();
           if (mode !== "voix") saisie.focus();
@@ -457,6 +471,7 @@
           clearInterval(minuterie);
           couperMicro();
           synth?.cancel();
+          if (enreg) enreg.fermer();
         },
       };
 
@@ -520,6 +535,33 @@
             h("span", { class: "entr-jauge-texte" }, `${c.note}/5`)),
           c.commentaire ? h("div", { class: "ligne-detail" }, c.commentaire) : null)));
 
+      // Réécouter l'appel : ta vraie voix enregistrée + la voix du prospect.
+      const bulles = (x.transcription || []).map((r) =>
+        h("div", { class: `entr-bulle entr-${r.qui}` }, h("span", { class: "entr-qui" }, r.qui === "apprenant" ? (vente ? "Prospect" : "Apprenant") : (vente ? "Vous" : "Appelante")), h("span", {}, r.texte)));
+      const filRelecture = h("div", { class: "entr-fil entr-fil-relecture" }, bulles);
+      const blocReecoute = h("div", { class: "entr-reecoute" });
+      const E = window.FilRougeEnregistreur;
+      if (E && mienne) {
+        E.liens(sb, x.appelante_id, x.id).then((urls) => {
+          if (!urls.size) return;
+          let lecture = null;
+          const bouton = h("button", { type: "button", class: "bouton" }, "🎧 Réécouter l'appel");
+          const fin = () => { lecture = null; bouton.textContent = "🎧 Réécouter l'appel"; bulles.forEach((b) => b.classList.remove("entr-en-lecture")); };
+          bouton.addEventListener("click", () => {
+            if (lecture) return lecture.arreter();
+            const rel = document.getElementById("entr-relecture"); if (rel) rel.open = true;
+            bouton.textContent = "⏹ Arrêter l'écoute";
+            lecture = E.rejouer(x.transcription || [], urls, {
+              genre: /^(claire|sandrine|accueil|julie|mme|sophie|hélène|helene|patricia)/i.test(x.scenario_titre || "") ? "f" : "",
+              surLigne: (i) => { bulles.forEach((b, k) => b.classList.toggle("entr-en-lecture", k === i)); if (bulles[i]) bulles[i].scrollIntoView({ block: "nearest", behavior: "smooth" }); },
+              surFin: fin,
+            });
+          });
+          blocReecoute.replaceChildren(h("div", { class: "actions" }, bouton,
+            h("span", { class: "aide" }, `Ta vraie voix (${urls.size} réplique${urls.size > 1 ? "s" : ""} enregistrée${urls.size > 1 ? "s" : ""}), et le prospect relu par la voix de l'ordinateur.`)));
+        }).catch(() => null);
+      }
+
       const listeTexte = (titre, lst) => (lst && lst.length
         ? h("div", { class: "pile pile-serree" }, h("h3", {}, titre), h("ul", { class: "entr-puces" }, lst.map((t) => h("li", {}, t))))
         : null);
@@ -539,9 +581,8 @@
         criteres.length ? h("section", { class: "pile pile-serree" }, h("h2", {}, "Critère par critère"), blocCriteres) : null,
         h("div", { class: "deux-colonnes" }, listeTexte("Points forts", ev.points_forts), listeTexte("À améliorer", ev.a_ameliorer)),
         ev.phrase_modele ? h("div", { class: "message message-action" }, h("strong", {}, "Phrase à essayer la prochaine fois : "), `« ${ev.phrase_modele} »`) : null,
-        h("details", { class: "depliant" }, h("summary", {}, "Relire la conversation"),
-          h("div", { class: "entr-fil entr-fil-relecture" }, (x.transcription || []).map((r) =>
-            h("div", { class: `entr-bulle entr-${r.qui}` }, h("span", { class: "entr-qui" }, r.qui === "apprenant" ? (vente ? "Prospect" : "Apprenant") : (vente ? "Vous" : "Appelante")), h("span", {}, r.texte))))),
+        blocReecoute,
+        h("details", { class: "depliant", id: "entr-relecture" }, h("summary", {}, "Relire la conversation"), filRelecture),
         h("div", { class: "actions" },
           mienne && x.scenario_id ? h("a", { class: "bouton", href: `#/entrainement/appel/${x.scenario_id}` }, "Refaire cet appel") : null,
           vente ? lien("entrainement", "Choisir un autre prospect") : lien("entrainement", "Choisir un autre apprenant"),
@@ -687,8 +728,22 @@
       };
       const bScript = onglet("📋 Script", script), bObj = onglet("🛡 Objections", objections);
       bScript.setAttribute("aria-pressed", "true"); bObj.setAttribute("aria-pressed", "false");
+      // Ce que l'évaluation précédente t'a conseillé : affiché en haut, pour l'essayer cette fois.
+      const rappel = h("div");
+      sb.from("entrainement_sessions").select("scenario_id, scenario_titre, debut, evaluation")
+        .eq("appelante_id", outils.monId()).eq("statut", "terminee").order("debut", { ascending: false }).limit(15)
+        .then(({ data }) => {
+          const avec = (data || []).filter((x) => x.evaluation && (x.evaluation.phrase_modele || (x.evaluation.a_ameliorer || []).length));
+          const d = avec.find((x) => x.scenario_id === s.id) || avec[0];
+          if (!d) return;
+          const ev = d.evaluation;
+          rappel.replaceChildren(h("div", { class: "entr-a-essayer" },
+            h("p", { class: "surtitre" }, d.scenario_id === s.id ? "🎯 À essayer cette fois (ton dernier essai sur ce prospect)" : `🎯 À essayer cette fois (dernier essai : ${d.scenario_titre})`),
+            ev.phrase_modele ? h("blockquote", { class: "sv-dire" }, `« ${ev.phrase_modele} »`) : null,
+            (ev.a_ameliorer || []).length ? h("ul", { class: "sv-liste" }, ev.a_ameliorer.slice(0, 3).map((t) => h("li", {}, t))) : null));
+        });
       return h("aside", { class: "entr-aide carte", "aria-label": "Script et objections" },
-        h("div", { class: "filtres" }, bScript, bObj), zone);
+        rappel, h("div", { class: "filtres" }, bScript, bObj), zone);
     }
 
     // -------------------------------------------------------------------------

@@ -91,6 +91,14 @@ async def main():
             ok("13" in t and "Mardi 17 h ou jeudi 9 h" in t, "résultat : note sur 20 et phrase modèle")
             ok(await page.evaluate("window.__ia.join(',')") == "demarrer,repondre,terminer", "trois appels à la fonction serveur")
             await page.screenshot(path=os.path.join(SORTIE, "abdel-entrainement-resultat.png"), full_page=True)
+            await page.evaluate("() => { window.__db.entrainement_sessions.forEach(x => x.appelante_id = '11111111-1111-4111-8111-111111111111'); }")
+            await page.click("text=Refaire cet appel")
+            await page.wait_for_selector("#ent-go")
+            if await page.locator("#ent-mode").count():
+                await page.select_option("#ent-mode", "ecrit")
+            await page.click("#ent-go")
+            await page.wait_for_selector(".ent-a-essayer", timeout=5000)
+            ok("Mardi 17 h ou jeudi 9 h" in await page.inner_text(".ent-a-essayer"), "nouvel essai : la phrase à essayer est rappelée en haut du script")
             ok(not erreurs, "aucune erreur JavaScript " + "; ".join(erreurs))
             await nav.close()
     finally:

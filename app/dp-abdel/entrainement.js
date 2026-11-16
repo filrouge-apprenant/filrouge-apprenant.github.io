@@ -136,6 +136,11 @@
       catch (e) { go.disabled = false; go.textContent = '☎ Lancer l\'appel'; zone.innerHTML = `<p class="message message-erreur">${esc(e.message)}</p>`; return; }
 
       const sessionId = d.session_id, debut = Date.now(), genre = FEMININS.test(s.apprenant_nom) ? 'f' : 'm';
+      // Enregistrement de tes répliques (voix), pour réécouter l'appel ensuite.
+      const E = window.FilRougeEnregistreur;
+      const enreg = mode === 'voix' && E && E.dispo ? await E.ouvrir() : null;
+      const clips = new Map();
+      let rang = 1;
       let enPause = false, debutPause = 0, tempsPause = 0;
       const ecoule = () => Math.round((Date.now() - debut - tempsPause - (enPause ? Date.now() - debutPause : 0)) / 1000);
       let fini = false, attente = false, son = true, microVoulu = mode === 'voix', ecoute = false, finalTxt = '', minuterie = null, micro = null;
@@ -187,16 +192,19 @@
           micro.onend = () => { ecoute = false; if (!fini && !attente && microVoulu) setTimeout(ecouter, 250); };
           micro.onerror = ev => { ecoute = false; if (ev.error === 'not-allowed') { microVoulu = false; majEtat('Micro refusé : tape tes réponses.'); } };
         }
-        try { micro.start(); ecoute = true; majEtat('À toi, je t\'écoute…'); } catch (e) { /* déjà en cours */ }
+        try { micro.start(); ecoute = true; if (enreg) enreg.debut(); majEtat('À toi, je t\'écoute…'); } catch (e) { /* déjà en cours */ }
       };
 
       async function envoyer() {
         const texte = saisie.value.trim();
         if (!texte || attente || fini || enPause) return;
         attente = true; couperMicro(); finalTxt = ''; saisie.value = '';
+        const clip = enreg ? await enreg.fin() : null;
         ajouter('moi', texte); majEtat('Le prospect réfléchit…'); $('ent-err').innerHTML = '';
         try {
           const r = await serveur({ action: 'repondre', session_id: sessionId, texte });
+          if (clip) clips.set(rang, clip);
+          rang += 2;
           ajouter('prospect', r.reponse);
           majEtat(mode === 'voix' && son ? 'Le prospect parle…' : 'À toi.');
           await parler(r.reponse);
@@ -213,10 +221,13 @@
       async function raccrocher() {
         if (fini) return;
         fini = true; couperMicro(); if (V) V.arreter(); clearInterval(chrono); appel = null;
+        if (enreg) { await enreg.fin(); enreg.fermer(); }
+        const envoiAudio = clips.size ? sb.auth.getSession().then(({ data }) => E.envoyer(sb, data.session.user.id, sessionId, clips)).catch(() => 0) : Promise.resolve(0);
         remplir('<p class="chargement">Évaluation de ton appel…</p>');
         try {
           const r = await serveur({ action: 'terminer', session_id: sessionId, duree_secondes: ecoule() });
           if (r.annule) return remplir(`<div class="pile"><h1>Appel trop court</h1><p class="message message-info">Il faut au moins deux répliques pour obtenir une évaluation.</p><div class="actions"><a class="bouton" href="#/entrainement/appel/${encodeURIComponent(s.id)}">Recommencer</a><a class="bouton-lien" href="#/entrainement">Choisir un autre prospect</a></div></div>`);
+          await envoiAudio;
           location.hash = `#/entrainement/resultat/${sessionId}`;
         } catch (e) {
           remplir(`<div class="pile"><h1>Évaluation impossible pour l'instant</h1><p class="message message-erreur">${esc(e.message)}</p><p class="aide">Ton appel est enregistré : réessaie dans quelques secondes.</p><div class="actions"><a class="bouton" href="#/entrainement">Retour</a></div></div>`);
@@ -237,17 +248,36 @@
         e.target.setAttribute('aria-pressed', String(enPause));
         e.target.textContent = enPause ? "▶ Reprendre l'appel" : '⏸ Pause';
         saisie.disabled = enPause; $('ent-envoyer').disabled = enPause;
-        if (enPause) { debutPause = Date.now(); couperMicro(); if (V) V.arreter(); majEtat('⏸ Appel en pause : relis le script ou les objections, puis reprends.'); }
-        else { tempsPause += Date.now() - debutPause; majEtat('À toi.'); ecouter(); if (mode !== 'voix') saisie.focus(); }
+        if (enPause) { debutPause = Date.now(); couperMicro(); if (enreg) enreg.pause(); if (V) V.arreter(); majEtat('⏸ Appel en pause : relis le script ou les objections, puis reprends.'); }
+        else { tempsPause += Date.now() - debutPause; if (enreg) enreg.reprise(); majEtat('À toi.'); ecouter(); if (mode !== 'voix') saisie.focus(); }
       });
       if ($('ent-son')) $('ent-son').addEventListener('click', e => { son = !son; if (!son && V) V.arreter(); e.target.textContent = son ? 'Couper le son' : 'Remettre le son'; });
       const chrono = setInterval(() => { const t = ecoule(); const c = $('ent-chrono'); if (c) c.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; }, 1000);
-      appel = { fermer() { fini = true; clearInterval(chrono); couperMicro(); if (V) V.arreter(); } };
+      appel = { fermer() { fini = true; clearInterval(chrono); couperMicro(); if (V) V.arreter(); if (enreg) enreg.fermer(); } };
 
       ajouter('prospect', d.reponse);
       majEtat(mode === 'voix' ? 'Le prospect décroche…' : 'À toi : présente-toi.');
       await parler(d.reponse);
       if (!fini) { majEtat(mode === 'voix' ? 'À toi, je t\'écoute…' : 'À toi : présente-toi.'); ecouter(); if (mode !== 'voix') saisie.focus(); }
+    }
+
+    // Ce que l'évaluation précédente t'a conseillé : en haut du panneau, pour l'essayer cette fois.
+    async function rappelAEssayer(s) {
+      const { data: ses } = await sb.auth.getSession();
+      const moi = ses && ses.session && ses.session.user.id;
+      if (!moi) return;
+      const { data } = await sb.from('entrainement_sessions').select('scenario_id, scenario_titre, evaluation, debut')
+        .eq('appelante_id', moi).eq('statut', 'terminee').order('debut', { ascending: false }).limit(15);
+      const sc = await sb.from('entrainement_scenarios').select('id').eq('domaine', 'abdel');
+      const ids = new Set(((sc && sc.data) || []).map(x => x.id));
+      const avec = (data || []).filter(x => ids.has(x.scenario_id) && x.evaluation && (x.evaluation.phrase_modele || (x.evaluation.a_ameliorer || []).length));
+      const d = avec.find(x => x.scenario_id === s.id) || avec[0];
+      const zone = document.getElementById('ent-a-essayer');
+      if (!d || !zone) return;
+      const ev = d.evaluation;
+      zone.innerHTML = `<div class="ent-a-essayer"><p class="surtitre">🎯 À essayer cette fois${d.scenario_id === s.id ? ' (ton dernier essai sur ce prospect)' : ` (dernier essai : ${esc(titreSans(d.scenario_titre))})`}</p>
+        ${ev.phrase_modele ? `<p><b>« ${esc(ev.phrase_modele)} »</b></p>` : ''}
+        ${(ev.a_ameliorer || []).length ? `<ul>${ev.a_ameliorer.slice(0, 3).map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}</div>`;
     }
 
     // Script et objections du bon métier (sécurité ou nettoyage), à côté de l'appel.
@@ -262,7 +292,8 @@
         .replace(/\(Société\)/g, (P.companySecu || '').trim() || '(Société)')
         .replace(/\(Entreprise\)/g, (P.companyNet || '').trim() || 'Abdel')
         .replace(/\(nom\)/g, nomContact.split(' ').slice(-1)[0] || '(nom)')).replace(/\n/g, '<br>');
-      return `<aside class="ent-aide carte" aria-label="Script et objections">
+      setTimeout(() => rappelAEssayer(s), 0);
+      return `<aside class="ent-aide carte" aria-label="Script et objections"><div id="ent-a-essayer"></div>
         <div class="actions"><button class="bouton bouton-petit bouton-secondaire" type="button" data-aide="script" aria-pressed="true">📋 Script ${net ? 'nettoyage' : 'sécurité'}</button><button class="bouton bouton-petit bouton-secondaire" type="button" data-aide="obj" aria-pressed="false">🛡 Objections</button></div>
         <div class="ent-aide-volet" data-volet="script">${script.map((e, i) => `<details class="ent-etape"${i === 3 ? ' open' : ''}><summary>${esc(e.t)}</summary><p>${texte(e.x)}</p></details>`).join('') || '<p class="aide">Script indisponible.</p>'}</div>
         <div class="ent-aide-volet" data-volet="obj" hidden>${objs.map(o => `<details class="ent-etape"><summary>${esc(o.o)}</summary><p>${texte(o.r)}</p></details>`).join('') || '<p class="aide">Objections indisponibles.</p>'}</div>
@@ -273,7 +304,7 @@
     async function ecranResultat(id) {
       arreter();
       const { data: x, error } = await sb.from('entrainement_sessions')
-        .select('id, scenario_id, scenario_titre, statut, debut, duree_secondes, mode, transcription, note_sur_20, evaluation').eq('id', id).maybeSingle();
+        .select('id, appelante_id, scenario_id, scenario_titre, statut, debut, duree_secondes, mode, transcription, note_sur_20, evaluation').eq('id', id).maybeSingle();
       if (error || !x) return remplir('<p class="message message-erreur">Résultat introuvable.</p><a class="bouton" href="#/entrainement">Retour</a>');
       const ev = x.evaluation || {}, crit = ev.criteres || [];
       const liste = (t, arr) => arr && arr.length ? `<div class="carte pile-serree"><h3>${t}</h3><ul>${arr.map(v => `<li>${esc(v)}</li>`).join('')}</ul></div>` : '';
@@ -286,8 +317,34 @@
         <section class="pile pile-serree"><h2>Critère par critère</h2><ul class="liste">${crit.map(c => `<li class="ligne"><div><div class="ligne-titre">${esc(c.nom)}</div>${c.commentaire ? `<div class="ligne-detail">${esc(c.commentaire)}</div>` : ''}</div><div class="ligne-droite"><span class="pastille ${c.note >= 4 ? 'p-vert' : c.note >= 3 ? 'p-safran' : 'p-rouge'}">${c.note}/5</span></div></li>`).join('')}</ul></section>
         <div class="deux-colonnes">${liste('Points forts', ev.points_forts)}${liste('À améliorer', ev.a_ameliorer)}</div>
         ${ev.phrase_modele ? `<p class="message message-action"><b>Phrase à essayer la prochaine fois :</b> « ${esc(ev.phrase_modele)} »</p>` : ''}`}
-        <details class="carte"><summary>Relire la conversation</summary><div class="ent-fil">${(x.transcription || []).map(r => `<div class="ent-bulle ent-${r.qui === 'appelante' ? 'moi' : 'prospect'}"><span class="ent-qui">${r.qui === 'appelante' ? 'Toi' : 'Prospect'}</span><span>${esc(r.texte)}</span></div>`).join('')}</div></details>
+        <div id="ent-reecoute"></div>
+        <details class="carte" id="ent-relecture"><summary>Relire la conversation</summary><div class="ent-fil">${(x.transcription || []).map(r => `<div class="ent-bulle ent-${r.qui === 'appelante' ? 'moi' : 'prospect'}"><span class="ent-qui">${r.qui === 'appelante' ? 'Toi' : 'Prospect'}</span><span>${esc(r.texte)}</span></div>`).join('')}</div></details>
         <div class="actions">${x.scenario_id ? `<a class="bouton" href="#/entrainement/appel/${encodeURIComponent(x.scenario_id)}">Refaire cet appel</a>` : ''}<a class="bouton bouton-secondaire" href="#/entrainement">Choisir un autre prospect</a></div></div>`);
+      brancherReecoute(x);
+    }
+
+    // Réécouter l'appel : ta vraie voix enregistrée + la voix du prospect.
+    async function brancherReecoute(x) {
+      const E = window.FilRougeEnregistreur, zone = document.getElementById('ent-reecoute');
+      if (!E || !zone) return;
+      let urls;
+      try { urls = await E.liens(sb, x.appelante_id, x.id); } catch (e) { return; }
+      if (!urls.size) return;
+      zone.innerHTML = `<div class="actions"><button class="bouton" type="button" id="ent-ecouter">🎧 Réécouter l'appel</button><span class="aide">Ta vraie voix (${urls.size} réplique${urls.size > 1 ? 's' : ''} enregistrée${urls.size > 1 ? 's' : ''}), et le prospect relu par la voix de l'ordinateur.</span></div>`;
+      const bouton = document.getElementById('ent-ecouter');
+      const bulles = [...document.querySelectorAll('#ent-relecture .ent-bulle')];
+      let lecture = null;
+      const fin = () => { lecture = null; bouton.textContent = "🎧 Réécouter l'appel"; bulles.forEach(b => b.classList.remove('ent-en-lecture')); };
+      bouton.addEventListener('click', () => {
+        if (lecture) return lecture.arreter();
+        document.getElementById('ent-relecture').open = true;
+        bouton.textContent = "⏹ Arrêter l'écoute";
+        lecture = E.rejouer(x.transcription || [], urls, {
+          genre: /sophie|hélène|patricia|sandrine/i.test(x.scenario_titre || '') ? 'f' : '',
+          surLigne: i => { bulles.forEach((b, k) => b.classList.toggle('ent-en-lecture', k === i)); if (bulles[i]) bulles[i].scrollIntoView({ block: 'nearest', behavior: 'smooth' }); },
+          surFin: fin,
+        });
+      });
     }
 
     return { page };

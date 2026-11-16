@@ -593,3 +593,7 @@ body { background-position: left 0 top 60px, right 0 top 60px, left bottom, righ
 /* Appel d'entraînement : toute la largeur disponible */
 .contenu-interieur:has(.ent-avec-aide) { max-width: none; }
 .ent-aide.carte { max-width: none; }
+.ent-a-essayer { border: 1px solid var(--safran); border-left-width: 4px; border-radius: var(--rayon); padding: .8rem 1rem; background: var(--safran-clair); }
+.ent-a-essayer .surtitre { margin: 0 0 .3rem; }
+.ent-a-essayer ul { margin: .3rem 0 0; padding-left: 1.2rem; }
+.ent-bulle.ent-en-lecture { outline: 2px solid var(--safran); outline-offset: 2px; }
