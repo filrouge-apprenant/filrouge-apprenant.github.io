@@ -195,8 +195,19 @@ function lireJson(texte: string): Record<string, unknown> {
 }
 
 // Garde seulement les paroles : sans balise de fin, didascalies, astérisques ni « Sarah : ».
+// Une seule réplique : certains modèles enchaînent plusieurs tours de parole collés
+// (« …je vous écoute.Hm, vous dites… ») ou écrivent aussi la réponse d'Émilie.
+function uneReplique(texte: string) {
+  let t = texte.replace(/\[(?!RACCROCHE)[^\]]*\]/g, " ");
+  const tour = t.search(/\n\s*(émilie|emilie|appelante|vous|moi)\s*:/i);
+  if (tour > 0) t = t.slice(0, tour);
+  const colle = t.search(/[.!?…](?=[A-ZÀ-Ý«])/);
+  if (colle > 0) t = t.slice(0, colle + 1);
+  return t;
+}
+
 function nettoyer(texte: string) {
-  return texte
+  return uneReplique(texte)
     .replace(FIN_APPEL, "")
     .replace(/\*[^*]*\*/g, "")
     .replace(/\([^)]*\)/g, "")
@@ -223,6 +234,7 @@ Règles du jeu :
 - Écris uniquement les paroles prononcées : jamais de didascalie, d'astérisque, d'emoji, de description entre parenthèses, ni ton nom devant ta réplique (le texte est lu à voix haute).
 - Ne dis jamais que tu es une IA, ne sors jamais du rôle, ne donne jamais de conseil à l'appelante.
 - Ne révèle pas ton vrai frein trop tôt : il faut que l'appelante le mérite par ses questions et son écoute.
+- Tu ne dis QU'UNE seule réplique, la tienne, puis tu t'arrêtes et tu attends la réponse : n'écris jamais ce que dit la personne qui t'appelle, n'invente pas la suite de la conversation, n'écris jamais de crochets comme [Attente].
 - Reste cohérent avec ce que tu as déjà dit.
 - Si l'appelante dit quelque chose d'incompréhensible (erreur de dictée), demande-lui de répéter comme le ferait quelqu'un au téléphone.
 - Quand l'appel se termine (au revoir échangé), ou si ton personnage raccroche, dis ta dernière phrase puis ajoute exactement ${FIN_APPEL} à la fin.`;
@@ -253,6 +265,7 @@ Règles du jeu :
 - Ne dis jamais que tu es une IA, ne sors jamais du rôle, ne donne jamais de conseil de vente à Émilie.
 - Réagis à ce qu'elle dit vraiment : si elle t'écoute bien et répond juste, tu t'ouvres ; si elle récite, insiste lourdement ou promet un résultat garanti, tu te fermes.
 - Garde tes objections : ne cède pas à la première réponse, mais ne bloque pas indéfiniment une vendeuse qui fait du bon travail.
+- Tu ne dis QU'UNE seule réplique, la tienne, puis tu t'arrêtes et tu attends la réponse : n'écris jamais ce que dit la personne qui t'appelle, n'invente pas la suite de la conversation, n'écris jamais de crochets comme [Attente].
 - Reste cohérent avec ce que tu as déjà dit.
 - Si une phrase est incompréhensible (erreur de dictée), demande de répéter comme au téléphone.
 - Quand l'appel se termine (au revoir échangé), ou si tu raccroches, dis ta dernière phrase puis ajoute exactement ${FIN_APPEL} à la fin.`;
@@ -278,6 +291,7 @@ Règles du jeu :
 - Ne dis jamais que tu es une IA, ne sors jamais du rôle, ne donne jamais de conseil de vente à Émilie.
 - Réagis à ce qu'elle dit vraiment : si elle t'écoute, pose de bonnes questions et reste concrète, tu t'ouvres ; si elle récite, insiste lourdement, critique ton prestataire ou promet n'importe quoi, tu te fermes.
 - Garde tes objections : ne cède pas à la première réponse, mais ne bloque pas indéfiniment une vendeuse qui fait du bon travail.
+- Tu ne dis QU'UNE seule réplique, la tienne, puis tu t'arrêtes et tu attends la réponse : n'écris jamais ce que dit la personne qui t'appelle, n'invente pas la suite de la conversation, n'écris jamais de crochets comme [Attente].
 - Reste cohérent avec ce que tu as déjà dit.
 - Si une phrase est incompréhensible (erreur de dictée), demande de répéter comme au téléphone.
 - Quand l'appel se termine (au revoir échangé), ou si tu raccroches, dis ta dernière phrase puis ajoute exactement ${FIN_APPEL} à la fin.`;
@@ -388,8 +402,8 @@ Deno.serve(async (req: Request) => {
       if (!scenario || !persona) return reponse(origine, 404, { erreur: "Ce scénario n'existe plus." });
 
       transcription.push({ qui: "appelante", texte });
-      const brute = await appelerIA(consigne(scenario, persona.personnage), versMessages(transcription), 250);
-      const raccroche = brute.includes(FIN_APPEL);
+      const brute = await appelerIA(consigne(scenario, persona.personnage), versMessages(transcription), 180);
+      const raccroche = uneReplique(brute).includes(FIN_APPEL);
       const replique = nettoyer(brute) || "…";
       transcription.push({ qui: "apprenant", texte: replique });
 
