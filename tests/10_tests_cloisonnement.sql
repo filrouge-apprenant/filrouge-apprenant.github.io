@@ -1159,13 +1159,13 @@ select public.demander_essai_ou_devis('Grand Centre', 'Marc Blanc', null, 'marc@
 select tests.doit_etre_refuse($$select * from public.propositions$$, 'visiteur : ne lit pas les propositions');
 select tests.doit_etre_refuse(
   $$select public.demander_essai_ou_devis('Centre Essai Test', 'Julie Martin', null, 'julie@essai.test', null, 10, null, null, null, 'essai')$$,
-  'essai gratuit : une seule fois par organisme');
+  'essai de 30 jours : une seule fois par organisme');
 reset role;
 
 select tests.verifier(
-  (select type_offre = 'essai' and montant_total = 0 and nb_apprenants = 20 and duree_jours = 15 and statut = 'demande'
+  (select type_offre = 'essai' and montant_total = 0 and nb_apprenants = 20 and duree_jours = 30 and appels_par_mois = 2 and titre like 'Essai de 30 jours%' and statut = 'demande'
      from public.propositions p join public.organismes o on o.id = p.organisme_id where o.nom = 'Centre Essai Test'),
-  'demande d''essai : proposition gratuite de 15 jours, plafonnée à 20 apprenants');
+  'demande d''essai : essai de 30 jours, 2 appels, plafonné à 20 apprenants');
 select tests.verifier(
   (select prix_appel = 15 and montant_total = 60 * 6 * 15 and paiement = 'mensuel'
      from public.propositions p join public.organismes o on o.id = p.organisme_id where o.nom = 'Centre Devis Test'),

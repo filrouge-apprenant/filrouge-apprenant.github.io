@@ -27,7 +27,7 @@
   // ---------------------------------------------------------------------------
   const DEMARCHAGE = {
     titre: "Script de démarchage",
-    chapo: "Objectif de l'appel : décrocher un rendez-vous de 15 minutes ou lancer les 15 jours gratuits. Pas de vendre au téléphone. Tu poses des questions, le client parle plus que toi.",
+    chapo: "Objectif de l'appel : décrocher un rendez-vous de 15 minutes ou lancer l'essai de 30 jours sur ses apprenants à risque. Pas de vendre au téléphone. Tu poses des questions, le client parle plus que toi.",
     parties: [
       { titre: "Avant l'appel (2 minutes)", blocs: [
         { liste: [
@@ -56,7 +56,9 @@
           "Qui s'en occupe chez vous, et est-ce que cette personne a le temps de tous les appeler ?",
           "Pour Qualiopi, comment vous prouvez la prévention des ruptures de parcours ?",
           "Qu'est-ce que ça vous coûte, un apprenant qui lâche en cours de route ?",
+          "Là, aujourd'hui, combien de vos apprenants ne se sont pas connectés depuis deux ou trois semaines, à peu près ?",
         ] },
+        { conseil: "Garde bien sa réponse à la dernière question : c'est le chiffre sur lequel tu vas proposer l'essai (« ces 20 apprenants-là »)." },
         { conseil: "Selon la réponse à la 1re question : France Travail = chaque heure d'absence n'est pas payée, parle d'heures perdues. CPF = le risque se joue avant 80 % de progression, demande quand les apprenants décrochent. N'explique jamais la règle : vise ta question." },
         { conseil: "Écoute jusqu'au bout sans couper, note ses mots exacts, puis reformule avec SES mots (pas les tiens) et fais-le valider :" },
         { dire: "Si je vous ai bien compris, aujourd'hui [ses mots : comment ça se passe], et ce qui vous gêne, c'est [ses mots : le problème]. C'est bien ça ?" },
@@ -71,18 +73,23 @@
         { dire: "Et côté prix, vous ne payez que les appels réellement passés : pour 30 apprenants, c'est 15 € HT par apprenant et par mois, soit 450 € HT. Une seule formation sauvée, et c'est remboursé." },
         { dire: "Qu'est-ce que vous en pensez ?" },
       ] },
-      { titre: "La conclusion", blocs: [
-        { dire: "Je vous propose de tester gratuitement pendant 15 jours, sur quelques apprenants, sans engagement. Vous jugez sur pièces. On cale un échange de 15 minutes cette semaine pour le mettre en place, mardi ou jeudi ?" },
-        { conseil: "Toujours proposer deux dates, jamais « quand vous voulez »." },
+      { titre: "La conclusion : l'essai de 30 jours", blocs: [
+        { dire: "Plutôt que de me croire sur parole, je vous propose de le mesurer sur vos propres apprenants. Vous m'avez dit que vous en aviez [son chiffre] qui ne se sont pas connectés depuis quelques semaines. Pendant 30 jours, j'en appelle 20, deux fois chacun, avec un email de relance quand ils ne répondent pas." },
+        { dire: "Et pour que le résultat soit clair, on garde un petit groupe comparable que je n'appelle pas. Au bout de 30 jours, vous voyez noir sur blanc combien ont repris leur formation chez ceux que j'ai appelés, et chez les autres." },
+        { dire: "Au démarrage, on fixe ensemble un objectif de reprise, adapté à votre plateforme. S'il est atteint, on continue au tarif normal pendant 3 mois. S'il ne l'est pas, vous ne me devez rien." },
+        { dire: "On cale 15 minutes cette semaine pour choisir les apprenants ensemble, mardi ou jeudi ?" },
+        { conseil: "Toujours proposer deux dates, jamais « quand vous voulez ». L'objectif ne se fixe pas au téléphone : il se fixe au rendez-vous de démarrage, une fois que tu as vu sa plateforme (connexions visibles, appli ou non). Si elle n'affiche pas les connexions, l'objectif peut porter sur la progression ou sur les élèves joints qui ont un objectif fixé." },
+        { variante: "S'il demande « et si l'objectif n'est pas atteint ? » : « Alors on s'arrête là, vous ne payez rien, et vous gardez tous les comptes rendus. Je préfère être jugée sur des résultats. »" },
+        { variante: "S'il trouve 30 jours longs : « C'est le temps minimum pour voir un apprenant reprendre vraiment : un appel ne suffit pas, c'est la relance au 15e jour qui fait la différence. »" },
         { variante: "Quand il a choisi, récapitule avant de raccrocher :" },
-        { dire: "Parfait, je récapitule : on se parle [jour et heure], d'ici là vous m'envoyez la liste de vos apprenants, et on lance les 15 jours de test. C'est bon pour vous ?" },
+        { dire: "Parfait, je récapitule : on se parle [jour et heure], d'ici là vous m'envoyez la liste de vos apprenants qui ne se sont pas connectés depuis deux à quatre semaines, et on lance l'essai de 30 jours. C'est bon pour vous ?" },
       ] },
       { titre: "Si tu tombes sur la messagerie", blocs: [
         { dire: "Bonjour {contact}, Émilie Rachas, de Fil Rouge Apprenants. J'aide les centres de formation à distance à réduire les abandons avant l'examen, par un suivi téléphonique des apprenants. Je vous envoie un petit mail et je vous rappelle jeudi. Mon numéro : 06 17 75 56 17. Bonne journée !" },
       ] },
       { titre: "Après l'appel", blocs: [
         { liste: [
-          "Mail dans l'heure avec le lien de l'offre pilote et l'exemple de rapport mensuel.",
+          "Mail dans l'heure avec le lien de l'offre d'essai de 30 jours et l'exemple de rapport mensuel.",
           "Note l'échange et la date de relance sur la fiche de l'organisme.",
         ] },
       ] },

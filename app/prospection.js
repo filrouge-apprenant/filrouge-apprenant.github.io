@@ -127,11 +127,11 @@
       outils: "LinkedIn (responsables partenariats), annuaires de marketplaces des éditeurs.",
       exemple: "Proposition : article invité sur leur blog « Indicateur 19 : prouver le suivi à distance », avec le simulateur en lien.",
       auto: "Liste des éditeurs dans le CRM, étape « partenaire »." },
-    { top: 9, nom: "L'essai gratuit de 15 jours comme porte d'entrée", famille: "Conversion",
-      comment: "Tout appel se termine par une seule proposition : 15 jours gratuits sur 20 apprenants, puis un bilan chiffré. Pas de devis au premier appel.",
-      interet: "Risque zéro pour le centre ; les comptes rendus vendent à ta place.", cout: "Ton temps (20 appels)", diff: 1, conv: "Fort",
+    { top: 9, nom: "L'essai de 30 jours sur les apprenants à risque comme porte d'entrée", famille: "Conversion",
+      comment: "Tout appel se termine par une seule proposition : 30 jours sur 20 apprenants à risque (2 appels chacun), un groupe témoin non appelé, puis un bilan chiffré. Objectif de reprise fixé ensemble : atteint, 3 mois au tarif normal ; sinon, rien à payer. Pas de devis au premier appel.",
+      interet: "Risque zéro pour le centre ; les comptes rendus vendent à ta place.", cout: "Ton temps (40 appels, environ 13 h)", diff: 1, conv: "Fort",
       outils: "Page offre-pilote.html, tunnel déjà en place sur la plateforme.",
-      exemple: "« On fait simple : je prends 20 apprenants pendant 15 jours, vous jugez sur pièce. »",
+      exemple: "« On fait simple : je prends 20 de vos apprenants qui ne se connectent plus, pendant 30 jours, et on compare avec ceux que je n'appelle pas. »",
       auto: "Demande, contrat et bascule en payant déjà automatisés." },
     { top: 10, nom: "Le contenu « baromètre de l'abandon »", famille: "Attirer",
       comment: "À partir de tes appels (données anonymisées, agrégées), publier chaque trimestre ce qui fait décrocher les apprenants à distance : freins, moments critiques, ce qui marche. Diffusion LinkedIn, puis article SEO.",
@@ -196,7 +196,7 @@
     { nom: "Le parrainage client", famille: "Fidélisation",
       comment: "Chaque client satisfait recommande un autre centre contre un mois offert.",
       interet: "Le canal le moins cher dès les premiers clients.", cout: "1 mois offert par client gagné", diff: 1, conv: "Fort",
-      outils: "Questionnaire de satisfaction, bilan de fin d'essai.", exemple: "Au bilan des 15 jours : « Vous connaissez un autre centre qui aurait le même besoin ? »", auto: "Question ajoutée au bilan." },
+      outils: "Questionnaire de satisfaction, bilan de fin d'essai.", exemple: "Au bilan des 30 jours : « Vous connaissez un autre centre qui aurait le même besoin ? »", auto: "Question ajoutée au bilan." },
     { nom: "Acheter des fichiers ou envoyer en masse", famille: "À éviter",
       comment: "Fichiers de contacts achetés, e-mails en masse, robots LinkedIn.",
       interet: "Mauvaise méthode : délivrabilité détruite, image abîmée dans un petit milieu, risque RGPD et blocage de comptes. Une petite liste bien notée vaut mieux.", cout: "50 à 500 €", diff: 1, conv: "Très faible",
@@ -224,7 +224,7 @@
     { semaine: "Semaine 3 · Élargir", taches: [
       "Appeler les prospects B (10 par jour).",
       "Envoyer 10 lettres papier aux meilleurs A qui n'ont pas répondu.",
-      "Démarrer les premiers essais de 15 jours.",
+      "Démarrer les premiers essais de 30 jours sur les apprenants à risque.",
       "Contacter 2 éditeurs de plateformes de formation.",
       "Préparer la visite de Learning Technologies France (liste des exposants).",
     ] },
@@ -270,7 +270,7 @@
       accroche: "Je vous propose un calcul d'une minute : ce que les abandons vous coûtent, comparé au prix d'un suivi.",
       argument: "Le simulateur montre le point d'équilibre avec ses chiffres. Le suivi est variable (à l'appel), sans salaire fixe ni charges.",
       question: "Un apprenant qui abandonne, ça vous coûte combien à peu près ?",
-      eviter: "Baisser ton prix sous la grille : propose plutôt moins d'apprenants ou l'essai gratuit." },
+      eviter: "Baisser ton prix sous la grille : propose plutôt moins d'apprenants ou l'essai de 30 jours." },
     { titre: "Accroche Qualiopi (indicateurs 12 et 19)", signal: "Centre certifié Qualiopi avec des modules à distance.",
       accroche: "Depuis le 1er novembre, l'auditeur Qualiopi demande de prouver que le suivi des modules à distance a vraiment lieu. Vous êtes prêts pour votre prochain audit ?",
       argument: "Chaque appel donne un compte rendu daté, consultable en ligne et exportable pour l'audit.",
@@ -431,7 +431,7 @@
       const signalEmail = h("div", {});
       const boutonsEmail = h("div", { class: "actions-ligne" });
       let modeleCourant = null, dernierLien = "", dernierOrg = undefined, orgCourant = null, lienCourant = "";
-      const MODELE_SECOURS = { objet: "Ce que vous coûtent les abandons — {organisme}", texte: "Bonjour {contact},\n\nComme promis, voici un calcul d'une minute préparé pour {organisme} : vous mettez vos propres chiffres et vous voyez ce que les abandons vous coûtent, et à partir de combien d'abandons évités un suivi téléphonique est remboursé.\n\n{lien_simulateur}\n\nVos chiffres restent dans votre navigateur, rien n'est enregistré.\n\nSi le résultat vous parle, on peut le vérifier sur vos vrais apprenants avec 15 jours d'essai gratuit.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants" };
+      const MODELE_SECOURS = { objet: "Ce que vous coûtent les abandons — {organisme}", texte: "Bonjour {contact},\n\nComme promis, voici un calcul d'une minute préparé pour {organisme} : vous mettez vos propres chiffres et vous voyez ce que les abandons vous coûtent, et à partir de combien d'abandons évités un suivi téléphonique est remboursé.\n\n{lien_simulateur}\n\nVos chiffres restent dans votre navigateur, rien n'est enregistré.\n\nSi le résultat vous parle, on peut le vérifier sur vos vrais apprenants : 30 jours d'essai sur 20 apprenants à risque, avec un bilan chiffré à la fin.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants" };
       function appliquerModele() {
         const Ct = window.FilRougeContact;
         const r = Ct.remplirModeleEmail(modeleCourant || MODELE_SECOURS, {

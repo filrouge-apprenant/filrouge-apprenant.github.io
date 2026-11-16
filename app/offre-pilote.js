@@ -1,5 +1,5 @@
 // =============================================================================
-// Page « Essai gratuit / devis » (offre-pilote.html)
+// Page « Essai 30 jours / devis » (offre-pilote.html)
 // =============================================================================
 // Le formulaire envoie la demande à la fonction serveur « tunnel-vente », qui
 // crée la fiche de l'organisme, pré-remplit la proposition, prévient Émilie et
@@ -99,7 +99,7 @@
       boutonEnvoi.textContent = TEXTE_BOUTON;
       return;
     }
-    const delai = donnees.type === "essai" ? "Je vous appelle sous 48 h pour lancer votre essai gratuit." : "Je vous envoie une proposition adaptée sous 48 h.";
+    const delai = donnees.type === "essai" ? "Je vous appelle sous 48 h pour lancer votre essai de 30 jours." : "Je vous envoie une proposition adaptée sous 48 h.";
     merciTexte.textContent = resultat.emails ? `${delai} Un accusé de réception vient de partir dans votre boîte email.` : delai;
     formulaire.hidden = true;
     merci.hidden = false;

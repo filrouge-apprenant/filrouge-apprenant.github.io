@@ -18,6 +18,9 @@
 (function () {
   "use strict";
 
+  // Texte de l'essai de 30 jours (même texte que prive.texte_essai_30_jours() en base).
+  const TEXTE_ESSAI_30_JOURS = "Jusqu'à 20 de vos apprenants à risque (pas connectés depuis 2 à 4 semaines), appelés deux fois chacun pendant 30 jours : point sur la progression, objectifs, relance, aide pour l'inscription à l'examen, et un email de relance après chaque appel manqué. Un groupe comparable n'est pas appelé, pour mesurer l'effet réel. Au 30e jour, un bilan chiffré de 30 minutes : combien ont repris leur formation et progressé, comparé aux apprenants non appelés. L'objectif de reprise est fixé ensemble au démarrage, selon votre plateforme : s'il est atteint, le suivi continue au tarif normal pendant 3 mois ; sinon, vous ne devez rien.";
+
   // ---------------------------------------------------------------------------
   // Démarrage du client Supabase
   // ---------------------------------------------------------------------------
@@ -1016,7 +1019,7 @@
         nbDemandesDevis
           ? h("p", { class: "message message-action" },
               h("strong", {}, pluriel(nbDemandesDevis, "demande à traiter", "demandes à traiter")),
-              " : essai gratuit, devis ou proposition acceptée en ligne. ",
+              " : essai de 30 jours, devis ou proposition acceptée en ligne. ",
               lienInterne("devis", "Les voir"))
           : null,
 
@@ -5025,17 +5028,17 @@
         charger("Proposition créée au tarif dégressif : complète-la ci-dessous.");
       });
       const aDejaEssai = data.some((x) => x.type_offre === "essai");
-      const nouvelEssai = aDejaEssai ? null : h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit" }, "+ Essai gratuit 15 jours");
+      const nouvelEssai = aDejaEssai ? null : h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit" }, "+ Essai 30 jours (apprenants à risque)");
       if (nouvelEssai) nouvelEssai.addEventListener("click", async () => {
         occupe(nouvelEssai, true, "Création…");
         const { error: e } = await sb.from("propositions").insert({
-          organisme_id: org.id, statut: "brouillon", type_offre: "essai", titre: "Essai gratuit de 15 jours",
-          description: "Jusqu'à 20 apprenants appelés une fois chacun pendant 15 jours : point sur la progression, objectifs, relance, aide pour l'inscription à l'examen. Votre espace en ligne avec le compte rendu de chaque appel, puis un bilan chiffré de 30 minutes. Sans engagement : vous décidez ensuite librement de continuer.",
-          nb_apprenants: 20, duree_mois: 1, duree_jours: 15, appels_par_mois: 1, prix_appel: 0, montant_total: 0, paiement: "unique",
+          organisme_id: org.id, statut: "brouillon", type_offre: "essai", titre: "Essai de 30 jours sur vos apprenants à risque",
+          description: TEXTE_ESSAI_30_JOURS,
+          nb_apprenants: 20, duree_mois: 1, duree_jours: 30, appels_par_mois: 2, prix_appel: 0, montant_total: 0, paiement: "unique",
         });
         occupe(nouvelEssai, false);
         if (e) return signaler(zoneNouvelle, "erreur", texteErreur(e));
-        charger("Essai gratuit créé : envoie-le au centre pour qu'il l'accepte en ligne.");
+        charger("Essai de 30 jours créé : envoie-le au centre pour qu'il l'accepte en ligne.");
       });
       zone.replaceChildren(
         info ? message("info", info) : "",
@@ -5086,11 +5089,11 @@
     if (!essai) [nb, duree, appels, prix].forEach((c) => c.champ.addEventListener("input", calculer));
     [total.champ, paiement.champ].forEach((c) => c.addEventListener("input", majResume));
     paiement.champ.addEventListener("change", majResume);
-    if (essai) resume.textContent = `Gratuit · ${pluriel(p.duree_jours || 15, "jour", "jours")} · jusqu'à ${pluriel(p.nb_apprenants, "apprenant", "apprenants")}, 1 appel chacun. Une seule fois par organisme.`;
+    if (essai) resume.textContent = `Gratuit · ${pluriel(p.duree_jours || 30, "jour", "jours")} · jusqu'à ${pluriel(p.nb_apprenants, "apprenant", "apprenants")} à risque, 2 appels chacun, groupe témoin et bilan chiffré. Objectif atteint : 3 mois au tarif normal. Une seule fois par organisme.`;
     else majResume();
 
     const valeurs = () => essai ? ({
-      titre: titre.champ.value.trim() || "Essai gratuit de 15 jours",
+      titre: titre.champ.value.trim() || "Essai de 30 jours sur vos apprenants à risque",
       nb_apprenants: Math.min(20, Math.max(1, Math.round(lireNombre(nb.champ)))),
       description: description.champ.value.trim() || null,
       message_client: mot.champ.value.trim() || null,
@@ -5146,13 +5149,13 @@
       if (r.error) return signaler(zoneMsg, "erreur", texteErreur(r.error));
       const prenom = suivi.contact_nom ? " " + suivi.contact_nom.split(" ")[0] : "";
       const texte = essai
-        ? `Bonjour${prenom},\n\nComme convenu, voici votre essai gratuit de 15 jours : j'appelle jusqu'à ${pluriel(p.nb_apprenants, "apprenant", "apprenants")} une fois chacun, vous suivez chaque compte rendu dans votre espace en ligne, puis nous faisons un bilan chiffré ensemble. Sans engagement.\n\nPour lancer l'essai, il suffit de l'accepter en ligne (1 minute) :\n${pageClient}\n\nJe reste disponible pour en parler.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants\n06 17 75 56 17`
+        ? `Bonjour${prenom},\n\nComme convenu, voici votre essai de 30 jours : j'appelle ${pluriel(p.nb_apprenants, "apprenant", "apprenants")} à risque deux fois chacun, avec une relance par email après chaque appel manqué, et un groupe comparable n'est pas appelé. Vous suivez chaque compte rendu dans votre espace en ligne. Au 30e jour, nous regardons ensemble combien ont repris leur formation, comparé aux apprenants non appelés. Si l'objectif de reprise que nous fixons au démarrage est atteint, le suivi continue au tarif normal pendant 3 mois ; sinon, vous ne devez rien.\n\nPour lancer l'essai, il suffit de l'accepter en ligne (1 minute) :\n${pageClient}\n\nJe reste disponible pour en parler.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants\n06 17 75 56 17`
         : `Bonjour${prenom},\n\nComme convenu, voici ma proposition pour le suivi de vos apprenants : ${p.titre}.\n\n${pluriel(p.nb_apprenants, "apprenant", "apprenants")}, ${pluriel(p.duree_mois, "mois", "mois")}, ${nombreFr(p.appels_par_mois)} appel(s) par mois et par apprenant, à ${euros(p.prix_appel)} HT l'appel.\nMontant : ${euros(p.montant_total)} HT${p.paiement === "mensuel" ? `, soit ${euros(p.montant_total / p.duree_mois)} par mois` : ""}.\n\nVous pouvez consulter le détail et l'accepter en ligne ici${p.stripe_lien_url ? " (le paiement par prélèvement ou carte vous sera proposé juste après)" : ""} :\n${pageClient}\n\nJe reste disponible pour en parler.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants\n06 17 75 56 17`;
       const boite = (window.FIL_ROUGE_CONFIG || {}).emailFilRouge || "";
-      window.open(window.FilRougeContact.lienGmail(suivi.contact_email, essai ? "Votre essai gratuit de 15 jours — Fil Rouge Apprenants" : "Votre proposition — Fil Rouge Apprenants", texte, boite), "_blank", "noopener");
+      window.open(window.FilRougeContact.lienGmail(suivi.contact_email, essai ? "Votre essai de 30 jours — Fil Rouge Apprenants" : "Votre proposition — Fil Rouge Apprenants", texte, boite), "_blank", "noopener");
       if (p.statut !== "envoyee" && p.statut !== "payee") {
         await sb.from("propositions").update({ statut: "envoyee", envoyee_le: new Date().toISOString() }).eq("id", p.id);
-        await insererEchange({ organisme_id: org.id, date_echange: aujourdhui(), canal: "email", resume: essai ? `Essai gratuit envoyé : ${p.titre}.` : `Proposition envoyée : ${p.titre}, ${euros(p.montant_total)} HT.`, auteur_id: etat.profil.id });
+        await insererEchange({ organisme_id: org.id, date_echange: aujourdhui(), canal: "email", resume: essai ? `Essai de 30 jours envoyé : ${p.titre}.` : `Proposition envoyée : ${p.titre}, ${euros(p.montant_total)} HT.`, auteur_id: etat.profil.id });
       }
       recharger("Email ouvert dans Gmail. La proposition est notée « envoyée ».");
     });
@@ -5180,7 +5183,7 @@
     return h("section", { class: `carte carte-large pile-serree propo${p.statut === "demande" || (p.accepte_le && p.statut !== "payee") ? " propo-demande" : ""}` },
       h("div", { class: "propo-tete" },
         h("strong", {}, p.titre),
-        essai ? pastille("vert", "Essai gratuit") : null,
+        essai ? pastille("vert", "Essai 30 jours") : null,
         pastille(couleur, libelle)),
       p.accepte_le
         ? h("div", { class: "propo-demande-bloc" },
@@ -5238,7 +5241,7 @@
       const [couleur, libelle] = statutPropo(p);
       return h("li", { class: "ligne" },
         h("span", { class: "ligne-titre" }, lienInterne(`organisme/${p.organisme_id}/proposition`, o.nom || "Organisme")),
-        h("span", { class: "pastilles" }, pastille(p.type_offre === "essai" ? "vert" : "neutre", p.type_offre === "essai" ? "Essai gratuit" : "Devis"), pastille(couleur, libelle)),
+        h("span", { class: "pastilles" }, pastille(p.type_offre === "essai" ? "vert" : "neutre", p.type_offre === "essai" ? "Essai 30 jours" : "Devis"), pastille(couleur, libelle)),
         p.accepte_le ? h("span", { class: "ligne-detail" }, `Acceptée en ligne le ${dateHeureComplete(p.accepte_le)}${p.accepte_nom ? ` par ${p.accepte_nom}` : ""}`) : null,
         h("span", { class: "ligne-detail" }, [p.demande_le ? `Demande du ${dateHeureComplete(p.demande_le)}` : null, s.contact_nom, s.contact_email, s.contact_telephone,
           p.demande_nb_apprenants ? pluriel(p.demande_nb_apprenants, "apprenant", "apprenants") : null, p.demande_formations].filter(Boolean).join(" · ")),
@@ -5249,7 +5252,7 @@
     const autres = data.filter((p) => !aTraiter.includes(p) && !aDemarrer.includes(p));
     afficher(h("div", { class: "pile" },
       h("div", {}, h("p", { class: "surtitre" }, "Tunnel de vente"), h("h1", {}, "Demandes de devis"),
-        h("p", { class: "chapo" }, "Les demandes d'essai gratuit et de devis envoyées depuis le site. Chaque demande crée la fiche de l'organisme avec une proposition pré-remplie (tarif dégressif). Vérifie-la, envoie-la : le centre l'accepte en ligne et tu es prévenue par email."),
+        h("p", { class: "chapo" }, "Les demandes d'essai de 30 jours et de devis envoyées depuis le site. Chaque demande crée la fiche de l'organisme avec une proposition pré-remplie (tarif dégressif). Vérifie-la, envoie-la : le centre l'accepte en ligne et tu es prévenue par email."),
         h("div", { class: "actions-ligne" }, h("a", { class: "bouton bouton-secondaire bouton-petit", href: "offre-pilote.html", target: "_blank", rel: "noopener" }, "Voir la page publique"))),
       h("section", {}, h("div", { class: "section-titre" }, h("h2", {}, "Nouvelles demandes"), h("p", {}, String(aTraiter.length))),
         aTraiter.length ? h("ul", { class: "liste" }, aTraiter.map(ligne)) : message("info", "Aucune nouvelle demande.")),

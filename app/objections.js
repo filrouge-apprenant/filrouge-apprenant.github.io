@@ -168,7 +168,7 @@
         "Je ne remplace pas vos équipes : je prends les appels qu'elles n'ont pas le temps de faire, souvent les apprenants les plus durs à joindre.",
         "Elles se concentrent sur ce qu'elles font le mieux, et vous gardez tous les comptes rendus.",
       ],
-      relancer: "Si on testait 15 jours gratuitement sur les apprenants que vos équipes n'arrivent pas à joindre ?",
+      relancer: "Et si on mesurait pendant 30 jours sur 20 apprenants que vos équipes n'arrivent plus à joindre ?",
       angles: {
         dirigeant: "Une heure de salarié chargé coûte plus cher qu'un appel à 12-20 € : vos équipes gagnent ce temps pour l'admission ou la pédagogie.",
         qualite: "Vos appels internes sont-ils tous tracés et datés ? Les miens le sont, automatiquement.",
@@ -198,7 +198,7 @@
         "Je n'appelle pas pour surveiller. Je fais le point sur l'avancement, on fixe un objectif ensemble jusqu'au prochain appel. Les apprenants autonomes le vivent comme un service, pas comme un contrôle.",
         "Et pour ceux qui commencent à lâcher, ça change tout.",
       ],
-      relancer: "On teste 15 jours sur les apprenants les moins actifs, pour voir ce que ça donne ?",
+      relancer: "On fait l'essai de 30 jours sur vos 20 apprenants les moins actifs, et on compare avec ceux que je n'appelle pas ?",
       mots: "adultes autonomie infantiliser" },
 
     { id: "formateurs", cat: "besoin", bouton: "Les formateurs le font", profils: ["pedago"],
@@ -282,7 +282,7 @@
       repondre: [
         "Faisons le calcul : 30 apprenants, c'est 30 appels à 15 € HT, soit 450 € HT par mois. Par apprenant, c'est 15 € par mois : moins de 1 % d'une formation à 2 000 €.",
         "Prenons une formation à 2 000 € : si j'évite un seul abandon tous les 4 mois, le suivi est remboursé (4 × 450 € = 1 800 €). Tout le reste, c'est du chiffre d'affaires que vous gardez, sans compter l'avis et le taux de réussite.",
-        "Et vous testez d'abord 15 jours gratuitement.",
+        "Et vous commencez par un essai de 30 jours sur vos apprenants à risque : si l'objectif fixé ensemble n'est pas atteint, vous ne payez rien.",
       ],
       relancer: "On fait le calcul ensemble sur une de vos formations ?",
       eviter: "Baisser ton prix tout de suite. Fais d'abord parler de la valeur.",
@@ -297,7 +297,7 @@
         "Il n'y a pas d'investissement de départ : vous payez à l'appel, chaque mois. Vous pouvez commencer petit : 10 apprenants, c'est 10 appels à 20 € HT, soit 200 € HT par mois.",
         "Et un seul abandon évité sur une formation à 2 000 €, c'est 10 mois de ce suivi payés (10 × 200 € = 2 000 €). Le suivi se finance tout seul.",
       ],
-      relancer: "On commence par le test gratuit de 15 jours, et vous décidez ensuite avec des résultats en main ?",
+      relancer: "On commence par l'essai de 30 jours sur vos apprenants à risque, et vous décidez avec des résultats chiffrés en main ?",
       mots: "budget enveloppe année prochaine" },
 
     { id: "roi", cat: "prix", bouton: "Combien ça rapporte ?", profils: ["dirigeant"],
@@ -310,7 +310,7 @@
         "Avec une formation à 2 000 € : une seule formation sauvée dans le mois, c'est 2 000 € gardés pour 450 € dépensés, plus de 4 fois la mise. Une seule tous les 4 mois, et c'est déjà remboursé.",
         "Et vous suivez le résultat en direct sur la plateforme : qui a été joint, qui avance, qui est à risque.",
       ],
-      relancer: "On mesure ça pendant 15 jours gratuits, sur vos propres apprenants ?",
+      relancer: "On le mesure pendant 30 jours, sur vos propres apprenants à risque, comparés à ceux que je n'appelle pas ?",
       eviter: "Promettre un taux d'abandon : je m'engage sur les moyens, pas sur un résultat chiffré.",
       mots: "rentabilité retour investissement gain" },
 
@@ -334,7 +334,7 @@
       creuser: "Qu'est-ce qui vous ferait dire, au bout d'un mois, que ça fonctionne ?",
       repondre: [
         "La réussite dépend de beaucoup de choses : la formation, l'apprenant, sa vie. Je m'engage sur ce que je maîtrise : chaque apprenant appelé, chaque mois, avec un compte rendu et des alertes.",
-        "C'est pour ça que je propose 15 jours gratuits : jusqu'à 20 apprenants appelés sans rien payer, soit l'équivalent de 300 € HT de suivi (20 × 15 €). Vous jugez le travail avant de payer quoi que ce soit.",
+        "C'est pour ça que je commence par un essai de 30 jours : 20 de vos apprenants à risque, appelés deux fois chacun, soit l'équivalent de 600 € HT de suivi (40 × 15 €). On fixe un objectif de reprise ensemble : s'il n'est pas atteint, vous ne payez rien.",
       ],
       relancer: "On fixe ensemble ces critères de réussite pour le test ?",
       eviter: "Accepter un paiement au résultat : tu porterais un risque que tu ne contrôles pas.",
@@ -376,7 +376,7 @@
         "Pas de recrutement, pas de formation, pas de charges : vous payez seulement les appels réalisés, et vous arrêtez avec 30 jours de préavis.",
         "J'ai dix ans de relation client à distance : vous avez quelqu'un d'opérationnel dès le premier jour.",
       ],
-      relancer: "Pourquoi ne pas tester 15 jours, le temps de décider si vous recrutez ?",
+      relancer: "Pourquoi ne pas faire l'essai de 30 jours, le temps de décider si vous recrutez ? Vous aurez des chiffres pour comparer.",
       mots: "recruter salarié alternant stagiaire interne" },
 
     // ------------------------------------------------------------ Confiance
@@ -387,7 +387,7 @@
       creuser: "Qu'est-ce qui vous rassurerait le plus : un retour d'expérience, ou voir le travail sur vos propres apprenants ?",
       repondre: [
         "Fil Rouge Apprenants démarre, je vous le dis franchement. Derrière, il y a dix ans de relation client à distance, dont l'accompagnement d'apprenants en formation.",
-        "C'est pour ça que je propose 15 jours gratuits : vous jugez sur vos apprenants, avec les comptes rendus sous les yeux, sans rien payer.",
+        "C'est pour ça que je propose un essai de 30 jours : vous jugez sur vos apprenants à risque, avec les comptes rendus et un bilan chiffré sous les yeux. Si l'objectif fixé ensemble n'est pas atteint, vous ne payez rien.",
       ],
       relancer: "On choisit ensemble les apprenants du test ?",
       eviter: "Inventer un client ou citer ton employeur actuel.",
@@ -436,7 +436,7 @@
       creuser: "Qu'est-ce qui n'a pas marché, à votre avis ? Les apprenants ne répondaient pas, ou le suivi n'était pas régulier ?",
       repondre: [
         "Ce qui fait la différence : un appel régulier chaque mois, un objectif fixé avec l'apprenant à chaque fois, une relance s'il ne le tient pas, et des comptes rendus que vous voyez en direct.",
-        "Et vous jugez en 15 jours, gratuitement.",
+        "Et vous jugez sur un essai de 30 jours, avec un bilan chiffré.",
       ],
       relancer: "Si on évite précisément ce qui n'avait pas marché, on teste ?",
       eviter: "Dire « avec moi ce sera différent » sans expliquer pourquoi.",
@@ -654,22 +654,23 @@
       creuser: "Qu'est-ce qui vous ferait arrêter, si vous deviez arrêter ?",
       repondre: [
         "Le suivi dure le temps que vous choisissez, sans reconduction automatique. Vous pouvez arrêter avant, avec 30 jours de préavis.",
-        "Et vous commencez par 15 jours gratuits.",
+        "Et vous commencez par un essai de 30 jours sur vos apprenants à risque.",
       ],
       relancer: "On démarre le test lundi ?",
       mots: "durée contrat préavis résiliation" },
 
-    { id: "test_court", cat: "contrat", bouton: "15 jours, c'est court", profils: ["dirigeant", "pedago"],
-      dit: "Quinze jours, ce n'est pas assez pour juger.",
-      cache: "Il est intéressé, il veut un test sérieux.",
-      accueil: "Vous avez raison, on ne voit pas tout en 15 jours.",
-      creuser: "Qu'est-ce qu'il faudrait voir à la fin pour vous décider ?",
+    { id: "test_court", cat: "contrat", bouton: "Et si l'objectif n'est pas atteint ?", profils: ["dirigeant", "pedago"],
+      dit: "Et si votre objectif n'est pas atteint au bout de 30 jours ?",
+      cache: "Il est intéressé, il veut être sûr de ne pas s'engager pour rien.",
+      accueil: "C'est la bonne question, et c'est justement pour ça que l'essai existe.",
+      creuser: "Qu'est-ce qu'il faudrait voir au bilan pour que vous soyez convaincu ?",
       repondre: [
-        "En 15 jours, vous voyez déjà : combien d'apprenants j'ai joints, ce qu'ils m'ont dit, qui est à risque, et la qualité des comptes rendus.",
-        "Le résultat sur les abandons se voit ensuite, mois après mois, et vous pouvez arrêter à tout moment avec 30 jours de préavis.",
+        "Si l'objectif fixé ensemble n'est pas atteint, on s'arrête là : vous ne payez rien, et vous gardez tous les comptes rendus d'appels.",
+        "L'objectif, on le fixe au démarrage, après avoir regardé votre plateforme : sur les reconnexions si elle les affiche, sinon sur la progression ou les objectifs tenus.",
+        "Et vous avez un groupe comparable que je n'appelle pas : vous voyez la différence noir sur blanc, pas une impression.",
       ],
-      relancer: "On fixe ensemble ces critères et un rendez-vous de bilan à J+15 ?",
-      mots: "essai période test pilote" },
+      relancer: "On fixe ces critères ensemble au rendez-vous de démarrage, mardi ou jeudi ?",
+      mots: "essai période test pilote objectif garantie 30 jours court" },
 
     { id: "prelevement", cat: "contrat", bouton: "Pas de prélèvement automatique", profils: ["dirigeant"],
       dit: "On ne fait pas de prélèvement automatique.",

@@ -39,7 +39,7 @@
     $("pr-accord-bloc").hidden = true;
     const essai = p.type_offre === "essai";
     $("pr-confirmation-texte").textContent = essai
-      ? `${nom ? `Accepté par ${nom}` : "Accepté"}${date ? ` le ${dateFr(date)}` : ""}. Je vous appelle sous 48 h pour récupérer la liste de vos apprenants et démarrer votre essai gratuit.`
+      ? `${nom ? `Accepté par ${nom}` : "Accepté"}${date ? ` le ${dateFr(date)}` : ""}. Je vous appelle sous 48 h pour choisir avec vous les apprenants à risque, fixer l'objectif de reprise et démarrer votre essai de 30 jours.`
       : `${nom ? `Accepté par ${nom}` : "Accepté"}${date ? ` le ${dateFr(date)}` : ""}. ${lien ? "Vous pouvez régler en ligne dès maintenant :" : "Je vous recontacte sous 48 h pour démarrer."}`;
     $("pr-confirmation").hidden = false;
     if (!essai && p.paiement === "mensuel") {
@@ -129,15 +129,15 @@
       $("pr-montant").textContent = "Gratuit";
       $("pr-ht").hidden = true;
       $("pr-detail").textContent = [
-        `jusqu'à ${pluriel(p.nb_apprenants, "apprenant", "apprenants")}`,
-        pluriel(p.duree_jours || 15, "jour", "jours"),
-        "1 appel chacun",
+        `${pluriel(p.nb_apprenants, "apprenant", "apprenants")} à risque`,
+        pluriel(p.duree_jours || 30, "jour", "jours"),
+        "2 appels chacun",
       ].join(" · ");
-      $("pr-mensuel").textContent = "Sans engagement, sans carte bancaire";
+      $("pr-mensuel").textContent = "Objectif de reprise fixé ensemble · s'il est atteint, suivi au tarif normal pendant 3 mois · sinon, rien à payer";
       $("pr-mensuel").hidden = false;
-      $("pr-accord-titre").textContent = "Lancer mon essai gratuit";
-      $("pr-accord-texte").textContent = "Je demande l'essai gratuit de 15 jours pour mon organisme. Je décide librement de continuer ou non à la fin de l'essai.";
-      $("pr-accepter").textContent = "Je lance mon essai gratuit";
+      $("pr-accord-titre").textContent = "Lancer mon essai de 30 jours";
+      $("pr-accord-texte").textContent = "Je demande l'essai de 30 jours sur les apprenants à risque de mon organisme. Nous fixons ensemble un objectif de reprise au démarrage : s'il est atteint au bilan, le suivi continue au tarif normal pendant 3 mois ; sinon, je ne dois rien.";
+      $("pr-accepter").textContent = "Je lance mon essai de 30 jours";
     } else {
       $("pr-montant").textContent = euros(p.montant_total);
       $("pr-detail").textContent = [

@@ -3,7 +3,7 @@
 // =============================================================================
 // Appelée par les pages publiques, sans connexion :
 //   - offre-pilote.html  → action « demande »  : enregistre la demande d'essai
-//     gratuit ou de devis (fonction demander_essai_ou_devis), prévient Émilie
+//     de 30 jours ou de devis (fonction demander_essai_ou_devis), prévient Émilie
 //     par email et envoie un accusé de réception au centre.
 //   - proposition.html   → action « accepter » : enregistre l'acceptation en
 //     ligne (fonction accepter_proposition), prévient Émilie et confirme au
@@ -112,7 +112,7 @@ Deno.serve(async (req: Request) => {
   const admin = Deno.env.get("EMAIL_ADMIN") || BOITE;
 
   // ---------------------------------------------------------------------------
-  // Demande d'essai gratuit ou de devis
+  // Demande d'essai de 30 jours ou de devis
   // ---------------------------------------------------------------------------
   if (d.action === "demande") {
     // Robot : on fait comme si tout allait bien, sans rien enregistrer ni envoyer.
@@ -137,7 +137,7 @@ Deno.serve(async (req: Request) => {
       return reponse(origine, error.code === "P0001" ? 400 : 500, { erreur: message });
     }
 
-    const libelle = type === "essai" ? "essai gratuit de 15 jours" : "devis";
+    const libelle = type === "essai" ? "essai de 30 jours (apprenants à risque)" : "devis";
     const prenom = f.nom.split(" ")[0];
     const details = [
       `<strong>${echapper(f.organisme)}</strong>`,
@@ -150,7 +150,7 @@ Deno.serve(async (req: Request) => {
     const resultats = await Promise.allSettled([
       envoyer({
         a: admin,
-        objet: `Nouvelle demande d'${type === "essai" ? "essai gratuit" : "devis"} — ${f.organisme}`,
+        objet: `Nouvelle demande d'${type === "essai" ? "essai de 30 jours" : "devis"} — ${f.organisme}`,
         repondreA: f.email,
         html: gabarit(
           p(`Nouvelle demande d'<strong>${libelle}</strong> reçue depuis le site :`) + p(details)
@@ -161,11 +161,11 @@ Deno.serve(async (req: Request) => {
       }),
       envoyer({
         a: f.email, nom: f.nom,
-        objet: type === "essai" ? "Votre demande d'essai gratuit — Fil Rouge Apprenants" : "Votre demande de devis — Fil Rouge Apprenants",
+        objet: type === "essai" ? "Votre demande d'essai de 30 jours — Fil Rouge Apprenants" : "Votre demande de devis — Fil Rouge Apprenants",
         html: gabarit(
           p(`Bonjour ${echapper(prenom)},`)
           + p(type === "essai"
-            ? `Merci pour votre demande d'essai gratuit de 15 jours pour <strong>${echapper(f.organisme)}</strong>. Je vous appelle sous 48 h pour organiser le démarrage : vos formations, vos apprenants, et le fichier à me transmettre.`
+            ? `Merci pour votre demande d'essai de 30 jours pour <strong>${echapper(f.organisme)}</strong>. Je vous appelle sous 48 h pour organiser le démarrage : choisir ensemble 20 apprenants à risque, un groupe comparable que je n'appellerai pas, et l'objectif de reprise adapté à votre plateforme.`
             : `Merci pour votre demande de devis pour <strong>${echapper(f.organisme)}</strong>. Je vous envoie une proposition adaptée à vos formations sous 48 h.`)
           + p("Une question d'ici là ? Répondez simplement à cet email.")
           + p("Belle journée,<br>Émilie Rachas<br>Fil Rouge Apprenants"),
@@ -205,24 +205,24 @@ Deno.serve(async (req: Request) => {
     const resultats = await Promise.allSettled([
       envoyer({
         a: admin,
-        objet: `${essai ? "Essai gratuit accepté" : "Proposition acceptée"} — ${a.organisme}`,
+        objet: `${essai ? "Essai de 30 jours accepté" : "Proposition acceptée"} — ${a.organisme}`,
         repondreA: email,
         html: gabarit(
           p(`<strong>${echapper(a.organisme)}</strong> vient d'accepter en ligne : <strong>${echapper(a.titre)}</strong> (${prix}).`)
           + p(`Par ${echapper(nom)}${fonction ? ` (${echapper(fonction)})` : ""}, <a href="mailto:${echapper(email)}">${echapper(email)}</a>.`)
           + p(essai
-            ? "La fiche est passée en « Test gratuit ». Prochaine étape : appeler le centre pour récupérer le fichier des apprenants."
+            ? "La fiche est passée en « Test gratuit ». Prochaine étape : appeler le centre pour choisir les 20 apprenants à risque, le groupe témoin et l'objectif de reprise."
             : lien ? "La fiche est passée en « Client ». Le lien de paiement lui a été envoyé." : "La fiche est passée en « Client ». Pas encore de lien de paiement : crée-le depuis la fiche."),
           { texte: "Ouvrir la fiche", lien: `${SITE}#/organisme/${a.organisme_id}/proposition` },
         ),
       }),
       envoyer({
         a: email, nom,
-        objet: essai ? "Votre essai gratuit est confirmé — Fil Rouge Apprenants" : "Votre accord est bien reçu — Fil Rouge Apprenants",
+        objet: essai ? "Votre essai de 30 jours est confirmé — Fil Rouge Apprenants" : "Votre accord est bien reçu — Fil Rouge Apprenants",
         html: gabarit(
           p(`Bonjour ${echapper(nom.split(" ")[0])},`)
           + p(essai
-            ? `C'est confirmé : votre <strong>essai gratuit de 15 jours</strong> pour ${echapper(a.organisme)} est enregistré. Je vous appelle sous 48 h pour récupérer la liste de vos apprenants et démarrer les appels.`
+            ? `C'est confirmé : votre <strong>essai de 30 jours sur vos apprenants à risque</strong> pour ${echapper(a.organisme)} est enregistré. Je vous appelle sous 48 h pour choisir les apprenants ensemble, fixer l'objectif de reprise et démarrer les appels. S'il est atteint au bilan, le suivi continue au tarif normal pendant 3 mois ; sinon, vous ne devez rien.`
             : `Merci, votre accord pour « ${echapper(a.titre)} » (${prix}) est bien enregistré.${lien ? " Vous pouvez régler en ligne, par prélèvement sur RIB ou par carte bancaire, avec le bouton ci-dessous." : " Je vous recontacte sous 48 h pour démarrer."}`)
           + p("Une question ? Répondez simplement à cet email.")
           + p("Belle journée,<br>Émilie Rachas<br>Fil Rouge Apprenants"),
