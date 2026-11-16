@@ -18,7 +18,7 @@
   'use strict';
 
   const DIFF = { facile: ['Facile', 'p-vert'], moyen: ['Moyen', 'p-safran'], difficile: ['Difficile', 'p-rouge'] };
-  const SILENCE = 1800;
+  const SILENCE = 3500;
   const FEMININS = /^(sophie|hélène|helene|patricia|claire|julie|marie|mme|madame|sandrine|nathalie)/i;
 
   window.AbdelEntrainement = function (outils) {
@@ -109,7 +109,7 @@
         <div class="carte pile-serree">
           ${voixOk() ? `<label>Comment mener l'appel ?<select id="ent-mode"><option value="voix">À voix haute (micro + haut-parleur)</option><option value="ecrit">Par écrit</option></select></label>
             <div id="ent-voix"></div>
-            <p class="aide">Parle normalement : ta phrase part toute seule après un court silence. Un casque évite l'écho. Le navigateur te demandera l'autorisation d'utiliser le micro.</p>` : ''}
+            <p class="aide">Parle normalement : ta phrase part toute seule après 3 secondes de silence (ou tout de suite avec « Envoyer »). L'appel ne se coupe jamais tout seul : c'est toi qui raccroches. Un casque évite l'écho. Le navigateur te demandera l'autorisation d'utiliser le micro.</p>` : ''}
           <div id="ent-zone"></div>
           <div class="actions"><button class="bouton bouton-appel" type="button" id="ent-go">☎ Lancer l'appel</button></div>
         </div></div>`);
@@ -198,7 +198,8 @@
           majEtat(mode === 'voix' && son ? 'Le prospect parle…' : 'À toi.');
           await parler(r.reponse);
           attente = false;
-          if (r.raccroche) { majEtat('Le prospect a raccroché.'); return raccrocher(); }
+          // L'appel ne se coupe jamais tout seul : c'est Émilie qui raccroche.
+          if (r.raccroche) $('ent-err').innerHTML = '<p class="message message-info">Ton interlocuteur a l\'air de conclure l\'appel. Clique sur « Raccrocher » quand tu as terminé, ou continue la conversation.</p>';
           majEtat('À toi.'); ecouter(); if (mode !== 'voix') saisie.focus();
         } catch (e) {
           attente = false; saisie.value = texte;

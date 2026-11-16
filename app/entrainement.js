@@ -24,7 +24,7 @@
 
   const DIFFICULTES = { facile: "Facile", moyen: "Moyen", difficile: "Difficile" };
   const PASTILLE_DIFFICULTE = { facile: "pastille-vert", moyen: "pastille-orange", difficile: "pastille-rouge" };
-  const SILENCE_AVANT_ENVOI = 1800; // ms de silence avant d'envoyer ce que l'appelante a dit
+  const SILENCE_AVANT_ENVOI = 3500; // ms de silence avant d'envoyer ce que l'appelante a dit
   const PRENOMS_FEMININS = /^(claire|sandrine|accueil|julie|mme|sarah|nadia|fatima|julie|madame|mme|marie|lea|léa|emma|chloe|chloé|camille|ines|inès|amina|sophie|laura|manon|clara|lucie|nathalie|sandrine|isabelle|aurelie|aurélie|emilie|émilie|karima|yasmine|samira)\b/i;
 
   window.FilRougeEntrainement = function (outils) {
@@ -228,7 +228,7 @@
         h("div", { class: "pile pile-serree entr-depart" },
           choixMode ? choixMode.bloc : null,
           avecVoix && window.FilRougeVoix ? window.FilRougeVoix.reglage(h) : null,
-          avecVoix ? h("p", { class: "aide" }, "Avec la voix : parlez normalement, la phrase part toute seule après un court silence. Utilisez un casque pour éviter l'écho. Le navigateur vous demandera l'autorisation d'utiliser le micro.") : null,
+          avecVoix ? h("p", { class: "aide" }, "Avec la voix : parlez normalement, la phrase part toute seule après 3 secondes de silence (ou tout de suite avec « Envoyer »). L'appel ne se coupe jamais tout seul : vous raccrochez quand vous avez fini. Utilisez un casque pour éviter l'écho. Le navigateur vous demandera l'autorisation d'utiliser le micro.") : null,
           zone,
           h("div", { class: "actions" }, boutonAppeler))));
     }
@@ -348,10 +348,8 @@
           ajouter("apprenant", r.reponse);
           majEtat(mode === "voix" && sonActif ? `${prenom(s.apprenant_nom)} parle…` : "À vous.");
           await parler(r.reponse);
-          if (r.raccroche) {
-            majEtat(`${prenom(s.apprenant_nom)} a raccroché.`);
-            return raccrocher();
-          }
+          // L'appel ne se coupe jamais tout seul : c'est toi qui raccroches.
+          if (r.raccroche) zone.replaceChildren(message("info", "Ton interlocuteur a l'air de conclure l'appel. Clique sur « Raccrocher » quand tu as terminé, ou continue la conversation."));
         } catch (e) {
           zone.replaceChildren(message("erreur", e.message));
           saisie.value = texte; // rien n'est perdu
