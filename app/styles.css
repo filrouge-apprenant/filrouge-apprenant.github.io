@@ -1548,3 +1548,6 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 .obj-puce { font: inherit; font-size: 0.82rem; line-height: 1.2; padding: 0.3rem 0.6rem; border: 1px solid var(--obj-trait, var(--filet)); border-left: 3px solid var(--obj-c, var(--fil)); border-radius: 999px; background: var(--obj-f, var(--fond)); color: var(--texte); cursor: pointer; }
 .obj-puce:hover, .obj-puce:focus-visible { border-color: var(--obj-c); }
 .sv-variante { font-size: 0.9rem; font-style: italic; color: var(--texte-doux); margin: -0.3rem 0 0.75rem; padding-left: 0.6rem; border-left: 2px dotted var(--filet); }
+.entr-point-faible { border: 1px solid var(--alerte-orange); border-left-width: 4px; border-radius: var(--rayon); background: var(--alerte-orange-fond); padding: 0.6rem 0.9rem; margin: 0.2rem 0 0.8rem; font-size: 0.92rem; }
+.entr-point-faible p { margin: 0 0 0.3rem; }
+.entr-point-faible .surtitre { color: var(--alerte-orange); }

@@ -63,14 +63,19 @@
         { variante: "Attends son « oui ». S'il corrige, reprends sa correction avant de présenter." },
       ] },
       { titre: "La présentation (30 secondes, seulement après les questions)", blocs: [
-        { dire: "Justement, c'est mon métier. J'appelle chacun de vos apprenants une fois par mois : on fait le point sur où il en est, on repère ce qui le bloque, et on fixe un objectif précis jusqu'au prochain appel." },
-        { dire: "De votre côté, vous n'avez rien à mettre en place : vous m'envoyez la liste de vos apprenants, et je m'occupe de tout. Vous suivez chaque appel en direct sur une plateforme, avec une alerte dès qu'un apprenant risque de lâcher. Et chaque compte rendu vous sert de preuve pour Qualiopi." },
-        { dire: "Côté prix, vous ne payez que les appels réellement passés : par exemple, pour 30 apprenants, c'est 15 € HT par apprenant et par mois, soit 450 € HT. Une seule formation sauvée, et c'est remboursé." },
+        { variante: "Commence par le bénéfice qui répond à ce qu'il t'a dit en premier (temps, abandons ou Qualiopi), avec ses mots : « Vous m'avez dit que… »." },
+        { dire: "Justement, c'est mon métier. J'appelle chacun de vos apprenants une fois par mois : on fait le point sur où il en est, on repère ce qui le bloque, et on fixe un objectif précis jusqu'au prochain appel. Concrètement, ça vous apporte trois choses." },
+        { dire: "Un, du temps : vous n'avez plus à relancer vous-même. Vous m'envoyez la liste de vos apprenants, et je m'occupe de tout, sans rien à installer ni à former." },
+        { dire: "Deux, des apprenants qui vont au bout : dès qu'un apprenant commence à décrocher, vous avez une alerte et j'agis tout de suite, avant qu'il abandonne. Chaque formation menée jusqu'au bout, c'est du chiffre d'affaires que vous gardez." },
+        { dire: "Trois, vos preuves pour Qualiopi : chaque appel est tracé avec un compte rendu daté. Le jour de l'audit, vos preuves d'accompagnement et de prévention des abandons sont prêtes, sans rien préparer." },
+        { dire: "Et côté prix, vous ne payez que les appels réellement passés : pour 30 apprenants, c'est 15 € HT par apprenant et par mois, soit 450 € HT. Une seule formation sauvée, et c'est remboursé." },
         { dire: "Qu'est-ce que vous en pensez ?" },
       ] },
       { titre: "La conclusion", blocs: [
         { dire: "Je vous propose de tester gratuitement pendant 15 jours, sur quelques apprenants, sans engagement. Vous jugez sur pièces. On cale un échange de 15 minutes cette semaine pour le mettre en place, mardi ou jeudi ?" },
         { conseil: "Toujours proposer deux dates, jamais « quand vous voulez »." },
+        { variante: "Quand il a choisi, récapitule avant de raccrocher :" },
+        { dire: "Parfait, je récapitule : on se parle [jour et heure], d'ici là vous m'envoyez la liste de vos apprenants, et on lance les 15 jours de test. C'est bon pour vous ?" },
       ] },
       { titre: "Si tu tombes sur la messagerie", blocs: [
         { dire: "Bonjour {contact}, Émilie Rachas, de Fil Rouge Apprenants. J'aide les centres de formation à distance à réduire les abandons avant l'examen, par un suivi téléphonique des apprenants. Je vous envoie un petit mail et je vous rappelle jeudi. Mon numéro : 06 17 75 56 17. Bonne journée !" },

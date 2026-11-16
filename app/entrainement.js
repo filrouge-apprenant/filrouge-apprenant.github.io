@@ -696,6 +696,16 @@
     // -------------------------------------------------------------------------
     // Panneau « Script / Objections » affiché pendant un appel de vente.
     // -------------------------------------------------------------------------
+    // Ce qu'il faut faire, critère par critère, quand la note moyenne est sous 4/5.
+    const ASTUCES = {
+      accroche: "Phrase courte, puis demande clairement si c'est le bon moment (« Vous avez deux minutes, là ? ») et attends la réponse avant de continuer.",
+      decouverte: "Après chaque réponse, creuse une fois de plus : « C'est-à-dire ? », « Ça arrive souvent ? », « Et ça vous coûte quoi ? ». Pose au moins 4 questions avant de présenter.",
+      ecoute: "Laisse-le finir sans couper, puis reprends SES mots exacts (pas les tiens) et termine par « C'est bien ça ? ». Attends son oui avant de présenter.",
+      argumentation: "Un bénéfice par besoin qu'il a exprimé, dans l'ordre de ses priorités : temps gagné, abandons évités (chiffre d'affaires gardé), preuves Qualiopi. Donne le prix d'une voix posée, avec l'exemple chiffré.",
+      objections: "Accueille (« Je comprends »), creuse avec une question, puis tais-toi. Réponds au vrai frein, et vérifie : « Est-ce que ça vous rassure ? »",
+      conclusion: "Propose deux créneaux précis, puis récapitule avant de raccrocher : date, ce qu'il t'envoie, ce qui se passe ensuite.",
+    };
+
     function panneauAide(s) {
       const D = window.FilRougeScriptDemarchage;
       const contact = String(s.apprenant_nom || "").split(",")[0].trim();
@@ -708,6 +718,10 @@
         if (b.questions) return h("ol", { class: "sv-questions" }, b.questions.map((q) => h("li", {}, `« ${remplir(q)} »`)));
         return null;
       });
+      // Emplacements des conseils personnalisés : le script s'adapte à tes points faibles.
+      const rappels = {};
+      const emplacements = (partie) => (/accroche/i.test(partie.titre) ? ["accroche"] : /découverte/i.test(partie.titre) ? ["decouverte"]
+        : /présentation/i.test(partie.titre) ? ["argumentation"] : /conclusion/i.test(partie.titre) ? ["conclusion"] : []);
       const pliable = (partie) => h("details", { class: "sv-partie" }, h("summary", {}, h("span", {}, partie.titre)), h("div", { class: "sv-corps" }, corps(partie)));
       // Avant l'appel et le standard : à déplier. De l'accroche à la conclusion : tout déroulé
       // (cas où la personne répond). Messagerie : à déplier. « Après l'appel » : retiré.
@@ -719,11 +733,15 @@
           h("p", { class: "aide" }, D.chapo),
           parties.slice(0, iAccroche).map(pliable),
           // De l'accroche à la conclusion : un seul texte qui se lit d'un trait (sans titres ni consignes).
-          h("div", { class: "entr-deroule" }, parties.slice(iAccroche, iConclusion + 1).flatMap((partie) => partie.blocs.flatMap((b) =>
+          h("div", { class: "entr-deroule" }, parties.slice(iAccroche, iConclusion + 1).flatMap((partie) => [
+            ...emplacements(partie).map((cle) => (rappels[cle] = h("div"))),
+            ...partie.blocs.flatMap((b) =>
             b.dire ? [h("p", {}, `« ${remplir(b.dire)} »`)]
               : b.variante ? [h("p", { class: "sv-variante" }, remplir(b.variante))]
               : b.questions && !b.consignes ? b.questions.map((q) => h("p", {}, `« ${remplir(q)} »`))
-                : []))),
+                : []),
+            ...(/découverte/i.test(partie.titre) ? [(rappels.ecoute = h("div"))] : []),
+          ])),
           parties.slice(iConclusion + 1).filter((p) => /messagerie/i.test(p.titre)).map(pliable),
         ] : h("p", { class: "aide" }, "Script indisponible."));
 
@@ -732,6 +750,20 @@
       sb.from("entrainement_sessions").select("scenario_id, scenario_titre, debut, evaluation")
         .eq("appelante_id", outils.monId()).eq("statut", "terminee").order("debut", { ascending: false }).limit(15)
         .then(({ data }) => {
+          // Tes points faibles des 5 derniers appels de vente : un conseil au bon endroit du script.
+          const ventes = (data || []).filter((x) => x.evaluation && (x.evaluation.criteres || []).some((c) => c.cle === "accroche")).slice(0, 5);
+          for (const [cle, astuce] of Object.entries(ASTUCES)) {
+            const notes = ventes.map((x) => (x.evaluation.criteres || []).find((c) => c.cle === cle)).filter(Boolean);
+            if (!notes.length || !rappels[cle] && cle !== "objections") continue;
+            const moyenne = notes.reduce((t, c) => t + (Number(c.note) || 0), 0) / notes.length;
+            if (moyenne >= 4) continue;
+            const encart = h("div", { class: "entr-point-faible" },
+              h("p", { class: "surtitre" }, `🎯 Ton point à travailler · ${String(Math.round(moyenne * 10) / 10).replace(".", ",")}/5 en moyenne`),
+              h("p", {}, astuce),
+              notes[0].commentaire ? h("p", { class: "aide" }, `Dernière évaluation : ${notes[0].commentaire}`) : null);
+            if (cle === "objections") rappelObjections.replaceChildren(encart);
+            else rappels[cle].replaceChildren(encart);
+          }
           const avec = (data || []).filter((x) => x.evaluation && (x.evaluation.phrase_modele || (x.evaluation.a_ameliorer || []).length));
           const d = avec.find((x) => x.scenario_id === s.id) || avec[0];
           if (!d) return;
@@ -743,7 +775,9 @@
         });
       // Deux boutons en haut : le script, ou toutes les objections (comme avant).
       const O = window.FilRougeObjections;
-      const objections = O ? O.panneau({ h, contact, organisme: s.formation, titre: "Objections" }) : h("p", { class: "aide" }, "Objections indisponibles.");
+      const rappelObjections = h("div");
+      const objections = h("div", { class: "pile pile-serree" }, rappelObjections,
+        O ? O.panneau({ h, contact, organisme: s.formation, titre: "Objections" }) : h("p", { class: "aide" }, "Objections indisponibles."));
       const zone = h("div", { class: "entr-aide-corps" }, script);
       const onglet = (texte, contenu) => {
         const b = h("button", { type: "button", class: "filtre" }, texte);
