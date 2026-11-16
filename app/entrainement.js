@@ -259,6 +259,10 @@
       const boutonEnvoyer = h("button", { class: "bouton bouton-petit", type: "button" }, "Envoyer");
       const boutonMicro = mode === "voix" ? h("button", { class: "bouton bouton-petit bouton-secondaire entr-micro", type: "button", "aria-pressed": "false" }, "Couper le micro") : null;
       const boutonSon = mode === "voix" ? h("button", { class: "bouton-lien", type: "button" }, "Couper le son") : null;
+      const boutonPause = h("button", { class: "bouton bouton-secondaire entr-pause", type: "button", "aria-pressed": "false" }, "⏸ Pause");
+      // Pause : micro et voix coupés, chrono arrêté, rien n'est envoyé. Le temps de pause ne compte pas.
+      let enPause = false, debutPause = 0, tempsPause = 0;
+      const ecoule = () => Math.round((Date.now() - debut - tempsPause - (enPause ? Date.now() - debutPause : 0)) / 1000);
       const boutonRaccrocher = h("button", { class: "bouton bouton-danger", type: "button" }, "Raccrocher");
 
       const ajouter = (qui, texte) => {
@@ -286,7 +290,7 @@
 
       const majEtat = (texte) => { etatTexte.textContent = texte; };
       const ecouter = () => {
-        if (mode !== "voix" || !microVoulu || termine || occupe || ecoute) return;
+        if (mode !== "voix" || !microVoulu || termine || occupe || ecoute || enPause) return;
         if (!micro) {
           micro = new Reconnaissance();
           micro.lang = "fr-FR";
@@ -333,7 +337,7 @@
       async function envoyer() {
         clearTimeout(minuterieSilence);
         const texte = saisie.value.trim();
-        if (!texte || occupe || termine) return;
+        if (!texte || occupe || termine || enPause) return;
         occupe = true;
         couperMicro();
         texteFinal = "";
@@ -358,7 +362,7 @@
           occupe = false;
           boutonEnvoyer.disabled = false;
         }
-        if (!termine) {
+        if (!termine && !enPause) {
           majEtat(mode === "voix" && microVoulu ? "À vous, je vous écoute…" : "À vous.");
           ecouter();
           if (mode !== "voix") saisie.focus();
@@ -373,7 +377,7 @@
         couperMicro();
         synth?.cancel();
         appelEnCours = null;
-        const secondes = Math.round((Date.now() - debut) / 1000);
+        const secondes = ecoule();
         const evaluer = async () => {
         afficher(h("div", { class: "pile" },
           h("p", { class: "surtitre" }, "Entraînement"),
@@ -417,6 +421,25 @@
         boutonMicro.setAttribute("aria-pressed", String(!microVoulu));
         if (microVoulu) ecouter(); else { couperMicro(); majEtat("Micro coupé : tapez votre réponse."); }
       });
+      boutonPause.addEventListener("click", () => {
+        if (termine) return;
+        enPause = !enPause;
+        boutonPause.setAttribute("aria-pressed", String(enPause));
+        boutonPause.textContent = enPause ? "▶ Reprendre l'appel" : "⏸ Pause";
+        saisie.disabled = enPause; boutonEnvoyer.disabled = enPause;
+        if (enPause) {
+          debutPause = Date.now();
+          clearTimeout(minuterieSilence);
+          couperMicro();
+          synth?.cancel();
+          majEtat("⏸ Appel en pause : prends le temps de relire le script ou les objections, puis reprends.");
+        } else {
+          tempsPause += Date.now() - debutPause;
+          majEtat(mode === "voix" && microVoulu ? "À vous, je vous écoute…" : "À vous.");
+          ecouter();
+          if (mode !== "voix") saisie.focus();
+        }
+      });
       boutonSon?.addEventListener("click", () => {
         sonActif = !sonActif;
         if (!sonActif) synth?.cancel();
@@ -424,7 +447,7 @@
       });
 
       const minuterie = setInterval(() => {
-        const t = Math.round((Date.now() - debut) / 1000);
+        const t = ecoule();
         chrono.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
       }, 1000);
 
@@ -456,6 +479,7 @@
           h("label", { for: "entr-saisie", class: "entr-label-cache" }, "Votre réplique"),
           saisie,
           h("div", { class: "actions" }, boutonEnvoyer, boutonMicro, boutonSon)),
+        h("div", { class: "actions" }, boutonPause),
         h("div", { class: "actions entr-fin" }, boutonRaccrocher,
           h("span", { class: "aide" }, "Raccrochez quand l'appel est fini : l'évaluation arrive tout de suite.")));
       afficher(aide ? h("div", { class: "entr-avec-aide" }, ecranAppel, aide) : ecranAppel);

@@ -136,6 +136,8 @@
       catch (e) { go.disabled = false; go.textContent = '☎ Lancer l\'appel'; zone.innerHTML = `<p class="message message-erreur">${esc(e.message)}</p>`; return; }
 
       const sessionId = d.session_id, debut = Date.now(), genre = FEMININS.test(s.apprenant_nom) ? 'f' : 'm';
+      let enPause = false, debutPause = 0, tempsPause = 0;
+      const ecoule = () => Math.round((Date.now() - debut - tempsPause - (enPause ? Date.now() - debutPause : 0)) / 1000);
       let fini = false, attente = false, son = true, microVoulu = mode === 'voix', ecoute = false, finalTxt = '', minuterie = null, micro = null;
 
       remplir(`<div class="ent-avec-aide"><div class="pile">
@@ -149,6 +151,7 @@
           <div class="actions"><button class="bouton bouton-petit" type="button" id="ent-envoyer">Envoyer</button>
             ${mode === 'voix' ? '<button class="bouton bouton-petit bouton-secondaire" type="button" id="ent-micro">Couper le micro</button><button class="bouton-lien" type="button" id="ent-son">Couper le son</button>' : ''}</div>
         </div>
+        <div class="actions"><button class="bouton bouton-secondaire" type="button" id="ent-pause" aria-pressed="false">⏸ Pause</button></div>
         <div class="actions"><button class="bouton bouton-danger" type="button" id="ent-raccrocher">Raccrocher</button><span class="aide">Raccroche quand l'appel est fini : l'évaluation arrive tout de suite.</span></div></div>
         ${panneauAide(s)}</div>`);
       document.querySelectorAll('[data-aide]').forEach(b => b.addEventListener('click', () => {
@@ -168,7 +171,7 @@
       const parler = t => (mode === 'voix' && son && V && V.dispo) ? V.parler(t, { genre }) : Promise.resolve();
       const couperMicro = () => { ecoute = false; clearTimeout(minuterie); try { if (micro) micro.stop(); } catch (e) { /* déjà arrêté */ } };
       const ecouter = () => {
-        if (mode !== 'voix' || !microVoulu || fini || attente || ecoute) return;
+        if (mode !== 'voix' || !microVoulu || fini || attente || ecoute || enPause) return;
         if (!micro) {
           micro = new Reco(); micro.lang = 'fr-FR'; micro.continuous = true; micro.interimResults = true;
           micro.onresult = ev => {
@@ -189,7 +192,7 @@
 
       async function envoyer() {
         const texte = saisie.value.trim();
-        if (!texte || attente || fini) return;
+        if (!texte || attente || fini || enPause) return;
         attente = true; couperMicro(); finalTxt = ''; saisie.value = '';
         ajouter('moi', texte); majEtat('Le prospect réfléchit…'); $('ent-err').innerHTML = '';
         try {
@@ -200,7 +203,7 @@
           attente = false;
           // L'appel ne se coupe jamais tout seul : c'est Émilie qui raccroche.
           if (r.raccroche) $('ent-err').innerHTML = '<p class="message message-info">Ton interlocuteur a l\'air de conclure l\'appel. Clique sur « Raccrocher » quand tu as terminé, ou continue la conversation.</p>';
-          majEtat('À toi.'); ecouter(); if (mode !== 'voix') saisie.focus();
+          if (!enPause) { majEtat('À toi.'); ecouter(); if (mode !== 'voix') saisie.focus(); }
         } catch (e) {
           attente = false; saisie.value = texte;
           $('ent-err').innerHTML = `<p class="message message-erreur">${esc(e.message)}</p>`; majEtat('Renvoie ta phrase quand tu veux.');
@@ -212,7 +215,7 @@
         fini = true; couperMicro(); if (V) V.arreter(); clearInterval(chrono); appel = null;
         remplir('<p class="chargement">Évaluation de ton appel…</p>');
         try {
-          const r = await serveur({ action: 'terminer', session_id: sessionId, duree_secondes: Math.round((Date.now() - debut) / 1000) });
+          const r = await serveur({ action: 'terminer', session_id: sessionId, duree_secondes: ecoule() });
           if (r.annule) return remplir(`<div class="pile"><h1>Appel trop court</h1><p class="message message-info">Il faut au moins deux répliques pour obtenir une évaluation.</p><div class="actions"><a class="bouton" href="#/entrainement/appel/${encodeURIComponent(s.id)}">Recommencer</a><a class="bouton-lien" href="#/entrainement">Choisir un autre prospect</a></div></div>`);
           location.hash = `#/entrainement/resultat/${sessionId}`;
         } catch (e) {
@@ -228,8 +231,17 @@
         microVoulu = !microVoulu; e.target.textContent = microVoulu ? 'Couper le micro' : 'Activer le micro';
         if (microVoulu) ecouter(); else { couperMicro(); majEtat('Micro coupé : tape ta réponse.'); }
       });
+      $('ent-pause').addEventListener('click', e => {
+        if (fini) return;
+        enPause = !enPause;
+        e.target.setAttribute('aria-pressed', String(enPause));
+        e.target.textContent = enPause ? "▶ Reprendre l'appel" : '⏸ Pause';
+        saisie.disabled = enPause; $('ent-envoyer').disabled = enPause;
+        if (enPause) { debutPause = Date.now(); couperMicro(); if (V) V.arreter(); majEtat('⏸ Appel en pause : relis le script ou les objections, puis reprends.'); }
+        else { tempsPause += Date.now() - debutPause; majEtat('À toi.'); ecouter(); if (mode !== 'voix') saisie.focus(); }
+      });
       if ($('ent-son')) $('ent-son').addEventListener('click', e => { son = !son; if (!son && V) V.arreter(); e.target.textContent = son ? 'Couper le son' : 'Remettre le son'; });
-      const chrono = setInterval(() => { const t = Math.round((Date.now() - debut) / 1000); const c = $('ent-chrono'); if (c) c.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; }, 1000);
+      const chrono = setInterval(() => { const t = ecoule(); const c = $('ent-chrono'); if (c) c.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; }, 1000);
       appel = { fermer() { fini = true; clearInterval(chrono); couperMicro(); if (V) V.arreter(); } };
 
       ajouter('prospect', d.reponse);
