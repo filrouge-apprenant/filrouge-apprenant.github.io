@@ -82,12 +82,13 @@
   }
 
   // Rejoue l'appel : voix du prospect (synthèse) puis vraie voix enregistrée.
-  // transcription : [{ qui: "appelante" | "apprenant", texte }]. Renvoie { arreter }.
+  // transcription : [{ qui: "appelante" | "apprenant", texte }]. options.depart : réplique de départ.
+  // Renvoie { arreter }.
   function rejouer(transcription, urls, options = {}) {
     const V = window.FilRougeVoix;
     let stop = false, audio = null;
     (async () => {
-      for (let i = 0; i < transcription.length && !stop; i++) {
+      for (let i = options.depart || 0; i < transcription.length && !stop; i++) {
         const r = transcription[i];
         if (options.surLigne) options.surLigne(i);
         if (r.qui === "appelante" && urls.has(i)) {
@@ -103,14 +104,15 @@
         }
         await new Promise((resolve) => setTimeout(resolve, 250));
       }
-      if (options.surFin) options.surFin();
+      if (!stop && options.surFin) options.surFin();
     })();
     return {
-      arreter() {
+      // arreter(true) : arrêt sans prévenir (pour sauter à un autre endroit de l'appel).
+      arreter(silencieux) {
         stop = true;
         if (audio) { try { audio.pause(); } catch (e) { /* rien */ } }
         if (V) V.arreter();
-        if (options.surFin) options.surFin();
+        if (!silencieux && options.surFin) options.surFin();
       },
     };
   }

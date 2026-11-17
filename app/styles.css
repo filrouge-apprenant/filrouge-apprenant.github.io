@@ -1581,3 +1581,12 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 .entr-repli p { margin: 0; line-height: 1.45; }
 .entr-repli strong { color: var(--violet); }
 .entr-repli-moi { font-size: 0.85rem; color: var(--texte-doux); margin-bottom: 0.25rem !important; }
+
+/* Réécoute d'un appel d'entraînement : lecteur avec curseur, comme une vidéo */
+.entr-lecteur { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.8rem 1rem; }
+.entr-lecteur-ligne { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.entr-lecteur-bas { justify-content: space-between; }
+.entr-repere { font-weight: 600; color: var(--violet); font-size: 0.9rem; }
+.entr-curseur { flex: 1 1 12rem; min-width: 10rem; height: 1.6rem; accent-color: var(--fil); cursor: pointer; }
+.entr-bulle-cliquable { cursor: pointer; }
+.entr-bulle-cliquable:hover { outline: 1px solid var(--rose-fort); }

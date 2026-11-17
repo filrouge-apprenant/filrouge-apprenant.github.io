@@ -82,6 +82,27 @@ async def main():
             obj = await page.inner_text(".entr-aide")
             ok("Passer l'accueil" in obj and "Il est en réunion" in obj and "Écrivez à contact@" in obj, "objections : thème « Passer l'accueil » présent")
             await page.screenshot(path=os.path.join(SORTIE, "entrainement-script-transcription.png"), full_page=True)
+
+            # --- Réécoute avec curseur (comme une vidéo)
+            await page.evaluate("""() => { window.__db.entrainement_sessions = [{ id: 'd0000000-0000-4000-8000-000000000102', scenario_id: '%s', scenario_titre: 'Test · Directrice pressée',
+              appelante_id: '11111111-1111-4111-8111-111111111111', statut: 'terminee', debut: new Date().toISOString(), duree_secondes: 120, mode: 'ecrit', note_sur_20: 12,
+              transcription: [{ qui: 'apprenant', texte: 'Institut Fictif, bonjour.' }, { qui: 'appelante', texte: 'Bonjour Claire.' }, { qui: 'apprenant', texte: 'Oui ?' },
+                { qui: 'appelante', texte: 'Vous avez deux minutes ?' }, { qui: 'apprenant', texte: 'Allez-y.' }],
+              evaluation: { criteres: [], points_forts: [], a_ameliorer: [] } }]; sessionStorage.setItem('db', JSON.stringify(window.__db)); }""" % SC)
+            await page.goto("http://127.0.0.1:8772/index.html#/entrainement/resultat/d0000000-0000-4000-8000-000000000102")
+            await page.wait_for_selector("#entr-curseur", timeout=6000)
+            ok(await page.get_attribute("#entr-curseur", "max") == "4" and "Réplique 1 / 5" in await page.inner_text(".entr-lecteur"), "lecteur : curseur sur les 5 répliques")
+            await page.eval_on_selector("#entr-curseur", "e => { e.value = '3'; e.dispatchEvent(new Event('input', { bubbles: true })); }")
+            await page.wait_for_timeout(200)
+            ok("Réplique 4 / 5" in await page.inner_text(".entr-lecteur") and "deux minutes" in await page.text_content(".entr-en-lecture"), "curseur déplacé : on avance dans l'appel")
+            await page.click("button[aria-label='Réplique précédente']")
+            ok("Réplique 3 / 5" in await page.inner_text(".entr-lecteur"), "bouton réplique précédente")
+            await page.click("#entr-lire")
+            await page.wait_for_timeout(300)
+            ok("Pause" in await page.inner_text("#entr-lire"), "lecture lancée depuis la position choisie")
+            await page.click("#entr-lire")
+            ok("Reprendre" in await page.inner_text("#entr-lire"), "pause")
+            await page.screenshot(path=os.path.join(SORTIE, "entrainement-reecoute-curseur.png"), full_page=True)
             ok(not erreurs, "aucune erreur JavaScript " + "; ".join(erreurs))
             await nav.close()
     finally:

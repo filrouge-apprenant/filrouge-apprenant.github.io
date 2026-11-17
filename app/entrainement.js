@@ -547,29 +547,67 @@
       const filRelecture = h("div", { class: "entr-fil entr-fil-relecture" }, bulles);
       const blocReecoute = h("div", { class: "entr-reecoute" });
       const E = window.FilRougeEnregistreur;
-      if (E && mienne) {
-        Promise.all([E.liens(sb, x.appelante_id, x.id),
+      if (E && mienne && (x.transcription || []).length) {
+        Promise.all([E.liens(sb, x.appelante_id, x.id).catch(() => new Map()),
           x.scenario_id ? sb.from("entrainement_scenarios").select("apprenant_nom").eq("id", x.scenario_id).maybeSingle() : Promise.resolve({ data: null })])
         .then(([urls, sc]) => {
-          if (!urls.size) return;
           const nom = (sc && sc.data && sc.data.apprenant_nom) || "";
           const V = window.FilRougeVoix;
           const genreProspect = (V && V.genreDe && V.genreDe(nom)) || (PRENOMS_FEMININS.test(nom) ? "f" : "m");
+          const repliques = x.transcription || [];
+          const total = repliques.length;
+          // Lecteur comme pour une vidéo : lecture / pause, curseur pour avancer ou reculer
+          // dans l'appel (une marque par réplique), réplique précédente / suivante.
           let lecture = null;
-          const bouton = h("button", { type: "button", class: "bouton" }, "🎧 Réécouter l'appel");
-          const fin = () => { lecture = null; bouton.textContent = "🎧 Réécouter l'appel"; bulles.forEach((b) => b.classList.remove("entr-en-lecture")); };
-          bouton.addEventListener("click", () => {
-            if (lecture) return lecture.arreter();
+          let position = 0;
+          const boutonLire = h("button", { type: "button", class: "bouton", id: "entr-lire" }, "▶ Réécouter l'appel");
+          const boutonAvant = h("button", { type: "button", class: "bouton bouton-petit bouton-secondaire", "aria-label": "Réplique précédente" }, "⏮");
+          const boutonApres = h("button", { type: "button", class: "bouton bouton-petit bouton-secondaire", "aria-label": "Réplique suivante" }, "⏭");
+          const curseur = h("input", { type: "range", class: "entr-curseur", id: "entr-curseur", min: "0", max: String(Math.max(0, total - 1)), step: "1", value: "0", "aria-label": "Avancer ou reculer dans l'appel" });
+          const repere = h("span", { class: "entr-repere" });
+          const montrer = () => {
+            curseur.value = String(position);
+            curseur.style.setProperty("--avance", `${total > 1 ? (position / (total - 1)) * 100 : 0}%`);
+            const r = repliques[position] || {};
+            repere.textContent = `Réplique ${position + 1} / ${total} · ${r.qui === "apprenant" ? (vente ? "Prospect" : "Apprenant") : (vente ? "Vous" : "Appelante")}`;
+            bulles.forEach((b, k) => b.classList.toggle("entr-en-lecture", k === position));
+            boutonAvant.disabled = position <= 0;
+            boutonApres.disabled = position >= total - 1;
+          };
+          const enPause = () => { lecture = null; boutonLire.textContent = position >= total - 1 ? "▶ Réécouter l'appel" : "▶ Reprendre"; };
+          const lancer = () => {
             const rel = document.getElementById("entr-relecture"); if (rel) rel.open = true;
-            bouton.textContent = "⏹ Arrêter l'écoute";
-            lecture = E.rejouer(x.transcription || [], urls, {
+            boutonLire.textContent = "⏸ Pause";
+            lecture = E.rejouer(repliques, urls, {
               genre: genreProspect,
-              surLigne: (i) => { bulles.forEach((b, k) => b.classList.toggle("entr-en-lecture", k === i)); if (bulles[i]) bulles[i].scrollIntoView({ block: "nearest", behavior: "smooth" }); },
-              surFin: fin,
+              depart: position,
+              surLigne: (i) => { position = i; montrer(); if (bulles[i]) bulles[i].scrollIntoView({ block: "nearest", behavior: "smooth" }); },
+              surFin: () => { position = total - 1; montrer(); lecture = null; boutonLire.textContent = "▶ Réécouter l'appel"; position = 0; },
             });
+          };
+          const allerA = (i) => {
+            const enCours = !!lecture;
+            if (lecture) { lecture.arreter(true); lecture = null; }
+            position = Math.min(Math.max(0, i), total - 1);
+            montrer();
+            if (enCours) lancer(); else enPause();
+          };
+          boutonLire.addEventListener("click", () => {
+            if (lecture) { lecture.arreter(true); enPause(); return; }
+            lancer();
           });
-          blocReecoute.replaceChildren(h("div", { class: "actions" }, bouton,
-            h("span", { class: "aide" }, `Ta vraie voix (${urls.size} réplique${urls.size > 1 ? "s" : ""} enregistrée${urls.size > 1 ? "s" : ""}), et le prospect relu par la voix de l'ordinateur.`)));
+          boutonAvant.addEventListener("click", () => allerA(position - 1));
+          boutonApres.addEventListener("click", () => allerA(position + 1));
+          curseur.addEventListener("input", () => allerA(Number(curseur.value)));
+          // Un clic sur une réplique de la conversation : on y va directement.
+          bulles.forEach((b, k) => { b.classList.add("entr-bulle-cliquable"); b.title = "Écouter à partir d'ici"; b.addEventListener("click", () => { position = k; if (lecture) allerA(k); else { montrer(); lancer(); } }); });
+          montrer();
+          blocReecoute.replaceChildren(h("div", { class: "entr-lecteur carte" },
+            h("div", { class: "entr-lecteur-ligne" }, boutonAvant, boutonLire, boutonApres, curseur),
+            h("div", { class: "entr-lecteur-ligne entr-lecteur-bas" }, repere,
+              h("span", { class: "aide" }, urls.size
+                ? `Ta vraie voix (${urls.size} réplique${urls.size > 1 ? "s" : ""} enregistrée${urls.size > 1 ? "s" : ""}), le prospect relu par la voix de l'ordinateur. Glisse le curseur ou clique une réplique pour y aller.`
+                : "Appel par écrit : le prospect est relu par la voix de l'ordinateur, tes répliques s'affichent. Glisse le curseur ou clique une réplique pour y aller."))));
         }).catch(() => null);
       }
 
