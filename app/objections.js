@@ -975,8 +975,38 @@
     // --- Fenêtre de réponse ---
     const dialogue = h("dialog", { class: "obj-dialogue", "aria-labelledby": "obj-dialogue-titre" });
     dialogue.addEventListener("close", arreterLecture);
-    // Clic sur le voile (en dehors de la carte) = fermer.
-    dialogue.addEventListener("click", (e) => { if (e.target === dialogue) dialogue.close(); });
+    // Fenêtre flottante (17/11/2026) : la page reste visible et utilisable derrière
+    // (pendant un appel d'entraînement, on continue à parler et à taper), et on la
+    // déplace où on veut en la tirant par son bandeau du haut. Échap = fermer.
+    dialogue.addEventListener("keydown", (e) => { if (e.key === "Escape") dialogue.close(); });
+    let place = null; // dernière position choisie : la fenêtre s'y rouvre
+    const caler = (x, y) => {
+      const l = dialogue.offsetWidth || 400, ht = Math.min(dialogue.offsetHeight || 300, window.innerHeight);
+      x = Math.min(Math.max(0, x), Math.max(0, window.innerWidth - l));
+      y = Math.min(Math.max(0, y), Math.max(0, window.innerHeight - Math.min(ht, 80)));
+      dialogue.style.left = `${x}px`; dialogue.style.top = `${y}px`; dialogue.style.right = "auto"; dialogue.style.bottom = "auto";
+      place = { x, y };
+    };
+    function deplacable(poignee) {
+      poignee.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0 || e.target.closest("button")) return;
+        e.preventDefault();
+        const r = dialogue.getBoundingClientRect();
+        const dx = e.clientX - r.left, dy = e.clientY - r.top;
+        poignee.setPointerCapture(e.pointerId);
+        dialogue.classList.add("obj-dialogue-glisse");
+        const bouge = (ev) => caler(ev.clientX - dx, ev.clientY - dy);
+        const lache = () => {
+          dialogue.classList.remove("obj-dialogue-glisse");
+          poignee.removeEventListener("pointermove", bouge);
+          poignee.removeEventListener("pointerup", lache);
+          poignee.removeEventListener("pointercancel", lache);
+        };
+        poignee.addEventListener("pointermove", bouge);
+        poignee.addEventListener("pointerup", lache);
+        poignee.addEventListener("pointercancel", lache);
+      });
+    }
 
     function ouvrir(o) {
       arreterLecture();
@@ -999,11 +1029,13 @@
       const fermer = h("button", { type: "button", class: "obj-fermer", "aria-label": "Fermer" }, "✕");
       fermer.addEventListener("click", () => dialogue.close());
 
+      const poignee = h("div", { class: "obj-carte-haut obj-poignee", title: "Maintenir et tirer pour déplacer la fenêtre" },
+        h("p", { class: "surtitre" }, h("span", { class: "obj-deplacer", "aria-hidden": "true" }, "⠿ "), (CATEGORIES.find((c) => c.cle === o.cat) || {}).titre || "Objection"),
+        fermer);
+      deplacable(poignee);
       dialogue.replaceChildren(
         h("div", { class: `obj-carte obj-cat-${o.cat}` },
-          h("div", { class: "obj-carte-haut" },
-            h("p", { class: "surtitre" }, (CATEGORIES.find((c) => c.cle === o.cat) || {}).titre || "Objection"),
-            fermer),
+          poignee,
           h("h2", { id: "obj-dialogue-titre", class: "obj-dit" }, `« ${r(o.dit)} »`),
           o.cache ? h("p", { class: "sv-conseil" }, `Ce que ça cache souvent : ${o.cache}`) : null,
           etape(1, "Accueillir", dire(o.accueil || "Je comprends tout à fait.")),
@@ -1013,9 +1045,12 @@
           etape(4, "Relancer vers une date", dire(o.relancer)),
           o.eviter ? h("p", { class: "obj-eviter" }, h("strong", {}, "⚠️ À éviter : "), o.eviter) : null,
           h("div", { class: "actions-ligne" }, ecouter, copier)));
-      if (typeof dialogue.showModal === "function") dialogue.showModal();
-      else dialogue.setAttribute("open", "");
-      fermer.focus();
+      // Non modale : rien n'est grisé, la page derrière continue de fonctionner.
+      if (!dialogue.open) {
+        if (typeof dialogue.show === "function") dialogue.show(); else dialogue.setAttribute("open", "");
+      }
+      if (place) caler(place.x, place.y);
+      dialogue.querySelector(".obj-carte").scrollTop = 0;
     }
 
     // --- Boutons ---
