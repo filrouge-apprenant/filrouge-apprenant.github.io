@@ -394,7 +394,16 @@
             h("option", { value: "cpf" }, "Surtout CPF : règles de paiement Mon Compte Formation"))),
         h("label", { class: "sim-champ", id: "acq-bloc-a", hidden: true }, "Avancement moyen de l'apprenant quand il abandonne (%)",
           h("input", { id: "acq-a", type: "number", inputmode: "decimal", min: "0", max: "100", value: "20" }),
-          h("span", { class: "sim-aide" }, "CPF : sous 25 % d'avancement le centre touche 25 % du prix, de 25 à 80 % le prorata, au-delà de 80 % la totalité.")));
+          h("span", { class: "sim-aide" }, "CPF : sous 25 % d'avancement le centre touche 25 % du prix, de 25 à 80 % le prorata, au-delà de 80 % la totalité.")),
+        h("label", { class: "sim-champ" }, "Apprenants suivis",
+          h("select", { id: "acq-s" },
+            h("option", { value: "risque" }, "Seulement les apprenants à risque (recommandé)"),
+            h("option", { value: "tous" }, "Tous les apprenants, pendant tout le parcours"))),
+        h("label", { class: "sim-champ", id: "acq-bloc-r" }, "Part des apprenants à risque (%)",
+          h("input", { id: "acq-r", type: "number", inputmode: "decimal", min: "1", max: "100", value: "25" }),
+          h("span", { class: "sim-aide" }, "Au moins le taux d'abandon, souvent le double (pas connectés depuis 2 à 4 semaines, en retard).")),
+        h("label", { class: "sim-champ", id: "acq-bloc-ds" }, "Durée du suivi d'un apprenant à risque (mois)",
+          h("input", { id: "acq-ds", type: "number", inputmode: "numeric", min: "1", max: "36", value: "3" })));
       const res = h("div", { class: "pile-serree", "aria-live": "polite" });
       const actions = h("div", { class: "actions-ligne" });
       const zone = h("div", {});
@@ -404,12 +413,16 @@
         const org = orgs.find((o) => o.id === choix.value) || null;
         const cpf = val("acq-f") === "cpf";
         form.querySelector("#acq-bloc-a").hidden = !cpf;
+        const risque = val("acq-s") === "risque";
+        form.querySelector("#acq-bloc-r").hidden = !risque; form.querySelector("#acq-bloc-ds").hidden = !risque;
         const r = C.calculer({ apprenantsAn: val("acq-n"), prixFormation: val("acq-p"), dureeMois: val("acq-d"), tauxAbandon: val("acq-t"), pertePart: 50,
-          financement: val("acq-f"), assiduiteAbandon: val("acq-a") });
+          financement: val("acq-f"), assiduiteAbandon: val("acq-a"), suivi: val("acq-s"), risquePct: val("acq-r"), dureeSuiviMois: val("acq-ds") });
         remplacer(res,
           h("div", { class: "sim-cartes" },
             h("div", { class: "sim-carte sim-carte-rouge" }, h("p", { class: "sim-chiffre" }, C.euros(r.coutAbandonsAn)), h("p", { class: "sim-legende" }, `abandons par an (${C.nombre(r.abandonsAn)} × ${C.euros(r.coutUnAbandon)})`)),
-            h("div", { class: "sim-carte" }, h("p", { class: "sim-chiffre" }, C.euros(r.coutFilRougeAn)), h("p", { class: "sim-legende" }, `Fil Rouge par an (${C.euros(r.tarif)} l'appel, ${C.euros(r.coutFilRougeMois)} / mois)`)),
+            h("div", { class: "sim-carte" }, h("p", { class: "sim-chiffre" }, C.euros(r.coutFilRougeAn)), h("p", { class: "sim-legende" }, r.risque
+              ? `Fil Rouge par an : ${C.nombre(r.suivisAn)} apprenants à risque × ${C.nombre(r.dureeSuivi)} mois (${C.euros(r.tarif)} l'appel, ${C.euros(r.coutFilRougeMois)} / mois)`
+              : `Fil Rouge par an (${C.euros(r.tarif)} l'appel, ${C.euros(r.coutFilRougeMois)} / mois)`)),
             h("div", { class: "sim-carte sim-carte-verte" }, h("p", { class: "sim-chiffre" }, Number.isFinite(r.equilibreAbandons) ? C.nombre(Math.ceil(r.equilibreAbandons)) : "—"), h("p", { class: "sim-legende" }, "abandons évités pour être remboursé"))),
           r.cpf && r.coutAbandonsSansPlancher > r.coutAbandonsAn + 0.5
             ? h("p", { class: "aide" }, `Argument CPF : sans système de relance prouvable, la Caisse des dépôts peut retirer le forfait de 25 % ; les abandons coûteraient alors ${C.euros(r.coutAbandonsSansPlancher)} par an au centre.`) : null,
@@ -418,6 +431,7 @@
         if (org) params.set("o", org.nom);
         params.set("n", val("acq-n")); params.set("p", val("acq-p")); params.set("d", val("acq-d")); params.set("t", val("acq-t"));
         if (cpf) { params.set("f", "cpf"); params.set("a", val("acq-a")); }
+        if (risque) { params.set("r", val("acq-r")); params.set("ds", val("acq-ds")); } else params.set("s", "tous");
         const lien = new URL(`simulateur.html?${params}`, window.location.href).href.replace(/#.*$/, "");
         majEmail(org, lien);
         const copierVierge = h("button", { type: "button", class: "bouton bouton-secondaire" }, "📋 Copier le lien vierge");
@@ -696,7 +710,7 @@
 
     // --- Coûts, potentiel, avance -------------------------------------------
     function avance() {
-      const ex = C.calculer({ apprenantsAn: 150, prixFormation: 2500, dureeMois: 6, tauxAbandon: 20, pertePart: 50 });
+      const ex = C.calculer({ apprenantsAn: 150, prixFormation: 2500, dureeMois: 6, tauxAbandon: 20, pertePart: 50, suivi: "tous" });
       afficher(cadre("avance", null,
         h("section", { class: "pile-serree" },
           h("h2", {}, "Les 3 stratégies qui peuvent te donner de l'avance"),

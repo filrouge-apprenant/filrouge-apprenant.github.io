@@ -68,6 +68,20 @@
           <input id="sim-a" name="a" type="number" inputmode="decimal" min="0" max="100" step="5" value="20">
           <span class="sim-aide">Avec le CPF, le centre touche 25 % du prix si l'apprenant arrête avant 25 % de la formation, le prorata entre 25 et 80 %, et 100 % au-delà de 80 %.</span>
         </label>
+        <label class="sim-champ">Quels apprenants suivre ?
+          <select id="sim-s" name="s">
+            <option value="risque">Seulement les apprenants à risque (recommandé)</option>
+            <option value="tous">Tous les apprenants, pendant tout le parcours</option>
+          </select>
+        </label>
+        <label class="sim-champ" id="sim-bloc-r">Part de vos apprenants à risque (%)
+          <input id="sim-r" name="r" type="number" inputmode="decimal" min="1" max="100" step="5" value="25">
+          <span class="sim-aide">Ceux qui ne se connectent plus depuis 2 à 4 semaines ou qui prennent du retard. Au moins votre taux d'abandon, souvent 2 fois plus.</span>
+        </label>
+        <label class="sim-champ" id="sim-bloc-ds">Durée du suivi d'un apprenant à risque (mois)
+          <input id="sim-ds" name="ds" type="number" inputmode="numeric" min="1" max="36" step="1" value="3">
+          <span class="sim-aide">Un appel par mois, le temps de le remettre sur les rails. 3 mois par défaut.</span>
+        </label>
         <details class="sim-plus" id="sim-bloc-perte">
           <summary>Réglage avancé</summary>
           <label class="sim-champ">Part du prix perdue en moyenne par abandon (%)
@@ -87,7 +101,7 @@
         </div>
         <div class="sim-carte">
           <p class="sim-chiffre" id="r-fr">—</p>
-          <p class="sim-legende">par an pour un appel de suivi par apprenant et par mois <span id="r-fr-detail"></span></p>
+          <p class="sim-legende"><span id="r-fr-qui">par an pour un appel de suivi par apprenant et par mois</span> <span id="r-fr-detail"></span></p>
         </div>
         <div class="sim-carte sim-carte-verte">
           <p class="sim-chiffre" id="r-eq">—</p>
@@ -128,7 +142,7 @@
         <li>Abandons par an = apprenants inscrits × votre taux d'abandon.</li>
         <li>Coût d'un abandon = prix moyen × part du prix perdue (réglage avancé, 50 % par défaut).</li>
         <li>Formations CPF : la part perdue suit les règles de paiement de Mon Compte Formation (conditions particulières des organismes de formation, version 14, décembre 2025, article 6.3.2) : forfait de 25 % du prix sous 25 % d'assiduité, prorata de 25 à 80 %, 100 % au-delà de 80 %. Le forfait de 25 % suppose que l'organisme prouve un système de relance de ses stagiaires.</li>
-        <li>Suivi Fil Rouge = un appel par apprenant et par mois de parcours. Prix d'un appel selon le nombre d'apprenants suivis en même temps : 20 € HT sous 20, 15 € HT de 20 à 150, 12 € HT au-delà.</li>
+        <li>Suivi Fil Rouge = un appel par apprenant suivi et par mois. Formule recommandée : seuls les apprenants à risque sont appelés (25 % des inscrits et 3 mois de suivi par défaut, modifiables). Autre formule : tous les apprenants, pendant tout le parcours. Prix d'un appel selon le nombre d'apprenants suivis en même temps : 20 € HT sous 20, 15 € HT de 20 à 150, 12 € HT au-delà.</li>
         <li>Temps libéré : environ 15 minutes par appel (préparation, appel, compte rendu).</li>
         <li>Vos chiffres ne quittent pas votre navigateur : rien n'est envoyé ni enregistré.</li>
       </ul>

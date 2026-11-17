@@ -7,7 +7,8 @@
   "use strict";
   const C = window.FilRougeCalculAbandons;
   const $ = (id) => document.getElementById(id);
-  const champs = { n: $("sim-n"), p: $("sim-p"), d: $("sim-d"), t: $("sim-t"), perte: $("sim-perte"), a: $("sim-a") };
+  const champs = { n: $("sim-n"), p: $("sim-p"), d: $("sim-d"), t: $("sim-t"), perte: $("sim-perte"), a: $("sim-a"), r: $("sim-r"), ds: $("sim-ds") };
+  const suivi = $("sim-s");
   const financement = $("sim-f");
 
   // Pré-remplissage depuis le lien envoyé au prospect.
@@ -20,6 +21,7 @@
     if (v !== null && v !== "" && Number.isFinite(Number(v.replace(",", ".")))) champs[cle].value = v.replace(",", ".");
   }
   if (q.get("f") === "cpf") financement.value = "cpf";
+  if (q.get("s") === "tous") suivi.value = "tous";
   const nomOrg = (q.get("o") || "").replace(/[<>]/g, "").trim().slice(0, 80);
   if (nomOrg) $("sim-pour").textContent = vierge
     ? `Simulation pour ${nomOrg}. Entrez vos 4 chiffres : le résultat s'affiche tout seul.`
@@ -39,6 +41,8 @@
     $("sim-bloc-a").hidden = !cpf;
     $("sim-bloc-perte").hidden = cpf;
     $("r-plancher").hidden = true;
+    const risque = suivi.value === "risque";
+    $("sim-bloc-r").hidden = !risque; $("sim-bloc-ds").hidden = !risque;
     const manquants = ["n", "p", "d", "t"].filter((c) => champs[c].value.trim() === "");
     if (manquants.length) {
       for (const id of ["r-cout", "r-fr", "r-eq"]) $(id).textContent = "—";
@@ -52,7 +56,11 @@
       apprenantsAn: champs.n.value, prixFormation: champs.p.value, dureeMois: champs.d.value,
       tauxAbandon: champs.t.value, pertePart: champs.perte.value, evitesPct: pct,
       financement: financement.value, assiduiteAbandon: champs.a.value,
+      suivi: suivi.value, risquePct: champs.r.value, dureeSuiviMois: champs.ds.value,
     });
+    $("r-fr-qui").textContent = r.risque
+      ? `par an pour suivre vos ${C.nombre(r.suivisAn)} apprenants à risque (un appel par mois pendant ${C.nombre(r.dureeSuivi)} mois)`
+      : "par an pour un appel de suivi par apprenant et par mois";
     $("r-cout").textContent = C.euros(r.coutAbandonsAn);
     $("r-abandons").textContent = `(${C.nombre(r.abandonsAn)} abandons × ${C.euros(r.coutUnAbandon)})`;
     $("r-fr").textContent = C.euros(r.coutFilRougeAn);
@@ -70,6 +78,10 @@
     if (r.cpf && r.coutAbandonsSansPlancher > r.coutAbandonsAn + 0.5) {
       $("r-plancher").hidden = false;
       $("r-plancher").textContent = `Sans système de relance des stagiaires que vous pouvez prouver, la Caisse des dépôts peut supprimer le forfait de 25 % : les abandons coûteraient alors ${C.euros(r.coutAbandonsSansPlancher)} par an.`;
+    }
+    if (r.risqueSousTaux) {
+      $("r-plancher").hidden = false;
+      $("r-plancher").textContent = "La part d'apprenants à risque est inférieure à votre taux d'abandon : en pratique, elle est au moins égale (souvent le double).";
     }
     $("r-temps").textContent = `Temps libéré pour vos équipes : environ ${C.nombre(r.heuresLibereesMois)} heures par mois.`;
     $("r-e-val").textContent = fractionTexte(pct);

@@ -57,7 +57,7 @@ async def main():
             pour = await pub.text_content("#sim-pour")
             ok("Institut bFictif/b" in pour and "<" not in pour, "page publique : nom du centre affiché, balises neutralisées")
             ok((await pub.text_content("#r-cout")).replace(" ", " ").replace("\xa0", " ") == "37 500 €", "coût des abandons : 30 × 1 250 € = 37 500 €")
-            ok((await pub.text_content("#r-eq")) == "11", "point d'équilibre : 11 abandons évités")
+            ok((await pub.text_content("#r-eq")) == "2", "point d'équilibre : 2 abandons évités (suivi des seuls apprenants à risque)")
             await pub.fill("#sim-t", "40")
             await pub.wait_for_timeout(200)
             ok((await pub.text_content("#r-cout")).replace(" ", " ").replace("\xa0", " ") == "75 000 €", "le résultat se met à jour quand on change le taux")
@@ -68,7 +68,7 @@ async def main():
             for sel, v in [("#sim-n", "150"), ("#sim-p", "2500"), ("#sim-d", "6"), ("#sim-t", "20")]:
                 await pub.fill(sel, v)
             await pub.wait_for_timeout(200)
-            ok((await pub.text_content("#r-eq")) == "11", "le prospect remplit lui-même : résultat calculé")
+            ok((await pub.text_content("#r-eq")) == "2", "le prospect remplit lui-même : résultat calculé")
             await pub.screenshot(path=os.path.join(SORTIE, "prospection_public_vierge.png"), full_page=True)
             await pub.goto("http://127.0.0.1:8767/simulateur.html?o=Institut+Fictif&n=150&p=2500&d=6&t=20&f=cpf&a=20")
             await pub.wait_for_timeout(400)
@@ -79,6 +79,15 @@ async def main():
             await pub.wait_for_timeout(200)
             ok((await pub.text_content("#r-cout")).replace("\u202f", " ").replace("\xa0", " ") == "45 000 €" and not await pub.is_visible("#r-plancher"), "CPF, abandon à 40 % : prorata, 45 000 €")
             await pub.screenshot(path=os.path.join(SORTIE, "prospection_public_cpf.png"), full_page=True)
+            # Gros centre (cas réel du 17/11/2026) : on ne suit que les apprenants à risque.
+            await pub.goto("http://127.0.0.1:8767/simulateur.html?n=4800&p=1200&d=8&t=12&f=cpf&a=50")
+            await pub.wait_for_timeout(400)
+            esp = lambda t: t.replace("\u202f", " ").replace("\xa0", " ")
+            ok(esp(await pub.text_content("#r-cout")) == "345 600 €" and esp(await pub.text_content("#r-fr")) == "43 200 €" and await pub.text_content("#r-eq") == "72",
+               "à risque : 1 200 apprenants × 3 mois = 43 200 €, remboursé dès 72 abandons évités sur 576")
+            await pub.select_option("#sim-s", "tous")
+            await pub.wait_for_timeout(200)
+            ok(esp(await pub.text_content("#r-fr")) == "460 800 €" and not await pub.is_visible("#sim-r"), "formule « tous les apprenants » : 460 800 €")
 
             # --- Plateforme ---
             page = await nav.new_page(viewport={"width": 1280, "height": 900}, bypass_csp=True)

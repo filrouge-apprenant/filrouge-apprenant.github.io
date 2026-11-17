@@ -8,7 +8,9 @@
  * des abandons, le coût du suivi Fil Rouge et le point d'équilibre (combien
  * d'abandons il faudrait éviter pour que le suivi soit remboursé).
  * Tarifs : grille du contrat client (20 € l'appel sous 20 apprenants suivis,
- * 15 € de 20 à 150, 12 € au-delà), un appel par apprenant et par mois.
+ * 15 € de 20 à 150, 12 € au-delà), un appel par apprenant suivi et par mois.
+ * Deux formules (17/11/2026) : suivi = 'risque' (on n'appelle que les apprenants
+ * à risque, pendant dureeSuiviMois) ou 'tous' (tous les inscrits, tout le parcours).
  * ============================================================================= */
 (function (racine) {
   'use strict';
@@ -19,6 +21,8 @@
     pertePart: 50,            // % du prix d'une formation perdu en moyenne par abandon (hypothèse, hors CPF)
     assiduiteAbandon: 20,     // CPF : avancement moyen de l'apprenant quand il abandonne (%)
     dureeMois: 6,             // durée moyenne d'un parcours
+    risquePct: 25,            // % des inscrits repérés « à risque » (pas connectés depuis 2 à 4 semaines, en retard)
+    dureeSuiviMois: 3,        // mois de suivi d'un apprenant à risque (le temps de le remettre sur les rails)
     minutesParAppel: 15,      // préparation + appel + compte rendu, pour le temps libéré
   };
 
@@ -30,7 +34,8 @@
   }
 
   /**
-   * e = { apprenantsAn, prixFormation, tauxAbandon, dureeMois, pertePart, evitesPct, financement, assiduiteAbandon }
+   * e = { apprenantsAn, prixFormation, tauxAbandon, dureeMois, pertePart, evitesPct, financement, assiduiteAbandon,
+   *       suivi ('tous' par défaut | 'risque'), risquePct, dureeSuiviMois }
    * financement = 'cpf' : la part perdue suit les paliers de Mon Compte Formation
    * (Conditions particulières OF, v14 déc. 2025, art. 6.3.2) : sous 25 % d'assiduité
    * le centre touche un forfait de 25 % ; de 25 à 80 % le prorata ; au-delà de 80 %
@@ -57,13 +62,19 @@
     const coutAbandonsAn = abandonsAn * coutUnAbandon;
     const coutAbandonsSansPlancher = abandonsAn * prix * perteSansPlancher;
 
-    // Apprenants en cours en même temps (moyenne) = entrées par an × durée / 12.
-    const suivisEnMoyenne = apprenantsAn * Math.min(duree, 12) / 12;
+    // Qui est suivi : tous les inscrits pendant tout le parcours, ou seulement
+    // les apprenants à risque pendant quelques mois.
+    const risque = e.suivi === 'risque';
+    const risquePct = borne(e.risquePct == null || e.risquePct === '' ? H.risquePct : e.risquePct, 1, 100) / 100;
+    const dureeSuivi = risque ? Math.min(duree, borne(e.dureeSuiviMois || H.dureeSuiviMois, 1, 36)) : duree;
+    const suivisAn = risque ? Math.round(apprenantsAn * risquePct) : apprenantsAn;
+    // Apprenants suivis en même temps (moyenne) = entrées par an × durée du suivi / 12.
+    const suivisEnMoyenne = suivisAn * Math.min(dureeSuivi, 12) / 12;
     const tarif = tarifAppel(suivisEnMoyenne);
-    const appelsAn = apprenantsAn * duree;             // un appel par apprenant et par mois de parcours
+    const appelsAn = suivisAn * dureeSuivi;            // un appel par apprenant suivi et par mois de suivi
     const coutFilRougeAn = appelsAn * tarif;
     const coutFilRougeMois = coutFilRougeAn / 12;
-    const coutParApprenant = duree * tarif;
+    const coutParApprenant = dureeSuivi * tarif;
 
     const equilibreAbandons = coutUnAbandon > 0 ? coutFilRougeAn / coutUnAbandon : Infinity;
     const equilibrePct = abandonsAn > 0 ? equilibreAbandons / abandonsAn : Infinity;
@@ -77,6 +88,7 @@
     return {
       apprenantsAn, prix, taux, duree, perte, evites, cpf, assid, perteSansPlancher, coutAbandonsSansPlancher,
       abandonsAn, coutUnAbandon, coutAbandonsAn,
+      risque, risquePct, dureeSuivi, suivisAn, risqueSousTaux: risque && risquePct < taux,
       suivisEnMoyenne, tarif, appelsAn, coutFilRougeAn, coutFilRougeMois, coutParApprenant,
       equilibreAbandons, equilibrePct,
       abandonsEvites, gainBrut, solde, heuresLibereesMois,
