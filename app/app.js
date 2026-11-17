@@ -771,6 +771,7 @@
     if (morceaux[0] === "preuves") return { nom: "preuves", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "eleves" && UUID.test(morceaux[1] || "")) return { nom: "eleves", id: morceaux[1] };
     if (morceaux[0] === "impayes") return { nom: "impayes" };
+    if (morceaux[0] === "compta") return { nom: "compta" };
     if (morceaux[0] === "devis") return { nom: "devis" };
     if (morceaux[0] === "satisfaction") return { nom: "satisfaction", id: UUID.test(morceaux[1] || "") ? morceaux[1] : null };
     if (morceaux[0] === "entrainement") return { nom: "entrainement", morceaux: morceaux.slice(1).filter((m) => m === "nouveau" || /^[a-z]+$/.test(m) || UUID.test(m)) };
@@ -879,6 +880,7 @@
     if (route.nom === "modeles-email") return modelesEmail().route(route.morceaux);
     if (route.nom === "satisfaction") return ecranSatisfaction(route.id);
     if (route.nom === "impayes") return ecranImpayes();
+    if (route.nom === "compta") return ecranCompta();
     if (route.nom === "devis") return ecranDevis();
     if (route.nom === "prospection") return ecranProspection(route.etape);
     if (route.nom === "nouveau") return ecranNouvelOrganisme();
@@ -1043,6 +1045,8 @@
               " à faire (J-30, J-7 ou J-1). ",
               lienInterne("examens", "Voir les examens"))
           : null,
+
+        h("p", { class: "lien-suite" }, lienInterne("compta", "💶 Compta : ce que je gagne, ce que récupèrent les centres →")),
 
         blocCompteurs(compterAlertes(apprenants.data), apprenants.data.length),
         h("p", { class: "lien-suite" }, lienInterne("rappels", "Voir qui rappeler en premier →")),
@@ -4660,6 +4664,7 @@
         lien("examens", "Relances d'examen"),
         lien("satisfaction", "Satisfaction", d.avis ? nombre(d.avis, true) : null),
         lien("acces", "Accès clients", d.acces ? nombre(d.acces, true) : null),
+        lien("compta", "Compta"),
         lien("impayes", "Impayés", d.impayes ? nombre(d.impayes, true) : null),
         lien("devis", "Demandes de devis", d.devis ? nombre(d.devis, true) : null),
         lien("script", "Script d'appel"),
@@ -5724,6 +5729,167 @@
         h("div", { class: "section-titre" }, h("h2", {}, "À encaisser"), h("p", {}, String(aVenir.length))),
         aVenir.length ? h("div", { class: "pile" }, aVenir.map(ligneAvecClient)) : h("p", { class: "aide" }, "Rien en attente."))));
     if (document.activeElement && document.activeElement.type === "date") document.activeElement.blur();
+    window.scrollTo(0, 0);
+  }
+
+  // ===========================================================================
+  // COMPTA : chiffres réels de l'activité + simulateur de gains
+  // ===========================================================================
+  // Administratrice seulement (routeAdmin) : les appelantes et les centres ne
+  // voient jamais cette page. Calculs dans compta.js (testés : tests/compta.test.js).
+  // ===========================================================================
+
+  const CLE_SIMU_COMPTA = "filrouge-simu-compta";
+
+  async function ecranCompta() {
+    const C = window.FilRougeCompta;
+    afficher(h("p", { class: "chargement" }, "Chargement de la compta…"));
+    const debutMois = aujourdhui().slice(0, 8) + "01";
+    const [orgs, ech, appr, app, eche] = await Promise.all([
+      sb.from("organismes").select("id, nom, organismes_suivi_commercial ( etape )"),
+      sb.from("echanges_commerciaux").select("organisme_id, canal"),
+      sb.from("apprenants").select("organisme_id, statut"),
+      sb.from("appels").select("organisme_id, date_appel").gte("date_appel", debutMois),
+      sb.from("vue_echeances").select("organisme_id, mois, montant, statut"),
+    ]);
+    const erreur = orgs.error || ech.error || appr.error || app.error;
+    if (erreur) return afficher(message("erreur", texteErreur(erreur)));
+
+    let reglages = { ...C.DEFAUTS };
+    try { Object.assign(reglages, JSON.parse(localStorage.getItem(CLE_SIMU_COMPTA) || "{}")); } catch (_) { /* navigateur sans stockage */ }
+
+    const lireBilan = () => C.bilan({
+      organismes: orgs.data.map((o) => ({ id: o.id, nom: o.nom, etape: etapeDe(o) })),
+      echanges: ech.data, apprenants: appr.data, appels: app.data,
+      echeances: eche.error ? [] : eche.data, jour: aujourdhui(), taux: reglages.taux,
+    });
+    const compteur = (valeur, libelle, couleur) =>
+      h("div", { class: `compteur${couleur ? " compteur-" + couleur : ""}` },
+        h("span", { class: "compteur-valeur" }, valeur), h("span", { class: "compteur-libelle" }, libelle));
+
+    // --- 1. Mon activité (chiffres réels) ---
+    const zoneReel = h("div", { class: "pile" });
+    function dessinerReel() {
+      const b = lireBilan();
+      zoneReel.replaceChildren(
+        h("section", { class: "pile-serree" },
+          h("div", { class: "section-titre" }, h("h2", {}, "Commercial"), h("p", {}, lienInterne("prospection", "Ouvrir le CRM"))),
+          h("div", { class: "compteurs" },
+            compteur(String(b.appelesTel), b.appelsProspection > 1 ? `centres appelés (${b.appelsProspection} appels)` : "centres appelés"),
+            compteur(String(b.contactes), "centres contactés (tous canaux)"),
+            compteur(String(b.clients), b.clients > 1 ? "clients signés" : "client signé", b.clients ? "vert" : null),
+            compteur(C.pct(b.transformation), "contactés → signés"))),
+        h("section", { class: "pile-serree" },
+          h("div", { class: "section-titre" }, h("h2", {}, "Suivi des élèves"), h("p", {}, "ce mois-ci")),
+          h("div", { class: "compteurs" },
+            compteur(String(b.apprenantsSuivis), "élèves suivis en ce moment"),
+            compteur(String(b.appelsMois), "appels de suivi passés ce mois"),
+            compteur(String(b.termines), "élèves allés au bout", "vert"),
+            compteur(C.pct(b.tauxAbandon), "taux d'abandon constaté", b.tauxAbandon > 0.2 ? "orange" : null))),
+        h("section", { class: "pile-serree" },
+          h("div", { class: "section-titre" }, h("h2", {}, `Argent ${b.annee}`), h("p", {}, lienInterne("impayes", "Voir les impayés"))),
+          eche.error ? message("info", "La comptabilité n'est pas encore activée dans la base : les montants s'afficheront ensuite.") : null,
+          h("div", { class: "compteurs" },
+            compteur(C.euros(b.facture), "facturé"),
+            compteur(C.euros(b.encaisse), "encaissé", "vert"),
+            compteur(C.euros(b.enRetard + b.aEncaisser), b.enRetard ? `à encaisser, dont ${C.euros(b.enRetard)} en retard` : "à encaisser", b.enRetard ? "rouge" : null),
+            compteur(C.euros(b.net), `net estimé après cotisations (${String(reglages.taux).replace(".", ",")} %)`)),
+          b.partPlafond >= 0.8
+            ? message("action", `Attention : ${C.pct(b.partPlafond)} du plafond de la micro-entreprise (${C.euros(C.TAUX.plafondCA)}) est atteint cette année.`)
+            : null),
+        h("section", { class: "pile-serree" },
+          h("div", { class: "section-titre" }, h("h2", {}, "Par client"), h("p", {}, pluriel(b.parClient.length, "centre", "centres"))),
+          b.parClient.length
+            ? h("ul", { class: "liste" }, b.parClient.map((c) => h("li", { class: "ligne" },
+                h("span", { class: "ligne-titre" }, lienInterne(`organisme/${c.id}/compta`, c.nom)),
+                h("span", { class: "ligne-detail pastilles compta-pastilles" },
+                  c.etape !== "client" ? pastille("orange", LIBELLE_ETAPE_UNE[c.etape] || "Essai") : null,
+                  pastille("neutre", pluriel(c.apprenants, "élève", "élèves")),
+                  pastille("neutre", `${pluriel(c.appelsMois, "appel", "appels")} ce mois`),
+                  c.enRetard ? pastille("rouge", `${C.euros(c.enRetard)} en retard`) : null),
+                h("span", { class: "ligne-detail" }, `Facturé ${C.euros(c.facture)} · encaissé ${C.euros(c.encaisse)}`))))
+            : message("info", "Pas encore de client : les chiffres apparaîtront dès le premier contrat.")));
+    }
+
+    // --- 2. Simulateur ---
+    const champs = {
+      apprenants: champTexte("cp-apprenants", "Élèves suivis", reglages.apprenants, { type: "number", inputmode: "numeric" }),
+      prixFormation: champTexte("cp-prix", "Prix d'une formation (€)", reglages.prixFormation, { type: "number", inputmode: "decimal" }),
+      sauves: champTexte("cp-sauves", "Élèves sauvés (vont au bout au lieu d'abandonner)", reglages.sauves, { type: "number", inputmode: "numeric" }),
+      financement: champChoix("cp-financement", "Financement", { cpf: "CPF (Mon Compte Formation)", autre: "OPCO, perso ou autre" }, reglages.financement),
+      assiduiteAbandon: champTexte("cp-assiduite", "Avancement moyen quand un élève abandonne (%)", reglages.assiduiteAbandon, { type: "number", inputmode: "numeric" }),
+      pertePart: champTexte("cp-perte", "Part du prix perdue par abandon (%)", reglages.pertePart, { type: "number", inputmode: "numeric" }),
+      dureeMois: champTexte("cp-duree", "Durée du suivi (mois)", reglages.dureeMois, { type: "number", inputmode: "numeric" }),
+      appelsParMois: champTexte("cp-appels", "Appels par élève et par mois", reglages.appelsParMois, { type: "number", inputmode: "decimal" }),
+      tarifFixe: champTexte("cp-tarif", "Prix d'un appel (€) — vide = grille 20 / 15 / 12 €", reglages.tarifFixe, { type: "number", inputmode: "decimal" }),
+      taux: champChoix("cp-taux", "Mes cotisations URSSAF", { [C.TAUX.acre]: `1re année avec l'ACRE (${String(C.TAUX.acre).replace(".", ",")} %)`, [C.TAUX.normal]: `Taux normal (${String(C.TAUX.normal).replace(".", ",")} %)` }, String(reglages.taux)),
+    };
+    const resultat = h("div", { class: "pile" });
+
+    function lire() {
+      const e = {};
+      for (const [cle, c] of Object.entries(champs)) e[cle] = c.champ.value;
+      e.taux = Number(e.taux);
+      return e;
+    }
+    function calculer() {
+      reglages = lire();
+      try { localStorage.setItem(CLE_SIMU_COMPTA, JSON.stringify(reglages)); } catch (_) { /* rien */ }
+      const cpf = reglages.financement === "cpf";
+      champs.assiduiteAbandon.bloc.hidden = !cpf;
+      champs.pertePart.bloc.hidden = cpf;
+      const r = C.simuler(reglages);
+      const tauxTxt = `${String(reglages.taux).replace(".", ",")} %`;
+      const carte = (titre, couleur, grand, sousTitre, lignes) => h("div", { class: `carte carte-large compta-carte compta-${couleur}` },
+        h("p", { class: "surtitre" }, titre),
+        h("p", { class: "compta-montant" }, grand),
+        h("p", { class: "aide" }, sousTitre),
+        h("ul", { class: "compta-detail" }, lignes.filter(Boolean).map(([k, v]) => h("li", {}, h("span", {}, k), h("strong", {}, v)))));
+      resultat.replaceChildren(
+        h("div", { class: "compta-cartes" },
+          carte("Ce que je gagne", "violet", C.euros(r.net), `net sur ${pluriel(r.duree, "mois", "mois")}, soit ${C.euros(r.netParMois)} par mois`, [
+            ["Appels à passer", `${r.appels}`],
+            ["Prix d'un appel", `${C.euros(r.tarif)}${r.tarifFixe ? " (fixé)" : " (grille)"}`],
+            ["Chiffre d'affaires", C.euros(r.chiffreAffaires)],
+            [`Cotisations URSSAF (${tauxTxt})`, `− ${C.euros(r.cotisations)}`],
+          ]),
+          carte("Ce que paie le centre", "orange", C.euros(r.coutCentre), `soit ${C.euros(r.coutParApprenant)} par élève suivi`, [
+            ["Par mois", C.euros(r.parMois)],
+            ["Élèves à sauver pour être remboursé", Number.isFinite(r.equilibre) ? String(r.equilibre) : "—"],
+          ]),
+          carte("Ce que récupère le centre", "vert", C.euros(r.recupere), r.multiple ? `${r.multiple.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} € récupérés pour 1 € payé` : "aucun élève sauvé dans ce calcul", [
+            ["Par élève sauvé", C.euros(r.valeurUnSauve)],
+            ["Gain net pour le centre", `${r.solde >= 0 ? "+ " : "− "}${C.euros(Math.abs(r.solde))}`],
+          ])),
+        r.sauves && r.recupere < r.prixEntier
+          ? h("p", { class: "message message-info" },
+              h("strong", {}, `Pourquoi ${C.euros(r.recupere)} et pas ${C.euros(r.prixEntier)} ? `),
+              cpf
+                ? `En CPF, un élève qui abandonne rapporte quand même une partie du prix au centre (25 % minimum, puis au prorata de son avancement, et 100 % au-delà de 80 %). Avec un abandon moyen à ${r.perte === 0.75 ? "moins de 25" : Math.round((1 - r.perte) * 100)} %, chaque élève sauvé fait récupérer ${C.euros(r.valeurUnSauve)} sur ${C.euros(r.prix)}.`
+                : `Le calcul retient que le centre perd ${Math.round(r.perte * 100)} % du prix quand un élève abandonne : chaque élève sauvé fait donc récupérer ${C.euros(r.valeurUnSauve)}.`)
+          : null,
+        h("p", { class: "aide" }, "Estimation, pas une promesse : le nombre d'élèves sauvés est une hypothèse. Taux URSSAF 2026, prestations de services commerciales (BIC), formation professionnelle comprise."));
+    }
+
+    const boutonReel = h("button", { type: "button", class: "bouton bouton-secondaire", onclick: () => {
+      const b = lireBilan();
+      if (b.apprenantsSuivis) champs.apprenants.champ.value = String(b.apprenantsSuivis);
+      calculer();
+    } }, "Remplir avec mes élèves suivis");
+    const formulaire = h("form", { novalidate: true, class: "formulaire compta-formulaire", oninput: calculer, onchange: calculer, onsubmit: (ev) => ev.preventDefault() },
+      Object.values(champs).map((c) => c.bloc));
+
+    afficher(h("div", { class: "pile" },
+      h("div", {},
+        h("p", { class: "surtitre" }, "Comptabilité"),
+        h("h1", {}, "Compta"),
+        h("p", { class: "chapo" }, "Tes chiffres réels en un coup d'œil, et un simulateur : ce que tu gagnes, ce que paie le centre, ce qu'il récupère.")),
+      zoneReel,
+      h("section", { class: "pile-serree" },
+        h("div", { class: "section-titre" }, h("h2", {}, "Simulateur"), h("p", {}, boutonReel)),
+        h("div", { class: "compta-simu" }, resultat, h("div", { class: "carte carte-large" }, h("p", { class: "surtitre" }, "Tes hypothèses"), formulaire)))));
+    dessinerReel();
+    calculer();
     window.scrollTo(0, 0);
   }
 
