@@ -839,7 +839,11 @@
       // À gauche (à la place de la conversation) : le script ; à droite : les objections.
       return {
         transcrire,
-        script: h("section", { class: "entr-script carte", "aria-label": "Script" }, rappel, h("h2", { class: "entr-aide-titre" }, "📋 Script"), script),
+        script: h("section", { class: "entr-script carte", "aria-label": "Script" }, rappel, h("h2", { class: "entr-aide-titre" }, "📋 Script"),
+          h("div", { class: "actions" },
+            h("a", { class: "bouton bouton-petit bouton-secondaire", href: "https://www.canva.com/d/vl7iiIkkuaaSQSD", target: "_blank", rel: "noopener" }, "💶 Plaquette tarifs"),
+            h("a", { class: "bouton bouton-petit bouton-secondaire", href: "simulateur.html?n=150&p=2500&d=6&t=20", target: "_blank", rel: "noopener" }, "🧮 Exemple chiffré")),
+          script),
         objections: h("aside", { class: "entr-aide carte", "aria-label": "Objections" }, objections),
       };
     }
