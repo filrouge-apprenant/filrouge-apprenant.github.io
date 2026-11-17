@@ -387,7 +387,14 @@
         champ("acq-n", "Apprenants inscrits par an", 150, "Estimation : liste publique (nombre de stagiaires) ou ce que le centre t'a dit."),
         champ("acq-p", "Prix moyen d'une formation (€)", 2500),
         champ("acq-d", "Durée moyenne d'un parcours (mois)", 6),
-        champ("acq-t", "Taux d'abandon ou d'absence à l'examen (%)", 20, "Si tu ne le connais pas, laisse 20 % : le prospect mettra le sien."));
+        champ("acq-t", "Taux d'abandon ou d'absence à l'examen (%)", 20, "Si tu ne le connais pas, laisse 20 % : le prospect mettra le sien."),
+        h("label", { class: "sim-champ" }, "Financement des formations",
+          h("select", { id: "acq-f" },
+            h("option", { value: "autre" }, "Surtout hors CPF (OPCO, entreprise…) : 50 % du prix perdu par abandon"),
+            h("option", { value: "cpf" }, "Surtout CPF : règles de paiement Mon Compte Formation"))),
+        h("label", { class: "sim-champ", id: "acq-bloc-a", hidden: true }, "Avancement moyen de l'apprenant quand il abandonne (%)",
+          h("input", { id: "acq-a", type: "number", inputmode: "decimal", min: "0", max: "100", value: "20" }),
+          h("span", { class: "sim-aide" }, "CPF : sous 25 % d'avancement le centre touche 25 % du prix, de 25 à 80 % le prorata, au-delà de 80 % la totalité.")));
       const res = h("div", { class: "pile-serree", "aria-live": "polite" });
       const actions = h("div", { class: "actions-ligne" });
       const zone = h("div", {});
@@ -395,16 +402,22 @@
 
       function maj() {
         const org = orgs.find((o) => o.id === choix.value) || null;
-        const r = C.calculer({ apprenantsAn: val("acq-n"), prixFormation: val("acq-p"), dureeMois: val("acq-d"), tauxAbandon: val("acq-t"), pertePart: 50 });
-        res.replaceChildren(
+        const cpf = val("acq-f") === "cpf";
+        form.querySelector("#acq-bloc-a").hidden = !cpf;
+        const r = C.calculer({ apprenantsAn: val("acq-n"), prixFormation: val("acq-p"), dureeMois: val("acq-d"), tauxAbandon: val("acq-t"), pertePart: 50,
+          financement: val("acq-f"), assiduiteAbandon: val("acq-a") });
+        remplacer(res,
           h("div", { class: "sim-cartes" },
             h("div", { class: "sim-carte sim-carte-rouge" }, h("p", { class: "sim-chiffre" }, C.euros(r.coutAbandonsAn)), h("p", { class: "sim-legende" }, `abandons par an (${C.nombre(r.abandonsAn)} × ${C.euros(r.coutUnAbandon)})`)),
             h("div", { class: "sim-carte" }, h("p", { class: "sim-chiffre" }, C.euros(r.coutFilRougeAn)), h("p", { class: "sim-legende" }, `Fil Rouge par an (${C.euros(r.tarif)} l'appel, ${C.euros(r.coutFilRougeMois)} / mois)`)),
             h("div", { class: "sim-carte sim-carte-verte" }, h("p", { class: "sim-chiffre" }, Number.isFinite(r.equilibreAbandons) ? C.nombre(Math.ceil(r.equilibreAbandons)) : "—"), h("p", { class: "sim-legende" }, "abandons évités pour être remboursé"))),
+          r.cpf && r.coutAbandonsSansPlancher > r.coutAbandonsAn + 0.5
+            ? h("p", { class: "aide" }, `Argument CPF : sans système de relance prouvable, la Caisse des dépôts peut retirer le forfait de 25 % ; les abandons coûteraient alors ${C.euros(r.coutAbandonsSansPlancher)} par an au centre.`) : null,
           h("p", { class: "aide" }, `Chiffre d'affaires pour toi si le centre signe : environ ${C.euros(r.coutFilRougeMois)} par mois.`));
         const params = new URLSearchParams();
         if (org) params.set("o", org.nom);
         params.set("n", val("acq-n")); params.set("p", val("acq-p")); params.set("d", val("acq-d")); params.set("t", val("acq-t"));
+        if (cpf) { params.set("f", "cpf"); params.set("a", val("acq-a")); }
         const lien = new URL(`simulateur.html?${params}`, window.location.href).href.replace(/#.*$/, "");
         majEmail(org, lien);
         const copierVierge = h("button", { type: "button", class: "bouton bouton-secondaire" }, "📋 Copier le lien vierge");
@@ -490,6 +503,7 @@
         h("p", { class: "aide" }, h("a", { href: "#/modeles-email", class: "lien-interne" }, "Modifier ces e-mails"), " dans la page Modèles d'emails, catégorie « Prospection — envoi du simulateur »."));
 
       form.addEventListener("input", maj);
+      form.addEventListener("change", maj);
       form.addEventListener("submit", (e) => e.preventDefault());
       afficher(cadre("simulateur", "Le prospect calcule lui-même ce que lui coûtent les abandons. Prépare la simulation ici, puis envoie-lui le lien : ses chiffres sont pré-remplis, il peut les changer.",
         h("section", { class: "carte carte-large" }, form),
