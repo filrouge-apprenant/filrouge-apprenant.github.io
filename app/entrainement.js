@@ -359,6 +359,7 @@
           rang += 2;
           if (termine) return;
           ajouter("apprenant", r.reponse);
+          aide?.transcrire(texte, r.reponse);
           majEtat(mode === "voix" && sonActif ? `${prenom(s.apprenant_nom)} parle…` : "À vous.");
           await parler(r.reponse);
           // L'appel ne se coupe jamais tout seul : c'est toi qui raccroches.
@@ -502,6 +503,7 @@
       afficher(aide ? h("div", { class: "entr-avec-aide" }, ecranAppel, aide.objections) : ecranAppel);
 
       ajouter("apprenant", depart.reponse);
+      aide?.transcrire(null, depart.reponse);
       majEtat(mode === "voix" ? `${prenom(s.apprenant_nom)} décroche…` : "À vous : présentez-vous.");
       await parler(depart.reponse);
       if (!termine) {
@@ -747,12 +749,13 @@
       const parties = D ? D.parties : [];
       const iAccroche = parties.findIndex((p) => /accroche/i.test(p.titre));
       const iConclusion = parties.findIndex((p) => /conclusion/i.test(p.titre));
+      let deroule = null;
       const script = h("div", { class: "pile pile-serree" },
         D ? [
           h("p", { class: "aide" }, D.chapo),
           parties.slice(0, iAccroche).map(pliable),
           // De l'accroche à la conclusion : un seul texte qui se lit d'un trait (sans titres ni consignes).
-          h("div", { class: "entr-deroule" }, parties.slice(iAccroche, iConclusion + 1).flatMap((partie) => [
+          (deroule = h("div", { class: "entr-deroule" }, parties.slice(iAccroche, iConclusion + 1).flatMap((partie) => [
             ...emplacements(partie).map((cle) => (rappels[cle] = h("div"))),
             ...partie.blocs.flatMap((b) =>
             b.dire ? [h("p", {}, `« ${remplir(b.dire)} »`)]
@@ -760,7 +763,7 @@
               : b.questions && !b.consignes ? b.questions.map((q) => h("p", {}, `« ${remplir(q)} »`))
                 : []),
             ...(/découverte/i.test(partie.titre) ? [(rappels.ecoute = h("div"))] : []),
-          ])),
+          ]))),
           parties.slice(iConclusion + 1).filter((p) => /messagerie/i.test(p.titre)).map(pliable),
         ] : h("p", { class: "aide" }, "Script indisponible."));
 
@@ -797,8 +800,45 @@
       const rappelObjections = h("div");
       const objections = h("div", { class: "pile pile-serree" }, rappelObjections,
         O ? O.panneau({ h, contact, organisme: s.formation, titre: "Objections" }) : h("p", { class: "aide" }, "Objections indisponibles."));
+      // Transcription dans le script : chaque réponse du prospect s'affiche juste
+      // sous la phrase du script que tu viens de dire (repérée par les mots en
+      // commun). Si tu as improvisé, elle se place après la réponse précédente,
+      // avec ce que tu as dit en petit au-dessus.
+      const sansAccents = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const motsDe = (t) => new Set(sansAccents(t).split(/[^a-z0-9]+/).filter((m) => m.length >= 4));
+      let dernierePlace = null;
+      function transcrire(dit, reponse) {
+        if (!deroule || !reponse) return;
+        const lignes = [...deroule.children].filter((el) => el.tagName === "P");
+        let cible = null, meilleur = 0;
+        if (dit) {
+          const mots = motsDe(dit);
+          for (const l of lignes) {
+            const ml = motsDe(l.textContent);
+            if (!ml.size) continue;
+            let communs = 0;
+            for (const m of ml) if (mots.has(m)) communs += 1;
+            const score = communs / ml.size;
+            if (score > meilleur) { meilleur = score; cible = l; }
+          }
+        }
+        const reconnu = cible && meilleur >= 0.35;
+        const bulle = h("div", { class: "entr-repli" },
+          !reconnu && dit ? h("p", { class: "entr-repli-moi" }, `Toi : « ${dit} »`) : null,
+          h("p", {}, h("strong", {}, `${prenom(s.apprenant_nom)} : `), `« ${reponse} »`));
+        let apres;
+        if (reconnu) {
+          apres = cible;
+          while (apres.nextElementSibling && apres.nextElementSibling.classList.contains("entr-repli")) apres = apres.nextElementSibling;
+        } else apres = dernierePlace;
+        if (apres) apres.after(bulle); else deroule.prepend(bulle);
+        dernierePlace = bulle;
+        bulle.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+
       // À gauche (à la place de la conversation) : le script ; à droite : les objections.
       return {
+        transcrire,
         script: h("section", { class: "entr-script carte", "aria-label": "Script" }, rappel, h("h2", { class: "entr-aide-titre" }, "📋 Script"), script),
         objections: h("aside", { class: "entr-aide carte", "aria-label": "Objections" }, objections),
       };

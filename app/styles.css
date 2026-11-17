@@ -1450,6 +1450,7 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 }
 
 /* Une couleur par thème d'objection : trait coloré + fond très clair (jamais d'aplat foncé). */
+.obj-cat-accueil    { --obj-c: #3949ab; --obj-f: #eef0fb; --obj-trait: #d0d5f1; }
 .obj-cat-barrage    { --obj-c: #2f6fb3; --obj-f: #eef4fc; --obj-trait: #cfe0f4; }
 .obj-cat-besoin     { --obj-c: #2e7d4f; --obj-f: #edf7f1; --obj-trait: #cbe6d5; }
 .obj-cat-prix       { --obj-c: #c06a00; --obj-f: #fef4e6; --obj-trait: #f6dbb6; }
@@ -1574,3 +1575,9 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 .compta-detail li strong { white-space: nowrap; text-align: right; }
 .compta-detail li span { min-width: 0; }
 .compta-pastilles { display: flex; flex-wrap: wrap; gap: 0.3rem; justify-content: flex-start; }
+
+/* Entraînement : réponses du prospect insérées dans le script */
+.entr-repli { margin: 0.35rem 0 0.6rem 1.2rem; padding: 0.45rem 0.7rem; border-left: 3px solid var(--fil); background: var(--fond-doux); border-radius: 0 var(--rayon) var(--rayon) 0; }
+.entr-repli p { margin: 0; line-height: 1.45; }
+.entr-repli strong { color: var(--violet); }
+.entr-repli-moi { font-size: 0.85rem; color: var(--texte-doux); margin-bottom: 0.25rem !important; }

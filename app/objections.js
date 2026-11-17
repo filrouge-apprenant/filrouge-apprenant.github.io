@@ -66,6 +66,7 @@
   };
 
   const CATEGORIES = [
+    { cle: "accueil", titre: "Passer l'accueil (pas la bonne personne)" },
     { cle: "barrage", titre: "Début d'appel" },
     { cle: "besoin", titre: "« On n'en a pas besoin »" },
     { cle: "prix", titre: "Prix et budget" },
@@ -85,6 +86,119 @@
   ];
 
   const OBJECTIONS = [
+    // ------------------------------------------------- Passer l'accueil (barrages)
+    // L'accueil, l'assistante ou un collègue décroche : le but n'est pas de vendre
+    // mais d'obtenir le bon interlocuteur, son nom ou un créneau précis.
+    { id: "acc_reunion", cat: "accueil", bouton: "Il est en réunion", profils: ["tous"],
+      dit: "Il est en réunion / il n'est pas disponible.",
+      cache: "Vrai ou filtre poli : dans les deux cas, il te faut un créneau précis.",
+      accueil: "Pas de souci, je comprends.",
+      creuser: "À quel moment de la journée est-il le plus facile à joindre : plutôt tôt le matin ou en fin de journée ?",
+      repondre: [
+        "Je préfère le rappeler moi-même pour ne pas lui ajouter un message à traiter.",
+      ],
+      relancer: "Je le rappelle demain à 8 h 45 ou plutôt jeudi à 17 h 30 ? Et vous pouvez me redire son prénom et son nom, que je le demande correctement ?",
+      eviter: "Laisser ton numéro et attendre : il ne rappellera presque jamais. Garde la main sur le rappel.",
+      mots: "réunion absent indisponible occupé rappeler" },
+
+    { id: "acc_message", cat: "accueil", bouton: "Laissez-moi un message", profils: ["tous"],
+      dit: "Laissez-moi vos coordonnées, il vous rappellera.",
+      cache: "Le message finira souvent sous la pile.",
+      accueil: "Merci, c'est gentil.",
+      creuser: "Est-ce qu'il rappelle habituellement dans la journée, ou c'est plutôt compliqué pour lui en ce moment ?",
+      repondre: [
+        "Je vous laisse volontiers mon nom : Émilie Rachas, de Fil Rouge Apprenants, au sujet du suivi des apprenants à distance.",
+        "Et pour ne pas le déranger, je me permets de le rappeler moi-même.",
+      ],
+      relancer: "Quel serait le meilleur créneau pour le joindre directement cette semaine ?",
+      eviter: "Raccrocher avec seulement « il vous rappellera » : note le nom de la personne qui t'a répondu et un créneau.",
+      mots: "message coordonnées rappellera numéro" },
+
+    { id: "acc_mail", cat: "accueil", bouton: "Écrivez à contact@", profils: ["tous"],
+      dit: "Envoyez un mail à contact@, je transmettrai.",
+      cache: "La boîte générale est rarement lue par le décideur.",
+      accueil: "Très bien, je vais le faire.",
+      creuser: "Pour qu'il arrive à la bonne personne : à l'attention de qui je l'adresse ? Qui s'occupe du suivi des apprenants chez vous ?",
+      repondre: [
+        "Je mettrai son nom dans l'objet pour que vous puissiez le transférer facilement.",
+      ],
+      relancer: "Et si je n'ai pas de retour, je peux rappeler jeudi pour savoir s'il l'a bien reçu ?",
+      eviter: "Envoyer un mail à contact@ sans nom de destinataire ni date de rappel.",
+      mots: "mail contact adresse générique email transmettre" },
+
+    { id: "acc_nom", cat: "accueil", bouton: "Je ne donne pas de nom", profils: ["tous"],
+      dit: "Je ne peux pas vous donner le nom ni le mail de la direction.",
+      cache: "Consigne de confidentialité : ne force pas, contourne.",
+      accueil: "Je comprends tout à fait, c'est normal.",
+      creuser: "Sans me donner son nom : c'est plutôt la direction ou un responsable pédagogique qui gère le suivi des apprenants à distance ?",
+      repondre: [
+        "Je ne vous demande pas ses coordonnées : juste de pouvoir lui expliquer en deux minutes pourquoi j'appelle.",
+      ],
+      relancer: "Vous pouvez me mettre en relation, ou me dire à quel moment je peux la joindre au standard ?",
+      eviter: "Insister ou te vexer. Cherche le nom ensuite sur le site, LinkedIn ou Pappers (dirigeants).",
+      mots: "nom confidentiel email direction refuse" },
+
+    { id: "acc_commerciaux", cat: "accueil", bouton: "On ne passe pas les commerciaux", profils: ["tous"],
+      dit: "On ne passe pas les appels commerciaux.",
+      cache: "Consigne générale : elle protège son responsable, pas un refus de sa part.",
+      accueil: "Je comprends, et je ne veux pas vous mettre en difficulté.",
+      creuser: "Est-ce que je peux vous poser une question rapide : vos apprenants à distance, c'est quelqu'un chez vous qui les appelle quand ils décrochent ?",
+      repondre: [
+        "Je n'appelle pas pour vendre un logiciel : j'appelle les apprenants des organismes chaque mois pour qu'ils aillent jusqu'à l'examen.",
+        "C'est un sujet qui concerne directement la personne qui gère les abandons et Qualiopi.",
+      ],
+      relancer: "Qui serait la bonne personne pour en parler ? Je peux lui écrire directement à son nom.",
+      eviter: "Mentir sur l'objet de l'appel (« c'est personnel ») : tu perds toute confiance.",
+      mots: "commercial démarchage consigne filtre" },
+
+    { id: "acc_cest_moi", cat: "accueil", bouton: "« C'est moi qui gère ça »", profils: ["tous"],
+      dit: "C'est moi qui m'occupe de ça, dites-moi.",
+      cache: "Peut-être vrai, peut-être un filtre de plus. Il faut savoir qui décide.",
+      accueil: "Parfait, merci.",
+      creuser: "Pour bien comprendre : vous vous occupez du suivi des apprenants au quotidien, ou aussi des choix de prestataires ?",
+      repondre: [
+        "Je vous explique en 30 secondes, et vous me direz si c'est utile d'en parler avec la direction.",
+      ],
+      relancer: "Si ça vous parle, on organise 15 minutes ensemble avec la personne qui valide ce type de décision ?",
+      eviter: "Tout dérouler à quelqu'un qui ne décide pas, sans demander comment se prend la décision.",
+      mots: "c'est moi gère responsable décide filtre" },
+
+    { id: "acc_mauvais", cat: "accueil", bouton: "Ce n'est pas le bon service", profils: ["tous"],
+      dit: "Ce n'est pas le bon service / ce n'est pas moi.",
+      cache: "Bonne nouvelle : la personne peut t'orienter.",
+      accueil: "Merci de me le dire.",
+      creuser: "Qui s'occupe chez vous du suivi des apprenants à distance et des abandons ?",
+      repondre: [
+        "Je vous remercie, ça m'aide beaucoup.",
+      ],
+      relancer: "Vous pouvez me transférer, ou me donner le meilleur moment pour la joindre ? Je dirai que c'est vous qui m'avez orientée.",
+      eviter: "Raccrocher sur un « ce n'est pas moi » sans repartir avec un nom.",
+      mots: "service mauvais pas moi orienter transférer" },
+
+    { id: "acc_messagerie", cat: "accueil", bouton: "Je vous passe sa messagerie", profils: ["tous"],
+      dit: "Je vous passe sa messagerie.",
+      cache: "Un message vocal long ne sera pas écouté jusqu'au bout.",
+      accueil: "Merci.",
+      creuser: "Avant que vous transfériez : à quel moment est-il le plus souvent à son bureau ?",
+      repondre: [
+        "Message de 20 secondes : ton nom, Fil Rouge Apprenants, une phrase sur le sujet (les apprenants qui décrochent à distance), et le moment où tu rappelles.",
+      ],
+      relancer: "« Je vous rappelle jeudi à 9 h ; si c'est plus simple, mon numéro est le … » Puis rappelle bien jeudi à 9 h.",
+      eviter: "Laisser un long message commercial, ou attendre son rappel sans rappeler toi-même.",
+      mots: "messagerie répondeur vocal transférer" },
+
+    { id: "acc_semaines", cat: "accueil", bouton: "Pas dispo avant des semaines", profils: ["tous"],
+      dit: "Il n'aura pas de temps avant des semaines.",
+      cache: "Agenda plein, ou réponse toute faite.",
+      accueil: "Je comprends, c'est une période chargée.",
+      creuser: "Il y a quelqu'un d'autre chez vous qui suit les apprenants au quotidien et avec qui je pourrais commencer ?",
+      repondre: [
+        "Je n'ai besoin que de 15 minutes, au moment qui l'arrange, même tôt le matin.",
+      ],
+      relancer: "Je peux vous proposer deux créneaux par mail, et vous me dites celui qui lui convient ?",
+      eviter: "Accepter un « rappelez dans deux mois » sans date ni autre interlocuteur.",
+      mots: "semaines agenda chargé pas disponible" },
+
     // ------------------------------------------------------------ Début d'appel
     { id: "temps", cat: "barrage", bouton: "Pas le temps", profils: ["dirigeant", "pedago", "qualite"],
       dit: "Je n'ai pas le temps, là.",
@@ -123,7 +237,7 @@
       eviter: "Argumenter avant de savoir pourquoi. Un « non » propre aujourd'hui peut devenir un « oui » dans trois mois.",
       mots: "non merci pas besoin" },
 
-    { id: "objet", cat: "barrage", bouton: "C'est à quel sujet ?", profils: ["tous"],
+    { id: "objet", cat: "accueil", bouton: "C'est à quel sujet ?", profils: ["tous"],
       dit: "C'est à quel sujet ? (le standard ou l'assistante)",
       cache: "Barrage normal : on filtre les commerciaux.",
       accueil: "Bien sûr.",
