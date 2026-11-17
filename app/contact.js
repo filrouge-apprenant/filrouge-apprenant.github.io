@@ -223,19 +223,70 @@
 
   // Numéro de la tentative de relance du mois : appels téléphoniques du mois
   // civil (heure de Paris) sans contact abouti. 0 si l'apprenant a déjà été
-  // joint ce mois-ci (plus de relance automatique). Plafonné à 8.
+  // joint ce mois-ci (plus de relance automatique). Plafonné à 10.
+  //
+  // Règle de facturation (contrat client, article 4, 17 novembre 2026) :
+  //  - jusqu'à 10 tentatives d'appel par mois ;
+  //  - un apprenant injoignable est facturé dès 5 tentatives réparties sur
+  //    au moins 3 jours différents, le matin (avant 12 h) et en fin de
+  //    journée (à partir de 17 h), heure de Paris ;
+  //  - emails de relance automatiques aux tentatives 1 et 5 seulement.
+  const REGLE_TENTATIVES = { max: 10, facture: 5, jours: 3, matinAvant: 12, soirDes: 17, emails: [1, 5] };
+
+  const PARIS = { timeZone: "Europe/Paris" };
+  const moisParis = (d) => new Intl.DateTimeFormat("fr-CA", { ...PARIS, year: "numeric", month: "2-digit" }).format(new Date(d));
+  const jourParis = (d) => new Intl.DateTimeFormat("fr-CA", { ...PARIS, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(d));
+  // Heure (0 à 23) à Paris, en décimal : 17 h 30 → 17,5.
+  const heureParis = (d) => {
+    const p = new Intl.DateTimeFormat("en-GB", { ...PARIS, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(d));
+    const v = (t) => Number((p.find((x) => x.type === t) || {}).value || 0);
+    return v("hour") + v("minute") / 60;
+  };
+  const estJoint = (a) => a.resultat === "joint" || (a.statuts || []).includes("joint");
+  const estTelephone = (a) => (a.canal || "telephone") === "telephone";
+
+  function appelsDuMois(appels, maintenant) {
+    const ceMois = moisParis(maintenant || new Date());
+    return (appels || []).filter((a) => a && a.date_appel && !Number.isNaN(new Date(a.date_appel).getTime()) && moisParis(a.date_appel) === ceMois);
+  }
+
   function tentativeDuMois(appels, maintenant) {
-    const mois = (d) => new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit" }).format(new Date(d));
-    const ceMois = mois(maintenant || new Date());
-    const duMois = (appels || []).filter((a) => a && a.date_appel && mois(a.date_appel) === ceMois);
-    if (duMois.some((a) => a.resultat === "joint" || (a.statuts || []).includes("joint"))) return 0;
-    const n = duMois.filter((a) => (a.canal || "telephone") === "telephone").length;
-    return Math.min(n, 8);
+    const duMois = appelsDuMois(appels, maintenant);
+    if (duMois.some(estJoint)) return 0;
+    return Math.min(duMois.filter(estTelephone).length, REGLE_TENTATIVES.max);
+  }
+
+  // Bilan du mois pour la facturation d'un apprenant.
+  // joint : joint·e ce mois-ci (facturé comme un appel normal).
+  // facturable : joint·e, ou injoignable avec la règle des 5 tentatives respectée.
+  // manque : ce qu'il reste à faire pour que le mois soit facturable (phrases courtes).
+  function facturationDuMois(appels, maintenant) {
+    const R = REGLE_TENTATIVES;
+    const duMois = appelsDuMois(appels, maintenant);
+    const tel = duMois.filter(estTelephone);
+    const joint = duMois.some(estJoint);
+    const jours = new Set(tel.map((a) => jourParis(a.date_appel))).size;
+    const matin = tel.some((a) => heureParis(a.date_appel) < R.matinAvant);
+    const soir = tel.some((a) => heureParis(a.date_appel) >= R.soirDes);
+    const tentatives = tel.length;
+    const manque = [];
+    if (!joint) {
+      if (tentatives < R.facture) manque.push(`${R.facture - tentatives} tentative${R.facture - tentatives > 1 ? "s" : ""} de plus`);
+      if (jours < R.jours) manque.push(`${R.jours - jours} jour${R.jours - jours > 1 ? "s" : ""} différent${R.jours - jours > 1 ? "s" : ""} de plus`);
+      if (!matin) manque.push(`un appel le matin (avant ${R.matinAvant} h)`);
+      if (!soir) manque.push(`un appel en fin de journée (à partir de ${R.soirDes} h)`);
+    }
+    return {
+      tentatives, jours, matin, soir, joint,
+      facturable: joint || !manque.length,
+      maxAtteint: tentatives >= R.max,
+      manque,
+    };
   }
 
   const api = {
-    MODELES, VARIABLES_EMAIL, numeroInternational, lienWhatsApp, lienSms, lienEmail, lienGmail, remplir, modeleConseille, dateEnLettres,
-    remplirModeleEmail, variablesRestantes, tentativeDuMois,
+    MODELES, VARIABLES_EMAIL, REGLE_TENTATIVES, numeroInternational, lienWhatsApp, lienSms, lienEmail, lienGmail, remplir, modeleConseille, dateEnLettres,
+    remplirModeleEmail, variablesRestantes, tentativeDuMois, facturationDuMois,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else racine.FilRougeContact = api;

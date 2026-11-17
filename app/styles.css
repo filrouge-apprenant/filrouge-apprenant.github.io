@@ -1552,3 +1552,6 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 .entr-point-faible p { margin: 0 0 0.3rem; }
 .entr-point-faible .surtitre { color: var(--alerte-orange); }
 .entr-script.carte { max-width: none; max-height: 60vh; overflow-y: auto; }
+
+/* Liste à puces sobre (cases de la facturation du mois) */
+.liste-simple { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; }

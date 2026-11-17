@@ -6,7 +6,7 @@
 //   - Page « Modèles d'emails » (administratrice) : modifier, ajouter,
 //     désactiver un modèle, créer une catégorie, aperçu sur un élève fictif.
 //   - Relances automatiques : un modèle peut porter un numéro de tentative
-//     (1 à 8). Après un appel sans réponse, la plateforme envoie celui qui
+//     (1 à 10 ; par défaut 1 et 5). Après un appel sans réponse, la plateforme envoie celui qui
 //     correspond à la tentative du mois (voir app.js, formulaire d'appel).
 //   - Envoi par la fonction serveur « envoyer-email » (Brevo, gratuit). Sans
 //     clé Brevo, l'email s'ouvre tout prêt dans Gmail : un clic pour l'envoyer.
@@ -75,10 +75,11 @@
     const relanceAutoActive = () => { try { return localStorage.getItem(CLE_AUTO) !== "non"; } catch { return true; } };
     const choisirRelanceAuto = (oui) => { try { localStorage.setItem(CLE_AUTO, oui ? "oui" : "non"); } catch { /* navigateur sans stockage */ } };
 
-    // Modèle de relance pour la tentative n (1 à 8). S'il n'existe pas, le plus proche en dessous.
+    // Modèle de relance pour la tentative n (1 à 10). Seulement celui qui porte
+    // exactement ce numéro : sans modèle pour ce numéro, aucun email ne part
+    // (règle du 17 novembre 2026 : emails automatiques aux tentatives 1 et 5).
     function modeleDeTentative(liste, n) {
-      const relances = actifs(liste).filter((m) => m.tentative && pour(m) === "apprenant").sort((a, b) => a.tentative - b.tentative);
-      return relances.filter((m) => m.tentative <= n).pop() || null;
+      return actifs(liste).find((m) => m.tentative === n && pour(m) === "apprenant") || null;
     }
 
     // -------------------------------------------------------------------------
@@ -148,7 +149,7 @@
       const champObjet = champTexte("me-objet", "Objet de l'email", "");
       const champTexteMail = champTexte("me-texte", "Message", "", { multiligne: true });
       champTexteMail.champ.rows = 12;
-      const choixTentatives = { "": "Non (envoi à la main seulement)", ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [String(n), `Oui, à la tentative n° ${n}`])) };
+      const choixTentatives = { "": "Non (envoi à la main seulement)", ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => [String(n), `Oui, à la tentative n° ${n}`])) };
       const champTentative = champChoix("me-tentative", "Relance automatique après un appel sans réponse", choixTentatives, "");
       const champPour = champChoix("me-pour", "Pour qui ?", DESTINATAIRES, "apprenant");
       const champActif = h("input", { type: "checkbox", id: "me-actif" });
@@ -267,7 +268,9 @@
         h("div", { class: "entete-page" }, h("h1", {}, "Modèles d'emails"),
           h("p", { class: "aide" }, "Choisissez une catégorie puis un email pour le modifier. Les variables entre accolades se remplacent toutes seules à l'envoi (prénom, organisme…).")),
         h("div", { id: "me-message" }),
-        h("section", { class: "carte carte-large pile pile-serree" }, etatEnvoi, selection.bloc),
+        h("section", { class: "carte carte-large pile pile-serree" }, etatEnvoi,
+          h("p", { class: "aide" }, "Relances après un appel manqué : 2 emails par mois au plus, l'un au 1er appel manqué, l'autre à la 5e tentative (celle qui rend le mois facturable). Pour changer, choisissez le numéro de tentative d'un modèle ci-dessous."),
+          selection.bloc),
         h("div", { class: "deux-colonnes deux-colonnes-larges" },
           h("section", { class: "carte carte-large" }, formulaire),
           h("section", { class: "carte carte-large pile pile-serree" }, h("h2", {}, "Aperçu"), apercuObjet, apercuTexte, apercuManque)));

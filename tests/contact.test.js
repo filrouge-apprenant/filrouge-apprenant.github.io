@@ -97,8 +97,53 @@ test("numéro de tentative du mois", () => {
   assert.equal(C.tentativeDuMois(appels, now), 2, "2 appels du mois, l'email et le mois dernier ne comptent pas");
   assert.equal(C.tentativeDuMois([...appels, { date_appel: "2026-11-15T09:00:00Z", resultat: "joint", canal: "telephone" }], now), 0, "joint ce mois-ci : plus de relance");
   const beaucoup = Array.from({ length: 11 }, (_, i) => ({ date_appel: `2026-11-${String(i + 1).padStart(2, "0")}T09:00:00Z`, resultat: "injoignable", canal: "telephone" }));
-  assert.equal(C.tentativeDuMois(beaucoup, now), 8, "plafonné à 8");
+  assert.equal(C.tentativeDuMois(beaucoup, now), 10, "plafonné à 10");
   assert.equal(C.tentativeDuMois([{ date_appel: "2026-10-31T23:30:00Z", resultat: "injoignable", canal: "telephone" }], now), 1, "31 oct. 23 h 30 UTC = 1er nov. à Paris");
+});
+
+test("facturation du mois : 5 tentatives, 3 jours, matin et fin de journée", () => {
+  const now = new Date("2026-11-20T10:00:00Z");
+  const ap = (iso, resultat = "injoignable", canal = "telephone") => ({ date_appel: iso, resultat, canal });
+  // Heures en UTC ; Paris = UTC+1 en novembre.
+  const bon = [
+    ap("2026-11-03T08:00:00Z"), // 9 h
+    ap("2026-11-03T16:30:00Z"), // 17 h 30
+    ap("2026-11-05T09:00:00Z"),
+    ap("2026-11-07T17:00:00Z"), // 18 h
+    ap("2026-11-07T08:30:00Z"),
+  ];
+  let f = C.facturationDuMois(bon, now);
+  assert.equal(f.facturable, true);
+  assert.equal(f.tentatives, 5); assert.equal(f.jours, 3);
+  assert.deepEqual(f.manque, []);
+
+  f = C.facturationDuMois(bon.slice(0, 4), now);
+  assert.equal(f.facturable, false, "4 tentatives seulement");
+  assert.deepEqual(f.manque, ["1 tentative de plus"]);
+
+  const memeJour = [1, 2, 3, 4, 5].map((i) => ap(`2026-11-03T${String(i + 6).padStart(2, "0")}:00:00Z`));
+  f = C.facturationDuMois(memeJour, now);
+  assert.equal(f.facturable, false);
+  assert.ok(f.manque.includes("2 jours différents de plus"));
+  assert.ok(f.manque.includes("un appel en fin de journée (à partir de 17 h)"));
+
+  const sansMatin = bon.map((a) => ({ ...a, date_appel: a.date_appel.replace(/T0\d:\d\d/, "T16:45") }));
+  f = C.facturationDuMois(sansMatin, now);
+  assert.deepEqual(f.manque, ["un appel le matin (avant 12 h)"]);
+
+  // 16 h 59 à Paris ne compte pas comme fin de journée ; 12 h ne compte pas comme matin.
+  f = C.facturationDuMois([ap("2026-11-03T15:59:00Z"), ap("2026-11-04T11:00:00Z")], now);
+  assert.equal(f.soir, false); assert.equal(f.matin, false);
+
+  // Les emails et le mois dernier ne comptent pas.
+  f = C.facturationDuMois([...bon.slice(0, 4), ap("2026-11-08T09:00:00Z", "messagerie", "email"), ap("2026-10-30T09:00:00Z")], now);
+  assert.equal(f.tentatives, 4); assert.equal(f.facturable, false);
+
+  // Joint·e ce mois-ci : facturable dès le premier appel.
+  f = C.facturationDuMois([ap("2026-11-03T14:00:00Z", "joint")], now);
+  assert.equal(f.joint, true); assert.equal(f.facturable, true); assert.deepEqual(f.manque, []);
+
+  assert.deepEqual(C.REGLE_TENTATIVES.emails, [1, 5]);
 });
 
 console.log(`\n${n} tests passés`);

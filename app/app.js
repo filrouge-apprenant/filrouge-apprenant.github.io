@@ -3052,7 +3052,7 @@
 
   // Relance après un appel sans réponse (répondeur, pas de réponse, message
   // vocal impossible) : l'email qui porte le numéro de la tentative du mois
-  // (1 à 8, page « Modèles d'emails ») part tout seul si l'envoi automatique
+  // (1 et 5 par défaut, page « Modèles d'emails ») part tout seul si l'envoi automatique
   // est actif ; sinon il s'ouvre tout prêt. Rien si l'élève a été joint·e ce mois-ci.
   // Renvoie une phrase à afficher sur la fiche, ou null.
   async function relanceApresAppel(a, statuts, rafraichir) {
@@ -3201,6 +3201,30 @@
         h("span", { class: "compteur-valeur" }, String(aboutis)),
         h("span", { class: "compteur-titre" }, aboutis > 1 ? "contacts aboutis" : "contact abouti"),
         h("span", { class: "compteur-libelle" }, `personne réellement eue · ${detailAboutis}`)));
+  }
+
+  // Facturation du mois (administratrice seulement : ni les clients ni les
+  // appelantes ne voient ce qui est facturé). Règle du contrat, article 4 :
+  // facturable si joint·e, ou dès 5 tentatives sur 3 jours, matin et fin de journée.
+  function blocFacturationMois(listeAppels) {
+    const C = window.FilRougeContact;
+    const R = C.REGLE_TENTATIVES;
+    const f = C.facturationDuMois(listeAppels);
+    const coche = (ok, texte) => h("li", {}, `${ok ? "✓" : "○"} ${texte}`);
+    const etatTexte = f.joint
+      ? "Joint·e ce mois-ci : facturable."
+      : f.facturable
+        ? `Injoignable, règle respectée : facturable.${f.maxAtteint ? "" : ` Vous pouvez encore essayer jusqu'à ${R.max} tentatives.`}`
+        : `Pas encore facturable : il manque ${f.manque.join(", ")}.`;
+    return h("div", { class: "carte carte-large pile pile-serree", "aria-label": "Facturation du mois" },
+      h("p", {}, h("strong", {}, "Facturation du mois "), pastille(f.facturable ? "vert" : "orange", f.facturable ? "facturable" : "pas encore"),
+        " ", `${f.tentatives} / ${R.max} tentatives d'appel`),
+      f.joint ? null : h("ul", { class: "liste-simple" },
+        coche(f.tentatives >= R.facture, `${R.facture} tentatives au moins (${f.tentatives})`),
+        coche(f.jours >= R.jours, `${R.jours} jours différents au moins (${f.jours})`),
+        coche(f.matin, `un appel le matin, avant ${R.matinAvant} h`),
+        coche(f.soir, `un appel en fin de journée, à partir de ${R.soirDes} h`)),
+      h("p", { class: "aide" }, etatTexte));
   }
 
   // Bouton « Effacer » en deux temps (« Effacer » puis « Oui, effacer »).
@@ -3746,6 +3770,7 @@
           h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_dernier_contact ? dateLisible(a.date_dernier_contact) : "—"), h("span", { class: "compteur-libelle" }, "dernier contact")),
           clientPeut("voir_examens") ? h("div", { class: "compteur" }, h("span", { class: "compteur-valeur compteur-valeur-date" }, a.date_examen ? dateLisible(a.date_examen) : "—"), h("span", { class: "compteur-libelle" }, "examen")) : null),
         clientPeut("voir_comptes_rendus") ? blocCompteursContact(appels.data) : null,
+        estAdmin ? blocFacturationMois(appels.data) : null,
         peutNoter ? h("div", { class: "actions-ligne" }, h("a", { class: "bouton", href: `#/script/${a.id}` }, "Appeler avec le script")) : null,
         blocContacterFiche);
 

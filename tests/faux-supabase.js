@@ -10,9 +10,9 @@
     apprenants: [{ id: ELEVE, organisme_id: ORG, prenom: "Julie", nom: "Martin", email: "julie@exemple.fr", telephone: "0612345678", parcours: "CAP Pâtissier", avancement_pct: 42, statut: "actif", organismes: { nom: "Académie Horizon", seuil_vert_jours: 7, seuil_orange_jours: 14 } }],
     appels: [],
     modeles_email: [
-      m("10000000-0000-4000-8000-000000000001", "Relance après un appel manqué", 1, 1, "Tentative 1 — J'ai essayé de vous joindre", "J'ai essayé de vous joindre", "Bonjour {prenom},\n\nJe viens d'essayer de vous appeler pour faire le point sur {formation}.\n\n{signature}"),
-      m("10000000-0000-4000-8000-000000000002", "Relance après un appel manqué", 2, 2, "Tentative 2 — Quel créneau vous arrange ?", "Quel moment vous arrange ?", "Bonjour {prenom},\n\nDites-moi quel moment vous convient.\n\n{signature}"),
-      m("10000000-0000-4000-8000-000000000003", "Relance après un appel manqué", 3, 3, "Tentative 3 — Où en êtes-vous ?", "Où en êtes-vous de votre formation ?", "Bonjour {prenom},\n\nOù en êtes-vous ? {avancement}\n\n{signature}"),
+      m("10000000-0000-4000-8000-000000000001", "Relance après un appel manqué", 1, 1, "Automatique — 1er appel manqué du mois", "J'ai essayé de vous joindre", "Bonjour {prenom},\n\nJe viens d'essayer de vous appeler pour faire le point sur {formation}.\n\n{signature}"),
+      m("10000000-0000-4000-8000-000000000002", "Relance après un appel manqué", 2, null, "À la main — Quel créneau vous arrange ?", "Quel moment vous arrange ?", "Bonjour {prenom},\n\nDites-moi quel moment vous convient.\n\n{signature}"),
+      m("10000000-0000-4000-8000-000000000005", "Relance après un appel manqué", 5, 5, "Automatique — 5e tentative du mois", "J'essaie de vous joindre depuis plusieurs jours", "Bonjour {prenom},\n\nJ'ai essayé de vous appeler plusieurs fois. {avancement}\n\n{signature}"),
       m("10000000-0000-4000-8000-000000000010", "Rendez-vous", 10, null, "Confirmation du prochain rendez-vous", "Notre prochain rendez-vous", "Bonjour {prenom},\n\nJe vous appellerai {date_rdv}.\n\n{signature}"),
       m("10000000-0000-4000-8000-000000000020", "Progression", 20, null, "Point du mois", "Point mensuel sur votre formation", "Bonjour {prenom},\n\nPoint sur {formation}. {avancement}\n\n{signature}"),
     ],

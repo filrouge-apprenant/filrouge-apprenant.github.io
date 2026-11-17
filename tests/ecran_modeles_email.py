@@ -75,28 +75,41 @@ async def main():
             ok("faire le point sur votre formation « CAP Pâtissier »" in envois[0]["texte"] and "{" not in envois[0]["texte"], "variables remplacées dans l'email envoyé")
             ok(await page.evaluate("__db.appels.filter(a => a.canal === 'email').length") == 1, "email ajouté à l'historique")
             await page.screenshot(path=f"{SORTIE}/2-relance-envoyee.png", full_page=True)
-            await appel_repondeur()
-            await page.wait_for_selector("text=Email de relance n° 2 envoyé")
-            ok((await page.evaluate("__envois"))[1]["objet"] == "Quel moment vous arrange ?", "répondeur n° 2 : relance n° 2 (l'email précédent ne compte pas comme tentative)")
+            # Tentatives 2 à 4 : aucun email (2 emails par mois seulement : tentatives 1 et 5)
+            for k in (2, 3, 4):
+                await appel_repondeur()
+                await page.wait_for_selector("text=Appel enregistré")
+                await page.wait_for_timeout(800)
+                ok(len(await page.evaluate("__envois")) == 1 and not await page.is_visible("dialog[open]"), f"tentative n° {k} : pas d'email")
 
-            # 3. Sans clé Brevo : la fenêtre s'ouvre, prête, sur la relance n° 3
+            # 3. Tentative 5, sans clé Brevo : la fenêtre s'ouvre, prête, sur l'email de la 5e tentative
             await page.evaluate("sessionStorage.setItem('brevo', 'non')")
             await page.reload()
-            await page.wait_for_selector("text=Statut de l'appel")
+            await page.goto(f"http://127.0.0.1:8765/index.html#/apprenant/{ELEVE}/statut")
+            await page.wait_for_selector("button:text-is('Statut')", timeout=8000)
+            await page.click("button:text-is('Statut')")
             await page.click(".menu-statuts summary")
             await page.check("input[name=statut-appel][value=injoignable]")
             await page.click("form:has(.menu-statuts) button[type=submit]")
             await page.wait_for_selector("dialog[open] #email-objet", timeout=8000)
-            ok(await page.input_value("dialog[open] #email-objet") == "Où en êtes-vous de votre formation ?", "sans Brevo : la relance n° 3 s'ouvre toute prête")
+            ok(await page.input_value("dialog[open] #email-objet") == "J'essaie de vous joindre depuis plusieurs jours", "tentative n° 5 (sans Brevo) : l'email s'ouvre tout prêt")
             await page.wait_for_selector("dialog[open] #email-modele")
-            ok(await page.eval_on_selector("dialog[open] #email-modele", "s => s.selectedOptions[0].textContent") == "Tentative 3 — Où en êtes-vous ?", "les deux menus pointent sur la bonne relance")
+            ok(await page.eval_on_selector("dialog[open] #email-modele", "s => s.selectedOptions[0].textContent") == "Automatique — 5e tentative du mois", "les deux menus pointent sur la bonne relance")
             await page.screenshot(path=f"{SORTIE}/3-fenetre-relance.png")
             await page.click("dialog[open] button:has-text('Annuler')")
+
+            # Bloc « Facturation du mois » : 5 tentatives, mais toutes le même jour
+            await page.goto(f"http://127.0.0.1:8765/index.html#/apprenant/{ELEVE}")
+            await page.wait_for_timeout(800)
+            await page.click("button:text-is('Fiche')")
+            await page.wait_for_selector("text=Facturation du mois", timeout=8000)
+            bloc = await page.inner_text("[aria-label='Facturation du mois']")
+            ok("5 / 10 tentatives" in bloc and "pas encore" in bloc and "2 jours différents de plus" in bloc, "facturation du mois : 5/10, pas encore facturable (un seul jour)")
+            await page.screenshot(path=f"{SORTIE}/7-facturation-mois.png", full_page=True)
 
             # 4. Email choisi à la main : catégorie Rendez-vous, date à compléter
             await page.evaluate("sessionStorage.setItem('brevo', 'oui')")
             await page.reload()
-            await page.wait_for_selector("text=Statut de l'appel")
             await page.goto(f"http://127.0.0.1:8765/index.html#/apprenant/{ELEVE}")
             await page.wait_for_timeout(800)
             await page.click("button:text-is('Fiche')")
@@ -123,9 +136,9 @@ async def main():
             await page.click(".scr-option:has-text('Répondeur')")
             await page.click("button:has-text('Garder les réponses seulement')")
             await page.click('button:text-is("Enregistrer l\'appel")')
-            await page.wait_for_selector("text=Email de relance n° 4 envoyé automatiquement", timeout=8000)
-            envois = await page.evaluate("__envois")
-            ok(len(envois) == avant + 1 and envois[-1]["objet"] == "Où en êtes-vous de votre formation ?", "script d'appel : répondeur -> relance envoyée (n° 4, modèle le plus proche faute de n° 4 dans la fausse base)")
+            await page.wait_for_timeout(1500)
+            ok(len(await page.evaluate("__envois")) == avant, "script d'appel : 6e tentative, pas d'email (seulement aux tentatives 1 et 5)")
+            ok(await page.evaluate("__db.appels.filter(a => a.canal === 'telephone').length") == 6, "script d'appel : la 6e tentative est bien comptée")
             await page.screenshot(path=f"{SORTIE}/6-script-relance.png")
 
             # 5. Joint·e ce mois-ci : plus de relance

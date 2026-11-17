@@ -1256,7 +1256,8 @@ rollback;
 \echo
 \echo '\n== Modèles d''emails (1er novembre 2026)'
 begin;
-select tests.verifier((select count(*) from public.modeles_email where tentative is not null) = 8, '8 modèles de relance, numérotés de 1 à 8');
+select tests.verifier((select array_agg(tentative::int order by tentative) from public.modeles_email where tentative is not null and actif) = array[1, 5], '2 relances automatiques seulement : tentatives 1 et 5');
+select tests.verifier((select count(*) from public.modeles_email where titre like 'À la main — %') = 6, 'les 6 autres relances restent disponibles à la main');
 select tests.session('11111111-1111-4111-8111-111111111111', 'aal2');
 set local role authenticated;
 select tests.verifier((select count(*) from public.modeles_email) >= 25, 'administratrice : lit tous les modèles');
@@ -1273,9 +1274,9 @@ select tests.session('44444444-4444-4444-8444-444444444444');
 set local role authenticated;
 select tests.verifier((select count(*) from public.modeles_email where not actif) = 0, 'appelante : ne lit que les modèles actifs');
 select tests.verifier((select count(*) from public.modeles_email) >= 25, 'appelante : lit les modèles actifs');
-update public.modeles_email set objet = 'Piratage' where tentative = 2;
+update public.modeles_email set objet = 'Piratage' where tentative = 5;
 reset role;
-select tests.verifier((select objet <> 'Piratage' from public.modeles_email where tentative = 2), 'appelante : ne peut pas modifier un modèle');
+select tests.verifier((select objet <> 'Piratage' from public.modeles_email where tentative = 5), 'appelante : ne peut pas modifier un modèle');
 select tests.session('22222222-2222-4222-8222-222222222222');
 set local role authenticated;
 select tests.verifier((select count(*) from public.modeles_email) = 0, 'client : ne voit aucun modèle');
