@@ -476,18 +476,45 @@
         }
         majBoutonsEmail();
       }
+      // Boutons créés une seule fois puis mis à jour : un bouton reconstruit pendant
+      // le clic (blur d'un champ -> « change » -> recalcul) perdrait le clic.
+      const EO = window.FilRougeEmailsOrganisme ? window.FilRougeEmailsOrganisme({ sb, h }) : null;
+      const Ct0 = window.FilRougeContact;
+      const btnBrevo = h("button", { type: "button", class: "bouton" }, "📨 Envoyer (accusé de réception)");
+      const lienGmailBtn = h("a", { class: "bouton bouton-secondaire", target: "_blank", rel: "noopener" }, "Gmail (sans accusé)");
+      const copierMail = h("button", { type: "button", class: "bouton bouton-secondaire" }, "📝 Copier l'e-mail");
+      copierMail.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(`${champObjetMail.value}\n\n${champTexteMail.value}`); signalEmail.replaceChildren(message("info", "E-mail copié.")); }
+        catch (e) { signalEmail.replaceChildren(message("erreur", "Copie impossible.")); }
+      });
+      btnBrevo.addEventListener("click", async () => {
+        if (!EO || !orgCourant || !orgCourant.email) return;
+        const reste = Ct0.variablesRestantes(champObjetMail.value + champTexteMail.value);
+        if (reste.length) { signalEmail.replaceChildren(message("erreur", `Il reste à compléter : {${reste.join("}, {")}}.`)); return; }
+        btnBrevo.disabled = true;
+        const r = await EO.envoyer({ organismeId: orgCourant.id, destinataire: orgCourant.email, objet: champObjetMail.value.trim(), texte: champTexteMail.value.trim(), modele: modeleCourant ? modeleCourant.titre : null });
+        btnBrevo.disabled = false;
+        signalEmail.replaceChildren(message(r.ok ? "info" : "erreur", r.texte));
+        signalEmail.dataset.garde = "1";
+      });
       function majBoutonsEmail() {
         const boite = (window.FIL_ROUGE_CONFIG || {}).emailFilRouge || "";
-        const Ct = window.FilRougeContact;
-        const gmail = orgCourant && orgCourant.email ? Ct.lienGmail(orgCourant.email, champObjetMail.value, champTexteMail.value, boite) : null;
-        const copierMail = h("button", { type: "button", class: gmail ? "bouton bouton-secondaire" : "bouton" }, "📝 Copier l'e-mail");
-        copierMail.addEventListener("click", async () => {
-          try { await navigator.clipboard.writeText(`${champObjetMail.value}\n\n${champTexteMail.value}`); signalEmail.replaceChildren(message("info", "E-mail copié.")); }
-          catch (e) { signalEmail.replaceChildren(message("erreur", "Copie impossible.")); }
-        });
-        remplacer(boutonsEmail,
-          gmail ? h("a", { class: "bouton", href: gmail, target: "_blank", rel: "noopener" }, `📧 Envoyer à ${orgCourant.email} (Gmail Fil Rouge)`) : null,
-          copierMail);
+        const gmail = orgCourant && orgCourant.email ? Ct0.lienGmail(orgCourant.email, champObjetMail.value, champTexteMail.value, boite) : null;
+        const brevo = !!(EO && orgCourant && orgCourant.email);
+        btnBrevo.hidden = !brevo;
+        if (brevo) btnBrevo.textContent = `📨 Envoyer à ${orgCourant.email} (accusé de réception)`;
+        lienGmailBtn.hidden = !gmail;
+        if (gmail) {
+          lienGmailBtn.setAttribute("href", gmail);
+          lienGmailBtn.className = brevo ? "bouton bouton-secondaire" : "bouton";
+          lienGmailBtn.textContent = brevo ? "Gmail (sans accusé)" : `📧 Envoyer à ${orgCourant.email} (Gmail Fil Rouge)`;
+        }
+        copierMail.className = gmail ? "bouton bouton-secondaire" : "bouton";
+        if (!boutonsEmail.firstChild) boutonsEmail.append(btnBrevo, lienGmailBtn, copierMail);
+        // Le message d'un envoi reste affiché tant qu'on ne change pas de centre.
+        const cleSignal = orgCourant ? orgCourant.id : "";
+        if (signalEmail.dataset.org === cleSignal && signalEmail.dataset.garde === "1") return;
+        signalEmail.dataset.org = cleSignal; signalEmail.dataset.garde = "";
         remplacer(signalEmail,
           orgCourant && !orgCourant.email ? h("p", { class: "aide" }, "Pas d'e-mail sur la fiche du centre : copie l'e-mail et colle-le dans ta messagerie, ou complète le contact dans l'onglet Suivi commercial.") : null,
           !orgCourant ? h("p", { class: "aide" }, "Choisis un centre pour que son nom et son contact s'écrivent dans l'e-mail.") : null);
@@ -778,7 +805,10 @@
         remplacer(zoneMenus, menus.bloc);
       }).catch(() => remplacer(zoneMenus, h("p", { class: "aide" }, "Emails tout prêts indisponibles : écris librement.")));
 
-      const envoyer = h("button", { type: "submit", class: "bouton" }, org.email ? "Envoyer avec Gmail Fil Rouge" : "Copier l'email");
+      const EO = window.FilRougeEmailsOrganisme ? window.FilRougeEmailsOrganisme({ sb, h }) : null;
+      const parBrevo = !!(EO && org.email);
+      const envoyer = h("button", { type: "submit", class: "bouton" }, parBrevo ? "📨 Envoyer avec accusé de réception" : org.email ? "Envoyer avec Gmail Fil Rouge" : "Copier l'email");
+      const viaGmail = parBrevo ? h("button", { type: "button", class: "bouton bouton-secondaire" }, "Gmail (sans accusé)") : null;
       const fermer = h("button", { type: "button", class: "bouton bouton-secondaire" }, "Fermer");
       const formulaire = h("form", { class: "formulaire", method: "dialog", novalidate: true },
         h("div", { class: "email-entete" },
@@ -788,7 +818,7 @@
         h("label", { class: "sim-champ" }, "Objet", objet),
         h("label", { class: "sim-champ" }, "Message", texte),
         blocRdv, zone,
-        h("div", { class: "actions-ligne" }, envoyer, fermer),
+        h("div", { class: "actions-ligne" }, envoyer, viaGmail, fermer),
         h("p", { class: "aide" }, "Simulateur : le lien envoyé d'ici est vide, le centre remplit ses chiffres. Pour les remplir à sa place : bouton « 🧮 Envoyer le simulateur »."));
       const dialogue = h("dialog", { class: "dialogue", "aria-label": "Écrire un email" },
         h("div", { class: "dialogue-titre" }, h("h2", {}, `Email à ${org.nom}`),
@@ -798,8 +828,7 @@
       dialogue.querySelector(".dialogue-fermer").addEventListener("click", fin);
       fermer.addEventListener("click", fin);
       dialogue.addEventListener("cancel", () => setTimeout(() => dialogue.remove(), 0));
-      formulaire.addEventListener("submit", async (e) => {
-        e.preventDefault();
+      async function parGmail() {
         const reste = Ct.variablesRestantes(objet.value + texte.value);
         if (reste.length) { remplacer(zone, message("erreur", `Il reste à compléter : {${reste.join("}, {")}}.`)); return; }
         if (org.email) {
@@ -815,6 +844,17 @@
         remplacer(zone, message("info", (org.email
           ? "Gmail est ouvert avec l'email tout prêt : clique « Envoyer » là-bas."
           : "Email copié : colle-le dans ta messagerie.") + (note ? " C'est noté dans l'historique du centre." : " (Pas pu le noter dans l'historique : ajoute-le à la main si besoin.)")));
+      }
+      if (viaGmail) viaGmail.addEventListener("click", parGmail);
+      formulaire.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!parBrevo) return parGmail();
+        const reste = Ct.variablesRestantes(objet.value + texte.value);
+        if (reste.length) { remplacer(zone, message("erreur", `Il reste à compléter : {${reste.join("}, {")}}.`)); return; }
+        envoyer.disabled = true;
+        const r = await EO.envoyer({ organismeId: org.id, destinataire: org.email, objet: objet.value.trim(), texte: texte.value.trim(), modele: titre });
+        envoyer.disabled = false;
+        remplacer(zone, message(r.ok ? "info" : "erreur", r.ok ? `${r.texte} C'est noté dans l'historique du centre.` : r.texte));
       });
       document.body.append(dialogue);
       dialogue.showModal();

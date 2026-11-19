@@ -5955,7 +5955,11 @@
     const dest = champTexte("canal-email-dest", "Destinataire", suivi.contact_email || "", { type: "email", inputmode: "email" });
     const objet = champTexte("canal-email-objet", "Objet", `Fil Rouge Apprenants — ${org.nom}`);
     const corpsEmail = champMessage("canal-email", `${salutation}\n\n\n\nBelle journée,\n${signature}`);
-    const ouvrirEmail = h("a", { class: "bouton", target: "_blank", rel: "noopener" }, "Ouvrir dans Gmail (boîte Fil Rouge)");
+    const ouvrirEmail = h("a", { class: "bouton bouton-secondaire", target: "_blank", rel: "noopener" }, "Ouvrir dans Gmail (sans accusé de réception)");
+    // Envoi par Brevo avec accusé de réception (19/11/2026) : emails-organisme.js.
+    const EO = window.FilRougeEmailsOrganisme ? window.FilRougeEmailsOrganisme({ sb, h }) : null;
+    const suiviEmails = EO ? EO.suivi(org.id) : null;
+    const envoyerBrevo = EO ? h("button", { type: "button", class: "bouton" }, "📨 Envoyer avec accusé de réception") : null;
     // Emails tout prêts (modèles « organisme ») : catégorie puis email.
     const q = new URLSearchParams(); q.set("o", org.nom || ""); q.set("vierge", "1");
     const lienSimVierge = new URL(`simulateur.html?${q}`, window.location.href).href.replace(/#.*$/, "");
@@ -5998,11 +6002,25 @@
       if (reste.length) { e.preventDefault(); return signaler(zoneEmail, "erreur", `Il reste à compléter : {${reste.join("}, {")}}.`); }
       noter(zoneEmail, "email", `Email envoyé${titreModele ? ` « ${titreModele} »` : ""} : ${objet.champ.value.trim()}`);
     });
-    const panneauEmail = h("div", { class: "carte carte-large pile-serree" },
-      suivi.contact_email ? null : sansContact("email"),
-      h("p", { class: "aide" }, `L'email part de ${boite || "la boîte Fil Rouge"}, avec ta signature.`),
-      zoneModeles, dest.bloc, rdv.bloc, objet.bloc, corpsEmail.bloc,
-      h("div", { class: "actions-ligne" }, ouvrirEmail), zoneEmail);
+    if (envoyerBrevo) envoyerBrevo.addEventListener("click", async () => {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(dest.champ.value.trim())) return signaler(zoneEmail, "erreur", "Indique une adresse email valable.");
+      const reste = C.variablesRestantes(objet.champ.value + corpsEmail.champ.value);
+      if (reste.length) return signaler(zoneEmail, "erreur", `Il reste à compléter : {${reste.join("}, {")}}.`);
+      occupe(envoyerBrevo, true, "Envoi…");
+      const r = await EO.envoyer({ organismeId: org.id, destinataire: dest.champ.value.trim(), objet: objet.champ.value.trim(), texte: corpsEmail.champ.value.trim(), modele: titreModele });
+      occupe(envoyerBrevo, false);
+      signaler(zoneEmail, r.ok ? "info" : "erreur", r.texte);
+      if (r.ok && suiviEmails) setTimeout(suiviEmails.actualiser, 1500);
+    });
+    const panneauEmail = h("div", { class: "pile" },
+      h("div", { class: "carte carte-large pile-serree" },
+        suivi.contact_email ? null : sansContact("email"),
+        h("p", { class: "aide" }, envoyerBrevo
+          ? `« Envoyer avec accusé de réception » : l'email part par Brevo (réponses dans ${boite || "la boîte Fil Rouge"}), et tu sais s'il est bien arrivé. Gmail reste possible, sans accusé de réception.`
+          : `L'email part de ${boite || "la boîte Fil Rouge"}, avec ta signature.`),
+        zoneModeles, dest.bloc, rdv.bloc, objet.bloc, corpsEmail.bloc,
+        h("div", { class: "actions-ligne" }, envoyerBrevo, ouvrirEmail), zoneEmail),
+      suiviEmails ? suiviEmails.bloc : null);
 
     // --- Téléphone ---
     const zoneTel = h("div");

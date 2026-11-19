@@ -1597,3 +1597,10 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 .entr-curseur { flex: 1 1 12rem; min-width: 10rem; height: 1.6rem; accent-color: var(--fil); cursor: pointer; }
 .entr-bulle-cliquable { cursor: pointer; }
 .entr-bulle-cliquable:hover { outline: 1px solid var(--rose-fort); }
+
+/* Emails aux organismes : accusés de réception (19/11/2026) */
+.email-suivi { border-left: 3px solid var(--filet); padding: 0.35rem 0.7rem; }
+.email-suivi p { margin: 0.1rem 0; }
+.email-suivi.email-delivre { border-left-color: #2e7d32; }
+.email-suivi.email-ouvert { border-left-color: var(--violet); }
+.email-suivi.email-rejete, .email-suivi.email-spam, .email-suivi.email-erreur { border-left-color: var(--fil); }

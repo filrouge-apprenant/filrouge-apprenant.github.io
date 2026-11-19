@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Page publique (19/11/2026) : un centre accepte ou refuse que Fil Rouge sache
+       quand il ouvre ses emails (recommandation CNIL du 12 mars 2026 sur les pixels
+       de suivi). Lien personnel : preferences-email.html?t=jeton. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://cafcevtehuywovvsllvp.supabase.co; base-uri 'self'; form-action 'self'">
+  <title>Vos préférences d'emails | Fil Rouge Apprenants</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="logo/icone.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="logo/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Instrument+Serif&display=swap">
+  <link rel="stylesheet" href="styles.css?v=__VERSION__">
+  <link rel="stylesheet" href="offre-pilote.css?v=__VERSION__">
+</head>
+<body>
+  <header class="bandeau">
+    <div class="bandeau-interieur">
+      <p class="marque">
+        <span class="marque-texte">Fil Rouge <span class="marque-sous">Apprenants</span></span>
+        <svg class="marque-fil" viewBox="0 0 320 64" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path d="M4 50 C 20 53, 32 53.8, 44 40 C 70 10, 170 2, 262 8 C 300 11, 316 24, 312 36 C 306 52, 250 60, 160 60 C 92 60, 30 57, 16 46 C 4 36, 10 16, 34 7"
+                fill="none" stroke="#c1121f" stroke-width="1.4" stroke-linecap="round" vector-effect="non-scaling-stroke" pathLength="1"/>
+        </svg>
+      </p>
+    </div>
+  </header>
+
+  <main class="op-page">
+    <section class="op-haut">
+      <p class="op-surtitre">Vos préférences</p>
+      <h1>Suivi de l'ouverture de nos emails</h1>
+      <p class="op-chapo" id="pref-pour">Chargement…</p>
+    </section>
+    <section class="op-bloc" aria-live="polite">
+      <p>Nos emails peuvent contenir une image invisible (un « pixel ») qui nous indique si et quand vous les ouvrez. Cela nous sert seulement à savoir si notre message vous est bien parvenu et à ne pas vous relancer inutilement.</p>
+      <p><strong>C'est vous qui choisissez.</strong> Sans réponse de votre part, rien n'est suivi. Vous pouvez changer d'avis à tout moment depuis le lien en bas de chacun de nos emails.</p>
+      <p id="pref-etat" class="op-note"></p>
+      <div class="op-actions" id="pref-boutons" hidden>
+        <button type="button" class="bouton" id="pref-oui">J'accepte</button>
+        <button type="button" class="bouton" id="pref-non">Je refuse</button>
+      </div>
+      <p id="pref-message" role="status"></p>
+      <p class="op-note">Ce choix ne concerne que l'ouverture des emails. Pour ne plus recevoir d'email de notre part, répondez simplement « STOP » à l'un d'eux. Plus d'informations : <a href="confidentialite.html">politique de confidentialité</a>.</p>
+    </section>
+  </main>
+
+  <footer class="op-pied">
+    <p>Fil Rouge Apprenants · Émilie Rachas · Lormont (Gironde) · <a href="mailto:contact.filrouge.apprenant@gmail.com">contact.filrouge.apprenant@gmail.com</a> · <a href="confidentialite.html">Confidentialité</a></p>
+  </footer>
+
+  <script src="config.js?v=__VERSION__"></script>
+  <script src="preferences-email.js?v=__VERSION__"></script>
+</body>
+</html>

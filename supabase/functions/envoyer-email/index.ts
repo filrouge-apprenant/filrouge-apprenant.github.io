@@ -111,7 +111,9 @@ Deno.serve(async (req: Request) => {
     headers: { "api-key": cle, "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
       sender: { name: `${prenomExpediteur} — Fil Rouge Apprenants`, email: Deno.env.get("EMAIL_EXPEDITEUR") || BOITE },
-      to: [{ email: destinataire, name: [apprenant.prenom, apprenant.nom].filter(Boolean).join(" ") || undefined }],
+      // Pas de suivi d'ouverture individuel pour les apprenants (recommandation CNIL
+      // du 12 mars 2026 sur les pixels de suivi : aucun consentement recueilli).
+      to: [{ email: destinataire, name: [apprenant.prenom, apprenant.nom].filter(Boolean).join(" ") || undefined, contactPixelTrackingConsent: false }],
       replyTo: { email: BOITE },
       subject: objet,
       htmlContent: html(texte),

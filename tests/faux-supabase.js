@@ -70,6 +70,12 @@
             if (nom === "filrouge-recherche") return Promise.resolve({ data: { total: 2, page: 1, pages: 1, resultats: [
               { siren: "111111111", nom: "ACADEMIE DISTANCE PRO (ADP)", effectif: "12", qualiopi: true, opposition: false, ville: "LYON", creation: "2015-03-01", etablissements: 1, ca: { annee: "2024", montant: 900000 }, dirigeants: ["Claire Dupont (Présidente de SAS)"], nda: "84691234569" },
               { siren: "222222222", nom: "HUPSO FORMATION", effectif: "21", qualiopi: true, opposition: true, ville: "PARIS", creation: "2012-01-01", etablissements: 1, ca: null, dirigeants: [], nda: null }] }, error: null });
+            if (nom === "email-organisme") {
+              window.__envoisOrg = window.__envoisOrg || [];
+              if (body.action === "envoyer") { window.__envoisOrg.push(body); return Promise.resolve({ data: { ok: true, id: uuid() }, error: null }); }
+              if (body.action === "lien_preferences") return Promise.resolve({ data: { lien: "https://filrouge-apprenant.github.io/preferences-email.html?t=test", suivi_ouverture: null }, error: null });
+              return Promise.resolve({ data: { ok: true, brevo: true, suivi_ouverture: null, emails: window.__envoisOrg.map((e, i) => ({ id: "e" + i, objet: e.objet, destinataire: e.destinataire, statut: "delivre", envoye_le: new Date().toISOString(), delivre_le: new Date().toISOString(), ouvertures: 0 })) }, error: null });
+            }
             if (nom !== "envoyer-email") return Promise.resolve({ data: null, error: null });
             if (body.action === "etat") return Promise.resolve({ data: { brevo: window.__brevo }, error: null });
             window.__envois.push(body); sauver();

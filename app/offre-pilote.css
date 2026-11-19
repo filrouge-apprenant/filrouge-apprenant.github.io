@@ -115,3 +115,8 @@ html { scroll-behavior: smooth; }
 .op-formulaire .op-choix-option input, .op-formulaire .op-case input { width: auto; flex: 0 0 auto; padding: 0; border: none; }
 /* Montant de la proposition : en grand (seul « HT » reste en petit) */
 .op-montant #pr-montant { font-family: inherit; font-size: inherit; color: inherit; }
+
+/* Page « Vos préférences » (preferences-email.html) */
+.op-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin: 1rem 0; }
+.op-actions .bouton { min-width: 9rem; }
+.op-note { color: var(--texte-doux); font-size: 0.95rem; }
