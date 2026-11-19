@@ -41,8 +41,6 @@
     $("sim-bloc-a").hidden = !cpf;
     $("sim-bloc-perte").hidden = cpf;
     $("r-plancher").hidden = true;
-    const risque = suivi.value === "risque";
-    $("sim-bloc-r").hidden = !risque; $("sim-bloc-ds").hidden = !risque;
     const manquants = ["n", "p", "d", "t"].filter((c) => champs[c].value.trim() === "");
     if (manquants.length) {
       for (const id of ["r-cout", "r-fr", "r-eq"]) $(id).textContent = "—";
@@ -78,10 +76,6 @@
     if (r.cpf && r.coutAbandonsSansPlancher > r.coutAbandonsAn + 0.5) {
       $("r-plancher").hidden = false;
       $("r-plancher").textContent = `Sans système de relance des stagiaires que vous pouvez prouver, la Caisse des dépôts peut supprimer le forfait de 25 % : les abandons coûteraient alors ${C.euros(r.coutAbandonsSansPlancher)} par an.`;
-    }
-    if (r.risqueSousTaux) {
-      $("r-plancher").hidden = false;
-      $("r-plancher").textContent = "La part d'apprenants à risque est inférieure à votre taux d'abandon : en pratique, elle est au moins égale (souvent le double).";
     }
     $("r-temps").textContent = `Temps libéré pour vos équipes : environ ${C.nombre(r.heuresLibereesMois)} heures par mois.`;
     $("r-e-val").textContent = fractionTexte(pct);

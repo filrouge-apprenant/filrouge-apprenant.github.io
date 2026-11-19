@@ -87,7 +87,8 @@ async def main():
                "à risque : 1 200 apprenants × 3 mois = 43 200 €, remboursé dès 72 abandons évités sur 576")
             await pub.select_option("#sim-s", "tous")
             await pub.wait_for_timeout(200)
-            ok(esp(await pub.text_content("#r-fr")) == "460 800 €" and not await pub.is_visible("#sim-r"), "formule « tous les apprenants » : 460 800 €")
+            ok(esp(await pub.text_content("#r-fr")) == "460 800 €", "formule « tous les apprenants » : 460 800 €")
+            ok(await pub.locator("label:has-text('Part de vos apprenants')").count() == 0 and await pub.locator("label:has-text('Durée du suivi')").count() == 0, "simulateur simplifié : plus de champs part à risque et durée du suivi")
 
             # --- Plateforme ---
             page = await nav.new_page(viewport={"width": 1280, "height": 900}, bypass_csp=True)

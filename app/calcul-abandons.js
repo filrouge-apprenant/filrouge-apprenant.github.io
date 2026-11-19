@@ -65,7 +65,8 @@
     // Qui est suivi : tous les inscrits pendant tout le parcours, ou seulement
     // les apprenants à risque pendant quelques mois.
     const risque = e.suivi === 'risque';
-    const risquePct = borne(e.risquePct == null || e.risquePct === '' ? H.risquePct : e.risquePct, 1, 100) / 100;
+    // La part à risque est au moins égale au taux d'abandon (on ne peut pas éviter un abandon qu'on n'appelle pas).
+    const risquePct = Math.max(taux, borne(e.risquePct == null || e.risquePct === '' ? H.risquePct : e.risquePct, 1, 100) / 100);
     const dureeSuivi = risque ? Math.min(duree, borne(e.dureeSuiviMois || H.dureeSuiviMois, 1, 36)) : duree;
     const suivisAn = risque ? Math.round(apprenantsAn * risquePct) : apprenantsAn;
     // Apprenants suivis en même temps (moyenne) = entrées par an × durée du suivi / 12.

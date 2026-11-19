@@ -399,11 +399,9 @@
           h("select", { id: "acq-s" },
             h("option", { value: "risque" }, "Seulement les apprenants à risque (recommandé)"),
             h("option", { value: "tous" }, "Tous les apprenants, pendant tout le parcours"))),
-        h("label", { class: "sim-champ", id: "acq-bloc-r" }, "Part des apprenants à risque (%)",
-          h("input", { id: "acq-r", type: "number", inputmode: "decimal", min: "1", max: "100", value: "25" }),
-          h("span", { class: "sim-aide" }, "Au moins le taux d'abandon, souvent le double (pas connectés depuis 2 à 4 semaines, en retard).")),
-        h("label", { class: "sim-champ", id: "acq-bloc-ds" }, "Durée du suivi d'un apprenant à risque (mois)",
-          h("input", { id: "acq-ds", type: "number", inputmode: "numeric", min: "1", max: "36", value: "3" })));
+        // Hypothèses fixes (simplifié le 19/11/2026) : 25 % d'apprenants à risque, 3 mois de suivi.
+        h("input", { id: "acq-r", type: "hidden", value: "25" }),
+        h("input", { id: "acq-ds", type: "hidden", value: "3" }));
       const res = h("div", { class: "pile-serree", "aria-live": "polite" });
       const actions = h("div", { class: "actions-ligne" });
       const zone = h("div", {});
@@ -414,7 +412,6 @@
         const cpf = val("acq-f") === "cpf";
         form.querySelector("#acq-bloc-a").hidden = !cpf;
         const risque = val("acq-s") === "risque";
-        form.querySelector("#acq-bloc-r").hidden = !risque; form.querySelector("#acq-bloc-ds").hidden = !risque;
         const r = C.calculer({ apprenantsAn: val("acq-n"), prixFormation: val("acq-p"), dureeMois: val("acq-d"), tauxAbandon: val("acq-t"), pertePart: 50,
           financement: val("acq-f"), assiduiteAbandon: val("acq-a"), suivi: val("acq-s"), risquePct: val("acq-r"), dureeSuiviMois: val("acq-ds") });
         remplacer(res,
