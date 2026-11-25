@@ -62,7 +62,7 @@ html { scroll-behavior: smooth; }
   line-height: 1;
   margin: 0 0 0.4rem;
 }
-.op-montant span { font-family: var(--police-texte); font-size: 1rem; color: var(--texte-doux); }
+.op-montant span { font-family: var(--police-texte); font-size: 1rem; color: var(--texte-doux); white-space: nowrap; display: inline-block; }
 .op-detail { margin: 0 0 0.25rem; font-weight: 700; }
 .op-remise { margin: 0 0 1.25rem; color: var(--fil); }
 .op-promo { display: inline-block; margin: 0 0 0.5rem; padding: 0.15rem 0.6rem; border: 1px solid var(--fil); border-radius: 999px; color: var(--fil); font-size: 0.85rem; font-weight: 600; letter-spacing: 0.02em; }
