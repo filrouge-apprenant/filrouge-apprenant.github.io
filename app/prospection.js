@@ -128,7 +128,7 @@
       exemple: "Proposition : article invité sur leur blog « Indicateur 19 : prouver le suivi à distance », avec le simulateur en lien.",
       auto: "Liste des éditeurs dans le CRM, étape « partenaire »." },
     { top: 9, nom: "L'essai de 30 jours sur les apprenants à risque comme porte d'entrée", famille: "Conversion",
-      comment: "Tout appel se termine par une seule proposition : 30 jours sur 20 apprenants à risque (2 appels chacun), un groupe témoin non appelé, puis un bilan chiffré. Objectif de reprise fixé ensemble : atteint, 3 mois au tarif normal ; sinon, rien à payer. Pas de devis au premier appel.",
+      comment: "Tout appel se termine par une seule proposition : 30 jours sur 20 apprenants à risque (2 appels chacun), 20 apprenants témoins non appelés, puis un bilan chiffré. Forfait de lancement de 490 € HT (au lieu de 600 €), payé à la commande ; ensuite, suite au tarif normal sans engagement. Pas de devis au premier appel.",
       interet: "Risque zéro pour le centre ; les comptes rendus vendent à ta place.", cout: "Ton temps (40 appels, environ 13 h)", diff: 1, conv: "Fort",
       outils: "Page offre-pilote.html, tunnel déjà en place sur la plateforme.",
       exemple: "« On fait simple : je prends 20 de vos apprenants qui ne se connectent plus, pendant 30 jours, et on compare avec ceux que je n'appelle pas. »",
@@ -455,7 +455,7 @@
       const signalEmail = h("div", {});
       const boutonsEmail = h("div", { class: "actions-ligne" });
       let modeleCourant = null, dernierLien = "", dernierOrg = undefined, orgCourant = null, lienCourant = "";
-      const MODELE_SECOURS = { objet: "Ce que vous coûtent les abandons — {organisme}", texte: "Bonjour {contact},\n\nComme promis, voici un calcul d'une minute préparé pour {organisme} : vous mettez vos propres chiffres et vous voyez ce que les abandons vous coûtent, et à partir de combien d'abandons évités un suivi téléphonique est remboursé.\n\n{lien_simulateur}\n\nVos chiffres restent dans votre navigateur, rien n'est enregistré.\n\nSi le résultat vous parle, on peut le vérifier sur vos vrais apprenants : 30 jours d'essai sur 20 apprenants à risque, avec un bilan chiffré à la fin.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants" };
+      const MODELE_SECOURS = { objet: "Ce que vous coûtent les abandons — {organisme}", texte: "Bonjour {contact},\n\nComme promis, voici un calcul d'une minute préparé pour {organisme} : vous mettez vos propres chiffres et vous voyez ce que les abandons vous coûtent, et à partir de combien d'abandons évités un suivi téléphonique est remboursé.\n\n{lien_simulateur}\n\nVos chiffres restent dans votre navigateur, rien n'est enregistré.\n\nSi le résultat vous parle, on peut le vérifier sur vos vrais apprenants : 30 jours d'essai de 30 jours sur 20 apprenants à risque (forfait de lancement de 490 € HT), avec un bilan chiffré à la fin.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants" };
       function appliquerModele() {
         const Ct = window.FilRougeContact;
         const r = Ct.remplirModeleEmail(modeleCourant || MODELE_SECOURS, {
@@ -906,7 +906,7 @@
       const blocMenus = h("div", {}, h("p", { class: "aide" }, "Chargement des e-mails tout prêts…"));
       const MODELE_DEFAUT = {
         objet: "Combien vous coûtent les abandons ? Le calcul pour {organisme}",
-        texte: "Bonjour {contact},\n\nEn formation à distance, chaque apprenant qui décroche, c'est du chiffre d'affaires perdu, et souvent un risque au moment de l'audit Qualiopi.\n\nJ'ai préparé pour {organisme} un calcul d'une minute : vous entrez vos chiffres (nombre d'apprenants, prix moyen, taux d'abandon) et vous voyez ce que les abandons vous coûtent chaque année, et à partir de combien d'abandons évités un suivi téléphonique est remboursé.\n\n{lien_simulateur}\n\nVos chiffres restent dans votre navigateur : rien n'est enregistré.\n\nSi le résultat vous parle, on peut le vérifier sur vos vrais apprenants : 30 jours d'essai sur 20 apprenants à risque, avec un bilan chiffré à la fin.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants\n06 17 75 56 17",
+        texte: "Bonjour {contact},\n\nEn formation à distance, chaque apprenant qui décroche, c'est du chiffre d'affaires perdu, et souvent un risque au moment de l'audit Qualiopi.\n\nJ'ai préparé pour {organisme} un calcul d'une minute : vous entrez vos chiffres (nombre d'apprenants, prix moyen, taux d'abandon) et vous voyez ce que les abandons vous coûtent chaque année, et à partir de combien d'abandons évités un suivi téléphonique est remboursé.\n\n{lien_simulateur}\n\nVos chiffres restent dans votre navigateur : rien n'est enregistré.\n\nSi le résultat vous parle, on peut le vérifier sur vos vrais apprenants : 30 jours d'essai de 30 jours sur 20 apprenants à risque (forfait de lancement de 490 € HT), avec un bilan chiffré à la fin.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants\n06 17 75 56 17",
       };
       let pret = false;
       const mettre = (m) => { champObjet.value = m.objet; champTexte.value = m.texte; if (pret) majApercu(); };

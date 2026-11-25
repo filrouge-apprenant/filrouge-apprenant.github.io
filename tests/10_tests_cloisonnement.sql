@@ -1163,7 +1163,7 @@ select tests.doit_etre_refuse(
 reset role;
 
 select tests.verifier(
-  (select type_offre = 'essai' and montant_total = 0 and nb_apprenants = 20 and duree_jours = 30 and appels_par_mois = 2 and titre like 'Essai de 30 jours%' and statut = 'demande'
+  (select type_offre = 'essai' and montant_total = 490 and prix_appel = 12.25 and description like '%490 € HT%' and description not like '%3 mois%' and nb_apprenants = 20 and duree_jours = 30 and appels_par_mois = 2 and titre like 'Essai de 30 jours%' and statut = 'demande'
      from public.propositions p join public.organismes o on o.id = p.organisme_id where o.nom = 'Centre Essai Test'),
   'demande d''essai : essai de 30 jours, 2 appels, plafonné à 20 apprenants');
 select tests.verifier(

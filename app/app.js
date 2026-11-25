@@ -19,7 +19,9 @@
   "use strict";
 
   // Texte de l'essai de 30 jours (même texte que prive.texte_essai_30_jours() en base).
-  const TEXTE_ESSAI_30_JOURS = "Jusqu'à 20 de vos apprenants à risque (pas connectés depuis 2 à 4 semaines), appelés deux fois chacun pendant 30 jours : point sur la progression, objectifs, relance, aide pour l'inscription à l'examen, et un email de relance après chaque appel manqué. Un groupe comparable n'est pas appelé, pour mesurer l'effet réel. Au 30e jour, un bilan chiffré de 30 minutes : combien ont repris leur formation et progressé, comparé aux apprenants non appelés. L'objectif de reprise est fixé ensemble au démarrage, selon votre plateforme : s'il est atteint, le suivi continue au tarif normal pendant 3 mois ; sinon, vous ne devez rien.";
+  // Forfait de l'essai (offre de lancement) : 490 € HT au lieu de 600 € (40 appels × 15 €).
+  const PRIX_ESSAI = 490;
+  const TEXTE_ESSAI_30_JOURS = "Jusqu'à 20 de vos apprenants à risque (pas connectés depuis 2 à 4 semaines), appelés deux fois chacun pendant 30 jours : point sur la progression, objectifs, relance, aide pour l'inscription à l'examen, et un email de relance après chaque appel manqué. 20 apprenants comparables ne sont pas appelés, pour mesurer l'effet réel. Au 30e jour, un bilan chiffré de 30 minutes : combien ont repris leur formation et progressé, comparé aux apprenants non appelés. Forfait de lancement : 490 € HT au lieu de 600 € HT (40 appels × 15 €), payable à la commande. Ensuite, vous décidez librement de continuer ou non, au tarif normal, sans engagement.";
 
   // ---------------------------------------------------------------------------
   // Démarrage du client Supabase
@@ -73,7 +75,7 @@
   const LIBELLES_ETAPE = {
     prospect: "Prospects",
     contacte: "Contactés",
-    test_gratuit: "Tests gratuits",
+    test_gratuit: "Essais 30 jours",
     client: "Clients",
     perdu: "Perdus",
   };
@@ -712,7 +714,7 @@
 
   const ETAPES = ["prospect", "contacte", "test_gratuit", "client", "perdu"];
   const LIBELLE_ETAPE_UNE = {
-    prospect: "Prospect", contacte: "Contacté", test_gratuit: "Test gratuit", client: "Client", perdu: "Perdu",
+    prospect: "Prospect", contacte: "Contacté", test_gratuit: "Essai 30 jours", client: "Client", perdu: "Perdu",
   };
   const COULEUR_ETAPE = {
     prospect: "neutre", contacte: "orange", test_gratuit: "orange", client: "vert", perdu: "neutre",
@@ -5064,11 +5066,11 @@
         const { error: e } = await sb.from("propositions").insert({
           organisme_id: org.id, statut: "brouillon", type_offre: "essai", titre: "Essai de 30 jours sur vos apprenants à risque",
           description: TEXTE_ESSAI_30_JOURS,
-          nb_apprenants: 20, duree_mois: 1, duree_jours: 30, appels_par_mois: 2, prix_appel: 0, montant_total: 0, paiement: "unique",
+          nb_apprenants: 20, duree_mois: 1, duree_jours: 30, appels_par_mois: 2, prix_appel: 12.25, montant_total: PRIX_ESSAI, paiement: "unique",
         });
         occupe(nouvelEssai, false);
         if (e) return signaler(zoneNouvelle, "erreur", texteErreur(e));
-        charger("Essai de 30 jours créé : envoie-le au centre pour qu'il l'accepte en ligne.");
+        charger("Essai de 30 jours créé (490 € HT) : crée le lien de paiement, puis envoie-le au centre.");
       });
       zone.replaceChildren(
         info ? message("info", info) : "",
@@ -5119,12 +5121,23 @@
     if (!essai) [nb, duree, appels, prix].forEach((c) => c.champ.addEventListener("input", calculer));
     [total.champ, paiement.champ].forEach((c) => c.addEventListener("input", majResume));
     paiement.champ.addEventListener("change", majResume);
-    if (essai) resume.textContent = `Gratuit · ${pluriel(p.duree_jours || 30, "jour", "jours")} · jusqu'à ${pluriel(p.nb_apprenants, "apprenant", "apprenants")} à risque, 2 appels chacun, groupe témoin et bilan chiffré. Objectif atteint : 3 mois au tarif normal. Une seule fois par organisme.`;
-    else majResume();
+    const resumeEssai = () => {
+      const n = Math.min(20, Math.max(1, Math.round(lireNombre(nb.champ))));
+      const t = lireNombre(total.champ);
+      resume.textContent = `${euros(t)} HT, payé à la commande · ${pluriel(p.duree_jours || 30, "jour", "jours")} · ${pluriel(n, "apprenant", "apprenants")} à risque, 2 appels chacun (${pluriel(n * 2, "appel", "appels")}, soit ${euros(t / (n * 2))} l'appel ; tarif normal : ${euros(n * 2 * 15)}), groupe témoin et bilan chiffré. Une seule fois par organisme, sans engagement ensuite.`;
+    };
+    if (essai) {
+      if (!(Number(p.montant_total) > 0)) total.champ.value = nombreFr(PRIX_ESSAI);
+      [nb.champ, total.champ].forEach((c) => c.addEventListener("input", resumeEssai));
+      resumeEssai();
+    } else majResume();
 
     const valeurs = () => essai ? ({
       titre: titre.champ.value.trim() || "Essai de 30 jours sur vos apprenants à risque",
       nb_apprenants: Math.min(20, Math.max(1, Math.round(lireNombre(nb.champ)))),
+      montant_total: Math.max(0, Math.round(lireNombre(total.champ) * 100) / 100),
+      prix_appel: Math.round((lireNombre(total.champ) / (2 * Math.min(20, Math.max(1, Math.round(lireNombre(nb.champ)))))) * 100) / 100,
+      paiement: "unique",
       description: description.champ.value.trim() || null,
       message_client: mot.champ.value.trim() || null,
       ...(p.statut === "demande" ? { statut: "brouillon" } : {}),
@@ -5179,7 +5192,7 @@
       if (r.error) return signaler(zoneMsg, "erreur", texteErreur(r.error));
       const prenom = suivi.contact_nom ? " " + suivi.contact_nom.split(" ")[0] : "";
       const texte = essai
-        ? `Bonjour${prenom},\n\nComme convenu, voici votre essai de 30 jours : j'appelle ${pluriel(p.nb_apprenants, "apprenant", "apprenants")} à risque deux fois chacun, avec une relance par email après chaque appel manqué, et un groupe comparable n'est pas appelé. Vous suivez chaque compte rendu dans votre espace en ligne. Au 30e jour, nous regardons ensemble combien ont repris leur formation, comparé aux apprenants non appelés. Si l'objectif de reprise que nous fixons au démarrage est atteint, le suivi continue au tarif normal pendant 3 mois ; sinon, vous ne devez rien.\n\nPour lancer l'essai, il suffit de l'accepter en ligne (1 minute) :\n${pageClient}\n\nJe reste disponible pour en parler.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants\n06 17 75 56 17`
+        ? `Bonjour${prenom},\n\nComme convenu, voici votre essai de 30 jours : j'appelle ${pluriel(p.nb_apprenants, "apprenant", "apprenants")} à risque deux fois chacun, avec une relance par email après chaque appel manqué, et un groupe comparable de 20 apprenants n'est pas appelé. Vous suivez chaque compte rendu dans votre espace en ligne. Au 30e jour, nous regardons ensemble combien ont repris leur formation, comparé aux apprenants non appelés. Ensuite, vous décidez librement de continuer ou non.\n\nForfait de lancement : ${euros(p.montant_total)} HT au lieu de ${euros((p.nb_apprenants || 20) * 2 * 15)} HT au tarif normal, payable à la commande.\n\nPour lancer l'essai, il suffit de l'accepter en ligne (1 minute)${p.stripe_lien_url ? ", le paiement par carte ou prélèvement vous est proposé juste après" : ""} :\n${pageClient}\n\nJe reste disponible pour en parler.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants\n06 17 75 56 17`
         : `Bonjour${prenom},\n\nComme convenu, voici ma proposition pour le suivi de vos apprenants : ${p.titre}.\n\n${pluriel(p.nb_apprenants, "apprenant", "apprenants")}, ${pluriel(p.duree_mois, "mois", "mois")}, ${nombreFr(p.appels_par_mois)} appel(s) par mois et par apprenant, à ${euros(p.prix_appel)} HT l'appel.\nMontant : ${euros(p.montant_total)} HT${p.paiement === "mensuel" ? `, soit ${euros(p.montant_total / p.duree_mois)} par mois` : ""}.\n\nVous pouvez consulter le détail et l'accepter en ligne ici${p.stripe_lien_url ? " (le paiement par prélèvement ou carte vous sera proposé juste après)" : ""} :\n${pageClient}\n\nJe reste disponible pour en parler.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants\n06 17 75 56 17`;
       const boite = (window.FIL_ROUGE_CONFIG || {}).emailFilRouge || "";
       window.open(window.FilRougeContact.lienGmail(suivi.contact_email, essai ? "Votre essai de 30 jours — Fil Rouge Apprenants" : "Votre proposition — Fil Rouge Apprenants", texte, boite), "_blank", "noopener");
@@ -5231,28 +5244,28 @@
             p.demande_message ? h("p", { class: "texte-libre" }, p.demande_message) : null)
         : null,
       titre.bloc,
-      essai ? nb.bloc : h("div", { class: "deux-colonnes" }, nb.bloc, duree.bloc),
+      essai ? h("div", { class: "deux-colonnes" }, nb.bloc, total.bloc) : h("div", { class: "deux-colonnes" }, nb.bloc, duree.bloc),
       essai ? null : h("div", { class: "deux-colonnes" }, appels.bloc, prix.bloc),
-      essai ? null : aideTarif,
+      essai ? h("p", { class: "aide" }, "Forfait de lancement de l'essai : 490 € HT au lieu de 600 € HT (40 appels × 15 €). Modifiable si besoin.") : aideTarif,
       essai ? null : h("div", { class: "deux-colonnes" }, total.bloc, paiement.bloc),
       resume,
       description.bloc,
       mot.bloc,
       zoneMsg,
-      h("div", { class: "actions-ligne" }, bEnregistrer, p.statut !== "payee" && !essai && p.paiement === "unique" ? bLien : null, bEnvoyer),
+      h("div", { class: "actions-ligne" }, bEnregistrer, p.statut !== "payee" && (essai || p.paiement === "unique") ? bLien : null, bEnvoyer),
       !essai && p.paiement === "mensuel"
         ? h("p", { class: "aide" }, "Paiement : après avoir accepté, le centre met en place le prélèvement SEPA sur sa page (IBAN, une seule fois). Chaque mois, tu prélèves l'échéance depuis l'onglet Comptabilité, au réel des appels passés.")
         : null,
-      essai || p.paiement === "mensuel" ? null : p.stripe_lien_url
+      !essai && p.paiement === "mensuel" ? null : p.stripe_lien_url
         ? h("p", { class: lienAJour ? "aide" : "message message-impaye" },
             lienAJour ? "Lien de paiement : " : "Le montant ou le mode de paiement a changé : recrée le lien. Ancien lien : ",
             h("a", { href: p.stripe_lien_url, target: "_blank", rel: "noopener" }, p.stripe_lien_url))
-        : essai || p.paiement === "mensuel" ? null : h("p", { class: "aide" }, "Pas encore de lien de paiement."),
+        : !essai && p.paiement === "mensuel" ? null : h("p", { class: "aide" }, "Pas encore de lien de paiement."),
       h("p", { class: "aide" }, "Page à envoyer au client : ", h("a", { href: pageClient, target: "_blank", rel: "noopener" }, "voir la page"), " · ",
         (() => { const b = h("button", { type: "button", class: "bouton-lien" }, "copier le lien"); b.addEventListener("click", async () => { try { await navigator.clipboard.writeText(pageClient); b.textContent = "lien copié ✓"; } catch (e) { window.prompt("Lien à copier :", pageClient); } }); return b; })()),
 
       h("div", { class: "actions-secondaires" },
-        essai ? null : p.statut !== "payee" ? statutBouton("Marquer payée", "payee", { payee_le: new Date().toISOString() }) : statutBouton("Annuler « payée »", "envoyee", { payee_le: null }),
+        p.statut !== "payee" ? statutBouton("Marquer payée", "payee", { payee_le: new Date().toISOString() }) : statutBouton("Annuler « payée »", "envoyee", { payee_le: null }),
         p.statut !== "refusee" && p.statut !== "payee" ? statutBouton("Refusée", "refusee") : null,
         bSupprimer));
   }

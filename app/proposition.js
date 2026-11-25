@@ -39,13 +39,13 @@
     $("pr-accord-bloc").hidden = true;
     const essai = p.type_offre === "essai";
     $("pr-confirmation-texte").textContent = essai
-      ? `${nom ? `Accepté par ${nom}` : "Accepté"}${date ? ` le ${dateFr(date)}` : ""}. Je vous appelle sous 48 h pour choisir avec vous les apprenants à risque, fixer l'objectif de reprise et démarrer votre essai de 30 jours.`
+      ? `${nom ? `Accepté par ${nom}` : "Accepté"}${date ? ` le ${dateFr(date)}` : ""}. ${lien ? "Vous pouvez régler le forfait en ligne dès maintenant. " : ""}Je vous appelle sous 48 h pour choisir avec vous les 20 apprenants appelés, les 20 apprenants témoins et ce qu'on mesurera, puis démarrer votre essai de 30 jours.`
       : `${nom ? `Accepté par ${nom}` : "Accepté"}${date ? ` le ${dateFr(date)}` : ""}. ${lien ? "Vous pouvez régler en ligne dès maintenant :" : "Je vous recontacte sous 48 h pour démarrer."}`;
     $("pr-confirmation").hidden = false;
     if (!essai && p.paiement === "mensuel") {
       $("pr-confirmation-texte").textContent = `${nom ? `Accepté par ${nom}` : "Accepté"}${date ? ` le ${dateFr(date)}` : ""}. Dernière étape : mettre en place le prélèvement automatique, ci-dessous.`;
       brancherMandat();
-    } else if (!essai) montrerPaiement(lien);
+    } else montrerPaiement(lien);
   }
 
   // --- Mandat de prélèvement SEPA (fonction serveur « prelevement ») ---
@@ -126,18 +126,21 @@
     if (p.message_client) { $("pr-mot").textContent = p.message_client; $("pr-mot").hidden = false; }
 
     if (essai) {
-      $("pr-montant").textContent = "Gratuit";
-      $("pr-ht").hidden = true;
+      $("pr-montant").textContent = euros(p.montant_total);
       $("pr-detail").textContent = [
-        `${pluriel(p.nb_apprenants, "apprenant", "apprenants")} à risque`,
-        pluriel(p.duree_jours || 30, "jour", "jours"),
+        `${pluriel(p.nb_apprenants, "apprenant", "apprenants")} à risque appelés`,
         "2 appels chacun",
+        `${pluriel(p.nb_apprenants, "apprenant", "apprenants")} témoins non appelés`,
+        pluriel(p.duree_jours || 30, "jour", "jours"),
       ].join(" · ");
-      $("pr-mensuel").textContent = "Objectif de reprise fixé ensemble · s'il est atteint, suivi au tarif normal pendant 3 mois · sinon, rien à payer";
+      const normal = (p.nb_apprenants || 20) * 2 * 15;
+      $("pr-mensuel").textContent = Number(p.montant_total) < normal
+        ? `Offre de lancement : forfait au lieu de ${euros(normal)} HT au tarif normal (${(p.nb_apprenants || 20) * 2} appels × 15 €). Bilan chiffré au 30e jour, puis vous décidez librement de continuer ou non.`
+        : "Bilan chiffré au 30e jour, puis vous décidez librement de continuer ou non.";
       $("pr-mensuel").hidden = false;
       $("pr-accord-titre").textContent = "Lancer mon essai de 30 jours";
-      $("pr-accord-texte").textContent = "Je demande l'essai de 30 jours sur les apprenants à risque de mon organisme. Nous fixons ensemble un objectif de reprise au démarrage : s'il est atteint au bilan, le suivi continue au tarif normal pendant 3 mois ; sinon, je ne dois rien.";
-      $("pr-accepter").textContent = "Je lance mon essai de 30 jours";
+      $("pr-accord-texte").textContent = `Je commande l'essai de 30 jours sur les apprenants à risque de mon organisme, pour un forfait de ${euros(p.montant_total)} HT payable à la commande. Au bilan du 30e jour, je décide librement de continuer ou non.`;
+      $("pr-accepter").textContent = "Je commande mon essai de 30 jours";
     } else {
       $("pr-montant").textContent = euros(p.montant_total);
       $("pr-detail").textContent = [

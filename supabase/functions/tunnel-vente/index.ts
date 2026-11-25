@@ -165,7 +165,7 @@ Deno.serve(async (req: Request) => {
         html: gabarit(
           p(`Bonjour ${echapper(prenom)},`)
           + p(type === "essai"
-            ? `Merci pour votre demande d'essai de 30 jours pour <strong>${echapper(f.organisme)}</strong>. Je vous appelle sous 48 h pour organiser le démarrage : choisir ensemble 20 apprenants à risque, un groupe comparable que je n'appellerai pas, et l'objectif de reprise adapté à votre plateforme.`
+            ? `Merci pour votre demande d'essai de 30 jours pour <strong>${echapper(f.organisme)}</strong>. Je vous appelle sous 48 h pour organiser le démarrage : choisir ensemble 20 apprenants à risque, 20 apprenants comparables que je n'appellerai pas, et ce qu'on mesurera selon votre plateforme. L'essai est un forfait de lancement de 490 € HT (au lieu de 600 €), payable à la commande ; je vous envoie le lien de paiement avec la proposition.`
             : `Merci pour votre demande de devis pour <strong>${echapper(f.organisme)}</strong>. Je vous envoie une proposition adaptée à vos formations sous 48 h.`)
           + p("Une question d'ici là ? Répondez simplement à cet email.")
           + p("Belle journée,<br>Émilie Rachas<br>Fil Rouge Apprenants"),
@@ -200,7 +200,7 @@ Deno.serve(async (req: Request) => {
     const essai = a.type_offre === "essai";
     const montant = Number(a.montant_total) || 0;
     const lien = typeof a.lien_paiement === "string" && /^https:\/\/(buy|checkout)\.stripe\.com\//.test(a.lien_paiement) ? a.lien_paiement : null;
-    const prix = essai ? "gratuit" : `${euros(montant)} HT${a.paiement === "mensuel" ? `, soit ${euros(montant / Math.max(1, a.duree_mois))} par mois` : ""}`;
+    const prix = essai ? `forfait de ${euros(montant)} HT` : `${euros(montant)} HT${a.paiement === "mensuel" ? `, soit ${euros(montant / Math.max(1, a.duree_mois))} par mois` : ""}`;
 
     const resultats = await Promise.allSettled([
       envoyer({
@@ -211,7 +211,7 @@ Deno.serve(async (req: Request) => {
           p(`<strong>${echapper(a.organisme)}</strong> vient d'accepter en ligne : <strong>${echapper(a.titre)}</strong> (${prix}).`)
           + p(`Par ${echapper(nom)}${fonction ? ` (${echapper(fonction)})` : ""}, <a href="mailto:${echapper(email)}">${echapper(email)}</a>.`)
           + p(essai
-            ? "La fiche est passée en « Test gratuit ». Prochaine étape : appeler le centre pour choisir les 20 apprenants à risque, le groupe témoin et l'objectif de reprise."
+            ? (lien ? "La fiche est passée en « Essai 30 jours ». Le lien de paiement lui a été envoyé. " : "La fiche est passée en « Essai 30 jours ». Pas encore de lien de paiement : crée-le depuis la fiche. ") + "Prochaine étape : appeler le centre pour choisir les 20 apprenants à risque, les 20 témoins et ce qu'on mesurera."
             : lien ? "La fiche est passée en « Client ». Le lien de paiement lui a été envoyé." : "La fiche est passée en « Client ». Pas encore de lien de paiement : crée-le depuis la fiche."),
           { texte: "Ouvrir la fiche", lien: `${SITE}#/organisme/${a.organisme_id}/proposition` },
         ),
@@ -222,16 +222,16 @@ Deno.serve(async (req: Request) => {
         html: gabarit(
           p(`Bonjour ${echapper(nom.split(" ")[0])},`)
           + p(essai
-            ? `C'est confirmé : votre <strong>essai de 30 jours sur vos apprenants à risque</strong> pour ${echapper(a.organisme)} est enregistré. Je vous appelle sous 48 h pour choisir les apprenants ensemble, fixer l'objectif de reprise et démarrer les appels. S'il est atteint au bilan, le suivi continue au tarif normal pendant 3 mois ; sinon, vous ne devez rien.`
+            ? `C'est confirmé : votre <strong>essai de 30 jours sur vos apprenants à risque</strong> pour ${echapper(a.organisme)} est enregistré. Le forfait est de ${euros(montant)} HT.${lien ? " Vous pouvez le régler en ligne, par carte ou prélèvement, avec le bouton ci-dessous." : " Je vous envoie le lien de paiement sous 48 h."} Je vous appelle sous 48 h pour choisir les apprenants ensemble et démarrer les appels. Au bilan du 30e jour, vous décidez librement de continuer ou non.`
             : `Merci, votre accord pour « ${echapper(a.titre)} » (${prix}) est bien enregistré.${lien ? " Vous pouvez régler en ligne, par prélèvement sur RIB ou par carte bancaire, avec le bouton ci-dessous." : " Je vous recontacte sous 48 h pour démarrer."}`)
           + p("Une question ? Répondez simplement à cet email.")
           + p("Belle journée,<br>Émilie Rachas<br>Fil Rouge Apprenants"),
-          lien && !essai ? { texte: "Régler en ligne", lien } : undefined,
+          lien ? { texte: "Régler en ligne", lien } : undefined,
         ),
       }),
     ]);
     const emails = resultats.every((r) => r.status === "fulfilled" && r.value === true);
-    return reponse(origine, 200, { ok: true, type_offre: a.type_offre, lien_paiement: essai ? null : lien, emails });
+    return reponse(origine, 200, { ok: true, type_offre: a.type_offre, lien_paiement: lien, emails });
   }
 
   // Diagnostic minimal : la clé Brevo est-elle enregistrée ? (oui / non, rien d'autre)

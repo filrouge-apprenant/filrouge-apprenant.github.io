@@ -65,6 +65,9 @@ html { scroll-behavior: smooth; }
 .op-montant span { font-family: var(--police-texte); font-size: 1rem; color: var(--texte-doux); }
 .op-detail { margin: 0 0 0.25rem; font-weight: 700; }
 .op-remise { margin: 0 0 1.25rem; color: var(--fil); }
+.op-promo { display: inline-block; margin: 0 0 0.5rem; padding: 0.15rem 0.6rem; border: 1px solid var(--fil); border-radius: 999px; color: var(--fil); font-size: 0.85rem; font-weight: 600; letter-spacing: 0.02em; }
+.op-barre { margin: 0.25rem 0 0.75rem; color: var(--texte-doux); }
+.op-barre s { text-decoration-color: var(--fil); text-decoration-thickness: 1.5px; }
 .op-securite, .op-indispo { margin: 1rem 0 0; font-size: 0.9rem; color: var(--texte-doux); }
 
 .op-grille { width: 100%; border-collapse: collapse; margin: 0.5rem 0 1rem; }
