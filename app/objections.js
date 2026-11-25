@@ -945,7 +945,7 @@
 
   // ---------------------------------------------------------------------------
   // Panneau « un bouton par thème »
-  //   options : { h, contact, organisme, fonction, titre }
+  //   options : { h, contact, organisme, fonction, titre, compact }
   // ---------------------------------------------------------------------------
   function panneau(options) {
     const h = options.h;
@@ -1118,6 +1118,20 @@
     recherche.addEventListener("input", filtrer);
 
     dessinerProfil();
+
+    // Version compacte (colonne de droite du script) : seulement les boutons,
+    // et la fenêtre de réponse s'ouvre à gauche de la colonne, pas par-dessus.
+    if (options.compact) {
+      dialogue.classList.add("obj-dialogue-compact");
+      return h("div", { class: "obj-panneau obj-panneau-compact" },
+        h("h2", { class: "obj-compact-titre" }, options.titre || "Objections"),
+        zoneProfil,
+        recherche,
+        zoneFrequentes,
+        groupes.map((g) => g.section),
+        aucune,
+        dialogue);
+    }
 
     return h("div", { class: "obj-panneau pile" },
       h("div", { class: "section-titre" }, h("h2", {}, options.titre || "Traitement d'objection")),

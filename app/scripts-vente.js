@@ -7,7 +7,8 @@
 //                                           d'un organisme : le nom du contact
 //                                           remplace « Madame X » dans les phrases.
 //
-// Chaque partie se déplie, et un bouton « Écouter » lit le texte à voix haute
+// Démarchage : script déroulé d'un trait, objections fixées à droite.
+// Objections : chaque partie se déplie, et un bouton « Écouter » lit le texte à voix haute
 // (voix du navigateur, gratuite, rien n'est envoyé ailleurs).
 // Le contenu se modifie ici, dans DEMARCHAGE et OBJECTIONS, sans toucher au reste.
 // Sécurité : tout le texte passe par h() (textContent), jamais innerHTML.
@@ -167,6 +168,45 @@
       return d;
     }
 
+    // -------------------------------------------------------------------------
+    // Démarchage : tout le script déroulé d'un trait (25/11/2026).
+    // Pas de titres d'étapes, sauf « Les questions de découverte ».
+    // « Avant l'appel », « Passer le standard » et « Après l'appel » ne sont pas
+    // affichés ; la messagerie est un bouton dans la colonne de droite.
+    // Les données (DEMARCHAGE) ne changent pas : le simulateur les utilise aussi.
+    // -------------------------------------------------------------------------
+    const PARTIES_MASQUEES = /avant l'appel|passer le standard|après l'appel|messagerie/i;
+    const GARDER_TITRE = /découverte/i;
+
+    function blocDeroule(b, contact) {
+      if (b.dire) return h("p", { class: "sv-dire sv-dire-flux" }, `« ${remplir(b.dire, contact)} »`);
+      if (b.conseil) return h("p", { class: "sv-conseil" }, b.conseil);
+      if (b.variante) return h("p", { class: "sv-variante" }, remplir(b.variante, contact));
+      if (b.liste) return h("ul", { class: "sv-liste" }, b.liste.map((t) => h("li", {}, t)));
+      if (b.questions) return h("ol", { class: "sv-questions" }, b.questions.map((q) => h("li", {}, `« ${remplir(q, contact)} »`)));
+      return null;
+    }
+
+    function scriptDeroule(contact) {
+      const parties = DEMARCHAGE.parties.filter((p) => !PARTIES_MASQUEES.test(p.titre));
+      return h("div", { class: "sv-flux" }, parties.map((p) => h("div", { class: "sv-flux-partie" },
+        GARDER_TITRE.test(p.titre) ? h("h2", { class: "sv-flux-titre" }, p.titre) : null,
+        p.blocs.map((b) => blocDeroule(b, contact)))));
+    }
+
+    // Colonne de droite : messagerie (déplier) + boutons d'objection, toujours visibles.
+    function colonneDroite(org) {
+      const contact = org && org.contact;
+      const messagerie = DEMARCHAGE.parties.find((p) => /messagerie/i.test(p.titre));
+      return h("aside", { class: "sv-cote", "aria-label": "Objections" },
+        messagerie ? h("details", { class: "sv-partie sv-messagerie" },
+          h("summary", {}, h("span", {}, "📞 Messagerie")),
+          h("div", { class: "sv-corps" }, messagerie.blocs.map((b) => blocDeroule(b, contact)))) : null,
+        window.FilRougeObjections
+          ? window.FilRougeObjections.panneau({ h, contact, fonction: org && org.fonction, organisme: org && org.nom, titre: "Objections", compact: true })
+          : h("p", { class: "aide" }, "Objections indisponibles."));
+    }
+
     async function route(morceaux) {
       arreterLecture();
       const cle = ONGLETS[morceaux[0]] ? morceaux[0] : "demarchage";
@@ -196,6 +236,29 @@
         parties.forEach((d) => { d.open = !fermer; });
         toutOuvrir.textContent = fermer ? "Tout déplier" : "Tout replier";
       });
+
+      if (cle === "demarchage") {
+        const ecouterTout = voixDispo ? h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit" }, "🔊 Écouter") : null;
+        if (ecouterTout) ecouterTout.addEventListener("click", () => lire(
+          DEMARCHAGE.parties.filter((p) => !PARTIES_MASQUEES.test(p.titre)).map((p) => texteParlé(p, org && org.contact)).join(" \n"), ecouterTout));
+        return afficher(
+          h("div", { class: "pile sv-page" },
+            h("div", { class: "entete-action" },
+              h("div", {},
+                h("p", { class: "surtitre" },
+                  org
+                    ? h("a", { href: `#/organisme/${org.id}`, class: "lien-interne" }, `← ${org.nom}`)
+                    : h("a", { href: "#/prospection", class: "lien-interne" }, "← Prospection")),
+                h("h1", {}, org && org.contact ? `Script · ${org.contact}` : "Script de démarchage"),
+                h("p", { class: "chapo" }, script.chapo)),
+              ecouterTout),
+            h("div", { class: "filtres" },
+              onglet("demarchage", "Démarchage"),
+              onglet("objections", "Toutes les objections")),
+            h("div", { class: "sv-deux-colonnes" },
+              h("section", { class: "sv-script", "aria-label": script.titre }, scriptDeroule(org && org.contact)),
+              colonneDroite(org))));
+      }
 
       afficher(
         h("div", { class: "pile" },

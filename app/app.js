@@ -112,7 +112,7 @@
     boutonMenu.hidden = !avecMenu;
     if (!avecMenu) ouvrirMenu(false);
     contenu.replaceChildren(...elements.filter((e) => e !== null && e !== undefined && e !== false));
-    document.body.classList.toggle("page-large", !!contenu.querySelector(".fiche-page"));
+    document.body.classList.toggle("page-large", !!contenu.querySelector(".fiche-page, .sv-page"));
     document.body.classList.toggle("page-pleine", !!contenu.querySelector(".entr-avec-aide"));
     // Onglets trop larges pour un téléphone : on fait défiler jusqu'à l'onglet actif.
     const ongletActif = contenu.querySelector(".onglet[aria-current='page']");

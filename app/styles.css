@@ -1613,3 +1613,29 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 .grp-texte-apercu { white-space: pre-wrap; margin: 0; }
 .erreur-texte { color: var(--fil); font-size: 0.9rem; margin: 0; }
 .grp-ligne input[type="checkbox"] { width: 1.1rem; height: 1.1rem; flex: 0 0 auto; margin: 0; }
+
+/* ===========================================================================
+   Script de démarchage déroulé + objections à droite (25/11/2026)
+   =========================================================================== */
+.sv-deux-colonnes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+@media (min-width: 64rem) {
+  .sv-deux-colonnes { grid-template-columns: minmax(0, 1fr) minmax(19rem, 25rem); }
+  .sv-cote { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; padding-right: 0.3rem; }
+  .obj-dialogue.obj-dialogue-compact[open] { right: calc(min(25rem, 30vw) + 3rem); top: 4rem; }
+}
+.sv-page .sv-script { max-width: 48rem; }
+.sv-flux { display: flex; flex-direction: column; gap: 1.4rem; }
+.sv-flux-partie { display: flex; flex-direction: column; gap: 0.7rem; }
+.sv-flux-partie + .sv-flux-partie { padding-top: 1.4rem; border-top: 1px solid var(--filet); }
+.sv-flux-titre { margin: 0; font-size: 1.15rem; color: var(--violet); }
+.sv-dire-flux { font-size: 1.02rem; }
+.sv-flux .sv-variante { margin: 0; }
+.sv-cote { display: flex; flex-direction: column; gap: 0.8rem; }
+.sv-messagerie > summary { padding: 0.6rem 0.9rem; }
+.obj-panneau-compact { display: flex; flex-direction: column; gap: 0.6rem; }
+.obj-compact-titre { margin: 0; font-size: 1.05rem; color: var(--violet); }
+.obj-panneau-compact .obj-grille { grid-template-columns: 1fr 1fr; gap: 0.35rem; }
+.obj-panneau-compact .obj-bouton { font-size: 0.85rem; padding: 0.5rem 0.6rem; min-height: 2.4rem; }
+.obj-panneau-compact .obj-profils .filtre { font-size: 0.8rem; padding: 0.25rem 0.55rem; }
+.obj-panneau-compact .obj-frequentes { padding: 0.6rem; }
+.obj-panneau-compact .obj-groupe-titre { font-size: 0.88rem; }
