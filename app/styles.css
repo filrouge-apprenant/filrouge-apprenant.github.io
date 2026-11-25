@@ -1604,3 +1604,12 @@ label.scr-case input { margin-top: 0.2rem; width: auto; flex: 0 0 auto; }
 .email-suivi.email-delivre { border-left-color: #2e7d32; }
 .email-suivi.email-ouvert { border-left-color: var(--violet); }
 .email-suivi.email-rejete, .email-suivi.email-spam, .email-suivi.email-erreur { border-left-color: var(--fil); }
+
+/* Machine de prospection : envoi groupé (25/11/2026) */
+.grp-liste { max-height: 26rem; overflow-y: auto; border: 1px solid var(--filet); border-radius: var(--rayon); }
+.grp-ligne { display: flex !important; flex-direction: row !important; justify-content: flex-start; text-align: left; font-weight: normal; align-items: center; gap: 0.6rem; padding: 0.45rem 0.7rem; border-bottom: 1px solid var(--filet); cursor: pointer; }
+.grp-ligne:last-child { border-bottom: none; }
+.grp-nom { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.grp-texte-apercu { white-space: pre-wrap; margin: 0; }
+.erreur-texte { color: var(--fil); font-size: 0.9rem; margin: 0; }
+.grp-ligne input[type="checkbox"] { width: 1.1rem; height: 1.1rem; flex: 0 0 auto; margin: 0; }

@@ -317,7 +317,7 @@
     const remplacer = (el, ...enfants) => el.replaceChildren(...enfants.flat().filter((x) => x !== null && x !== undefined && x !== false));
 
     const ONGLETS = [
-      ["", "Accueil"], ["simulateur", "🧮 Simulateur"], ["priorites", "🎯 Priorités /100"], ["plan", "📅 Plan 30 jours"],
+      ["", "Accueil"], ["simulateur", "🧮 Simulateur"], ["groupe", "📨 Envoi groupé"], ["priorites", "🎯 Priorités /100"], ["plan", "📅 Plan 30 jours"],
       ["scripts", "🗣️ Approches"], ["methodes", "🧭 25 méthodes"], ["avance", "🚀 Coûts et avance"],
     ];
     const DIFF = { 1: "Facile", 2: "Moyen", 3: "Difficile" };
@@ -861,11 +861,158 @@
       return dialogue;
     }
 
+    // -------------------------------------------------------------------------
+    // Envoi groupé (25/11/2026) : un email de prospection avec le simulateur,
+    // personnalisé pour chaque centre ({contact}, {organisme}, lien du simulateur
+    // à son nom), envoyé en un clic à plusieurs centres par Brevo, un email par
+    // centre (jamais de destinataires en copie), avec accusé de réception.
+    // Garde-fous : 20 centres au plus par clic ; jamais un client, un centre
+    // « perdu » ou exclu (YouSchool, gros groupe…) ; jamais un centre déjà écrit
+    // par Brevo depuis moins de 14 jours ; confirmation avant l'envoi.
+    // -------------------------------------------------------------------------
+    const MAX_GROUPE = 20;
+    const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    async function envoiGroupe() {
+      const Ct = window.FilRougeContact;
+      const EO = window.FilRougeEmailsOrganisme ? window.FilRougeEmailsOrganisme({ sb, h }) : null;
+      const [{ data: orgs, error }, recents] = await Promise.all([
+        sb.from("organismes").select("id, nom, organismes_suivi_commercial ( etape, contact_nom, contact_email, score_criteres )").order("nom"),
+        sb.from("emails_organismes").select("organisme_id, envoye_le").gte("envoye_le", new Date(Date.now() - 14 * 86400000).toISOString()),
+      ]);
+      if (error) return afficher(cadre("groupe", null, message("erreur", texteErreur(error))));
+      const dejaEcrit = new Map();
+      for (const e of (recents && recents.data) || []) dejaEcrit.set(e.organisme_id, e.envoye_le);
+
+      const centres = (orgs || []).map((o) => {
+        const s = (Array.isArray(o.organismes_suivi_commercial) ? o.organismes_suivi_commercial[0] : o.organismes_suivi_commercial) || {};
+        const n = noter(s.score_criteres);
+        const email = String(s.contact_email || "").trim();
+        let raison = null;
+        if (!email) raison = "pas d'email sur la fiche";
+        else if (!EMAIL_OK.test(email)) raison = "email non valable";
+        else if (s.etape === "client") raison = "déjà client";
+        else if (s.etape === "perdu") raison = "marqué perdu";
+        else if (n.exclu) raison = `exclu : ${n.exclu.titre.split(" (")[0].toLowerCase()}`;
+        else if (dejaEcrit.has(o.id)) raison = `déjà écrit le ${new Date(dejaEcrit.get(o.id)).toLocaleDateString("fr-FR")}`;
+        return { id: o.id, nom: o.nom, contact: s.contact_nom || "", email, score: n.total, priorite: n.priorite, raison };
+      }).sort((a, b) => b.score - a.score || a.nom.localeCompare(b.nom));
+      const eligibles = centres.filter((c) => !c.raison);
+      const ecartes = centres.filter((c) => c.raison);
+
+      // --- Le message (modèle avec ses variables, rempli pour chaque centre à l'envoi)
+      const envoyer = h("button", { type: "button", class: "bouton", id: "grp-envoyer" }, "📨 Envoyer aux centres cochés");
+      const champObjet = h("input", { id: "grp-objet", type: "text" });
+      const champTexte = h("textarea", { id: "grp-texte", rows: "14" });
+      const blocMenus = h("div", {}, h("p", { class: "aide" }, "Chargement des e-mails tout prêts…"));
+      const MODELE_DEFAUT = {
+        objet: "Combien vous coûtent les abandons ? Le calcul pour {organisme}",
+        texte: "Bonjour {contact},\n\nEn formation à distance, chaque apprenant qui décroche, c'est du chiffre d'affaires perdu, et souvent un risque au moment de l'audit Qualiopi.\n\nJ'ai préparé pour {organisme} un calcul d'une minute : vous entrez vos chiffres (nombre d'apprenants, prix moyen, taux d'abandon) et vous voyez ce que les abandons vous coûtent chaque année, et à partir de combien d'abandons évités un suivi téléphonique est remboursé.\n\n{lien_simulateur}\n\nVos chiffres restent dans votre navigateur : rien n'est enregistré.\n\nSi le résultat vous parle, on peut le vérifier sur vos vrais apprenants : 30 jours d'essai sur 20 apprenants à risque, avec un bilan chiffré à la fin.\n\nBelle journée,\nÉmilie Rachas\nFil Rouge Apprenants\n06 17 75 56 17",
+      };
+      let pret = false;
+      const mettre = (m) => { champObjet.value = m.objet; champTexte.value = m.texte; if (pret) majApercu(); };
+      const M = modeles ? modeles() : null;
+      if (M) {
+        M.charger().then((liste) => {
+          const dispo = liste.filter((m) => m.actif && m.destinataire === "organisme");
+          if (!dispo.length) { remplacer(blocMenus, h("p", { class: "aide" }, "Texte de base (aucun e-mail « organisme » dans Modèles d'emails).")); mettre(MODELE_DEFAUT); return; }
+          const initial = dispo.find((m) => /\{lien_simulateur(_vierge)?\}/.test(m.texte) && /premier/i.test(m.titre)) || dispo.find((m) => /\{lien_simulateur(_vierge)?\}/.test(m.texte)) || dispo[0];
+          const menus = M.menus(liste, "grp-email", (m) => mettre(m || MODELE_DEFAUT), { destinataire: "organisme", initial: initial.id });
+          mettre(menus.modeleChoisi() || MODELE_DEFAUT);
+          remplacer(blocMenus, menus.bloc);
+        }).catch(() => { remplacer(blocMenus, h("p", { class: "aide" }, "Texte de base utilisé.")); mettre(MODELE_DEFAUT); });
+      } else { remplacer(blocMenus); mettre(MODELE_DEFAUT); }
+
+      const remplirPour = (c) => {
+        const lien = lienVierge(c.nom);
+        return Ct.remplirModeleEmail({ objet: champObjet.value, texte: champTexte.value },
+          { moi: "Émilie", organisme: c.nom, contact: c.contact, lien_simulateur: lien, lien_simulateur_vierge: lien, date_rdv: "" });
+      };
+
+      // --- Les centres
+      const cases = new Map();
+      const compteur = h("strong", {});
+      const apercu = h("div", { class: "carte pile-serree grp-apercu" });
+      const choisis = () => eligibles.filter((c) => cases.get(c.id).checked);
+      function majApercu() {
+        const sel = choisis();
+        compteur.textContent = `${sel.length} centre${sel.length > 1 ? "s" : ""} coché${sel.length > 1 ? "s" : ""} (${MAX_GROUPE} au plus par envoi)`;
+        envoyer.disabled = !sel.length || sel.length > MAX_GROUPE || !EO;
+        const c = sel[0] || eligibles[0];
+        if (!c) { remplacer(apercu, h("p", { class: "aide" }, "Aucun centre à qui écrire pour l'instant.")); return; }
+        const r = remplirPour(c);
+        remplacer(apercu, h("p", { class: "surtitre" }, `Aperçu pour ${c.nom} (${c.email})`),
+          h("p", {}, h("strong", {}, r.objet)), h("p", { class: "grp-texte-apercu" }, r.texte));
+      }
+      const lignes = eligibles.map((c) => {
+        const cb = h("input", { type: "checkbox", value: c.id, "aria-label": c.nom });
+        cb.addEventListener("change", majApercu);
+        cases.set(c.id, cb);
+        return h("label", { class: "grp-ligne" }, cb,
+          h("span", { class: "grp-nom" }, h("strong", {}, c.nom), ` · ${c.contact || "contact sans nom"} · ${c.email}`),
+          h("span", { class: `pastille pastille-${(LIBELLE_PRIORITE[c.priorite] || ["neutre"])[0]}` }, `${c.priorite} · ${c.score}/100`));
+      });
+      const cocher = (n) => { eligibles.forEach((c, i) => { cases.get(c.id).checked = i < n; }); majApercu(); };
+      const bMeilleurs = h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit" }, "Cocher les 15 mieux notés");
+      const bAucun = h("button", { type: "button", class: "bouton bouton-secondaire bouton-petit" }, "Tout décocher");
+      bMeilleurs.addEventListener("click", () => cocher(15));
+      bAucun.addEventListener("click", () => cocher(0));
+      champObjet.addEventListener("input", majApercu);
+      champTexte.addEventListener("input", majApercu);
+
+      // --- Envoi
+      const progres = h("div", { class: "pile-serree", "aria-live": "polite" });
+      envoyer.addEventListener("click", async () => {
+        const sel = choisis();
+        if (!sel.length) return;
+        const reste = Ct.variablesRestantes(remplirPour(sel[0]).objet + remplirPour(sel[0]).texte);
+        if (reste.length) { remplacer(progres, message("erreur", `Il reste à compléter : {${reste.join("}, {")}}.`)); return; }
+        if (!window.confirm(`Envoyer cet email à ${sel.length} centre${sel.length > 1 ? "s" : ""} ?\n\nUn email séparé par centre, avec son nom et son lien. Rappel : uniquement après l'accord écrit de YouSchool.`)) return;
+        envoyer.disabled = true;
+        let ok = 0;
+        const lignesRes = [];
+        for (const [i, c] of sel.entries()) {
+          remplacer(progres, h("p", { class: "aide" }, `Envoi ${i + 1} / ${sel.length} : ${c.nom}…`), ...lignesRes);
+          const r = remplirPour(c);
+          const res = await EO.envoyer({ organismeId: c.id, destinataire: c.email, objet: r.objet, texte: r.texte, modele: "Envoi groupé simulateur" });
+          if (res.ok) { ok += 1; cases.get(c.id).checked = false; cases.get(c.id).disabled = true; }
+          lignesRes.push(h("p", { class: res.ok ? "aide" : "erreur-texte" }, `${res.ok ? "✅" : "⚠️"} ${c.nom} : ${res.ok ? "envoyé" : res.texte}`));
+          if (!res.ok && /branché|clé/.test(res.texte)) break;
+          await new Promise((fin) => setTimeout(fin, 1200));
+        }
+        remplacer(progres, message(ok === sel.length ? "info" : "erreur", `${ok} email${ok > 1 ? "s" : ""} envoyé${ok > 1 ? "s" : ""} sur ${sel.length}. Accusés de réception : fiche de chaque centre › Échanges › Email. Chaque envoi est noté dans l'historique du centre.`), ...lignesRes);
+        majApercu();
+      });
+
+      afficher(cadre("groupe", "Un même email de prospection avec le simulateur, personnalisé et envoyé en un clic à plusieurs centres.",
+        EO ? null : message("erreur", "Le module d'envoi par Brevo n'est pas chargé : recharge la page (Ctrl + F5)."),
+        h("section", { class: "carte carte-large pile-serree" },
+          h("h2", {}, "1. Le message"),
+          h("p", { class: "aide" }, "{contact}, {organisme} et {lien_simulateur} se remplacent pour chaque centre. Le lien ouvre le simulateur au nom du centre, champs vides : c'est lui qui entre ses chiffres."),
+          blocMenus,
+          h("label", { class: "sim-champ", for: "grp-objet" }, "Objet", champObjet),
+          h("label", { class: "sim-champ", for: "grp-texte" }, "Message", champTexte)),
+        h("section", { class: "carte carte-large pile-serree" },
+          h("h2", {}, "2. Les centres"),
+          h("p", { class: "aide" }, `${eligibles.length} centres peuvent recevoir l'email, classés par note /100. Ne sont jamais proposés : clients, centres perdus ou exclus, sans email, ou déjà écrits par Brevo depuis moins de 14 jours.`),
+          h("div", { class: "actions-ligne" }, bMeilleurs, bAucun, compteur),
+          h("div", { class: "grp-liste" }, ...lignes),
+          ecartes.length ? partie(`Centres écartés (${ecartes.length})`, false,
+            ...ecartes.map((c) => h("p", { class: "aide" }, `${c.nom} : ${c.raison}`))) : null),
+        h("section", { class: "carte carte-large pile-serree" },
+          h("h2", {}, "3. Vérifier et envoyer"),
+          apercu,
+          h("p", { class: "aide" }, "Un email séparé par centre (personne ne voit les autres destinataires), par Brevo avec accusé de réception, et le lien « Vos préférences » + « STOP » en bas. Brevo gratuit : 300 emails par jour au total."),
+          h("div", { class: "actions-ligne" }, envoyer), progres)));
+      pret = true;
+      majApercu();
+    }
+
     async function route(morceaux) {
       const cle = morceaux[0] || "";
       const orgId = morceaux.find((m) => UUID.test(m)) || null;
       if (cle === "simulateur") return simulateur(orgId);
       if (cle === "priorites") return priorites();
+      if (cle === "groupe") return envoiGroupe();
       if (cle === "plan") return plan();
       if (cle === "scripts") return approches();
       if (cle === "methodes") return methodes();
